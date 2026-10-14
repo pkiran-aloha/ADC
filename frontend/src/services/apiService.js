@@ -5,8 +5,11 @@ import {
   INITIAL_PHASE_LINES,
   INITIAL_PHASE_RANGES,
   INITIAL_GRAPH_NOTES,
-  INITIAL_ABC_ENTRIES
-} from '../data/mockData';
+  INITIAL_ABC_CONFIGURATIONS,
+  INITIAL_ABC_ENTRIES,
+  SEED_VERSION,
+  SEED_AS_OF_DATE
+} from '../data/mockData.js';
 
 const STORAGE_KEYS = {
   CLIENTS: 'welina_clients',
@@ -16,14 +19,16 @@ const STORAGE_KEYS = {
   PHASE_RANGES: 'welina_phase_ranges',
   GRAPH_NOTES: 'welina_graph_notes',
   ABC_ENTRIES: 'welina_abc_entries',
-  SETTINGS: 'welina_settings'
+  SEED_VERSION: 'welina_seed_version'
 };
+
+const cloneSeed = (value) => structuredClone(value);
 
 function getStored(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
-  } catch (e) {
+  } catch {
     return fallback;
   }
 }
@@ -38,13 +43,20 @@ function setStored(key, value) {
 
 class AnalyticsService {
   constructor() {
-    this.clients = getStored(STORAGE_KEYS.CLIENTS, INITIAL_CLIENTS);
-    this.programs = getStored(STORAGE_KEYS.PROGRAMS, INITIAL_PROGRAMS);
-    this.sessions = getStored(STORAGE_KEYS.SESSIONS, INITIAL_SESSION_DATA);
-    this.phaseLines = getStored(STORAGE_KEYS.PHASE_LINES, INITIAL_PHASE_LINES);
-    this.phaseRanges = getStored(STORAGE_KEYS.PHASE_RANGES, INITIAL_PHASE_RANGES);
-    this.graphNotes = getStored(STORAGE_KEYS.GRAPH_NOTES, INITIAL_GRAPH_NOTES);
-    this.abcEntries = getStored(STORAGE_KEYS.ABC_ENTRIES, INITIAL_ABC_ENTRIES);
+    // The app is a demo: a fixture revision intentionally replaces older demo
+    // localStorage data so returning visitors see the new programs and recordings.
+    if (getStored(STORAGE_KEYS.SEED_VERSION, null) !== SEED_VERSION) {
+      this.resetToDefault();
+    } else {
+      this.clients = getStored(STORAGE_KEYS.CLIENTS, cloneSeed(INITIAL_CLIENTS));
+      this.programs = getStored(STORAGE_KEYS.PROGRAMS, cloneSeed(INITIAL_PROGRAMS));
+      this.sessions = getStored(STORAGE_KEYS.SESSIONS, cloneSeed(INITIAL_SESSION_DATA));
+      this.phaseLines = getStored(STORAGE_KEYS.PHASE_LINES, cloneSeed(INITIAL_PHASE_LINES));
+      this.phaseRanges = getStored(STORAGE_KEYS.PHASE_RANGES, cloneSeed(INITIAL_PHASE_RANGES));
+      this.graphNotes = getStored(STORAGE_KEYS.GRAPH_NOTES, cloneSeed(INITIAL_GRAPH_NOTES));
+      this.abcEntries = getStored(STORAGE_KEYS.ABC_ENTRIES, cloneSeed(INITIAL_ABC_ENTRIES));
+    }
+    this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
   }
 
   saveAll() {
@@ -58,14 +70,17 @@ class AnalyticsService {
   }
 
   resetToDefault() {
-    this.clients = INITIAL_CLIENTS;
-    this.programs = INITIAL_PROGRAMS;
-    this.sessions = INITIAL_SESSION_DATA;
-    this.phaseLines = INITIAL_PHASE_LINES;
-    this.phaseRanges = INITIAL_PHASE_RANGES;
-    this.graphNotes = INITIAL_GRAPH_NOTES;
-    this.abcEntries = INITIAL_ABC_ENTRIES;
+    // Clone nested targets too: phase edits must not change the imported seed.
+    this.clients = cloneSeed(INITIAL_CLIENTS);
+    this.programs = cloneSeed(INITIAL_PROGRAMS);
+    this.sessions = cloneSeed(INITIAL_SESSION_DATA);
+    this.phaseLines = cloneSeed(INITIAL_PHASE_LINES);
+    this.phaseRanges = cloneSeed(INITIAL_PHASE_RANGES);
+    this.graphNotes = cloneSeed(INITIAL_GRAPH_NOTES);
+    this.abcEntries = cloneSeed(INITIAL_ABC_ENTRIES);
+    this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
     this.saveAll();
+    setStored(STORAGE_KEYS.SEED_VERSION, SEED_VERSION);
   }
 
   getClients() {
@@ -148,7 +163,7 @@ class AnalyticsService {
     let raw = this.sessions.filter(s => s.clientId === clientId && targetIds.includes(s.targetId));
 
     // Apply duration filter
-    const now = new Date('2026-10-14T23:59:59');
+    const now = new Date(`${SEED_AS_OF_DATE}T23:59:59`);
     let minDate = new Date(now);
 
     switch (durationFilter) {
@@ -168,13 +183,9 @@ class AnalyticsService {
     raw = raw.filter(s => new Date(s.timestamp) >= minDate);
     raw.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-    // Handle Behavior Reduction zero out / data not tracked
-    raw = raw.filter(s => {
-      if (s.missingDataMode === 'DataNotTracked') {
-        return s.value !== 0 && s.value !== null;
-      }
-      return true;
-    });
+    // A missed observation is never a measured zero; zero-out is optional.
+    raw = raw.filter(s => s.missingDataMode !== 'DataNotTracked' &&
+      (zeroOutBehavior || s.missingDataMode !== 'ZeroOut'));
 
     return {
       rawRecords: raw
@@ -182,9 +193,13 @@ class AnalyticsService {
   }
 
   // Section C: ABC Data
+  getAbcConfiguration(clientId) {
+    return this.abcConfigurations.find(config => config.clientId === clientId) || null;
+  }
+
   getAbcData(clientId, durationFilter = 'Past 1 Month') {
     let entries = this.abcEntries.filter(a => a.clientId === clientId);
-    const now = new Date('2026-10-14T23:59:59');
+    const now = new Date(`${SEED_AS_OF_DATE}T23:59:59`);
     let minDate = new Date(now);
 
     switch (durationFilter) {

@@ -26,6 +26,15 @@ namespace Welina.Analytics.Api.Controllers
             return Ok(_service.GetAbcData(clientId, startDate, endDate));
         }
 
+        [HttpGet("configuration")]
+        public ActionResult<AbcConfiguration> GetConfiguration([FromQuery] string clientId)
+        {
+            if (string.IsNullOrEmpty(clientId)) return BadRequest(new { message = "clientId is required" });
+            var configuration = _service.GetAbcConfiguration(clientId);
+            if (configuration == null) return NotFound();
+            return Ok(configuration);
+        }
+
         [HttpGet("export/csv")]
         public IActionResult ExportAbcRawCsv(
             [FromQuery] string clientId,

@@ -24,10 +24,13 @@ namespace Welina.Analytics.Api.Models
     public enum TargetStatus
     {
         Baseline,
+        Pending,
         Acquisition,
         Maintenance,
         Generalization,
-        Completed
+        Completed,
+        OnHold,
+        Discontinued
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]

@@ -12,10 +12,12 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { exportAbcDataCsv, exportSvgElement, exportPngFromSvg } from '../utils/exportUtils';
+import { SEED_AS_OF_DATE } from '../data/mockData';
 
 export default function AbcDataSection({
   client,
   abcEntries = [],
+  abcConfiguration = null,
   isDisabled = false,
   onRefresh
 }) {
@@ -29,18 +31,21 @@ export default function AbcDataSection({
   // Palette for behavior types in stacked bar chart
   const behaviorColors = {
     'Vocal Disruption / Screaming': '#EF4444',
-    'Physical Aggression (Hitting)': '#F97316',
     'Elopement / Leaving Area': '#DC2626',
+    'Property Disruption': '#F97316',
     'Task Refusal': '#8B5CF6',
-    'Grabbing Toy': '#EC4899',
-    'Property Destruction': '#B91C1C',
+    'Drop to Floor': '#EC4899',
+    'Disruptive Vocalizations': '#B91C1C',
+    'Bolting from Group': '#F97316',
+    'Hand Biting': '#DC2626',
+    'Repetitive Vocalizations': '#8B5CF6',
     'Other': '#64748B'
   };
 
   // Filter entries by duration
   const filteredEntries = useMemo(() => {
     if (!client || abcEntries.length === 0) return [];
-    const now = new Date('2026-10-14T23:59:59');
+    const now = new Date(`${SEED_AS_OF_DATE}T23:59:59`);
     let minDate = new Date(now);
 
     switch (durationFilter) {
@@ -260,6 +265,31 @@ export default function AbcDataSection({
         </div>
       </div>
 
+      {abcConfiguration && (
+        <details className="px-5 py-3 border-b border-slate-200 bg-blue-50/40 text-xs text-slate-700">
+          <summary className="cursor-pointer font-semibold text-slate-800">
+            ABC recording setup · {abcConfiguration.treatmentArea}
+            <span className="ml-2 text-blue-700">(view teaching instructions &amp; configured lists)</span>
+          </summary>
+          <p className="mt-3"><strong>Teaching instructions:</strong> {abcConfiguration.teachingInstructions}</p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+            {[
+              ['Antecedents', abcConfiguration.antecedents],
+              ['Behaviors', abcConfiguration.behaviors],
+              ['Consequences', abcConfiguration.consequences],
+              ['Locations', abcConfiguration.locations]
+            ].map(([label, values]) => (
+              <div key={label} className="p-3 rounded-lg bg-white border border-slate-200">
+                <strong>{label}</strong>
+                <ul className="list-disc pl-4 mt-1 space-y-1">
+                  {values.map(value => <li key={value}>{value}</li>)}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
       {/* Main Content Area */}
       <div className="p-4 sm:p-5 space-y-6">
         {filteredEntries.length === 0 ? (
@@ -436,7 +466,7 @@ export default function AbcDataSection({
                         <tr key={row.id} className="hover:bg-slate-50/70">
                           {/* Date & Time */}
                           <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
-                            {row.timestamp}
+                            {row.timestamp.replace('T', ' ').slice(0, 16)}
                           </td>
 
                           {/* Therapist */}

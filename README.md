@@ -40,13 +40,36 @@ ADC/
 │   │   │   ├── ClientSpecificSection.jsx  # Section B: Granular target analytics
 │   │   │   ├── AbcDataSection.jsx         # Section C: ABCL contextual behavior
 │   │   │   └── Modals/                    # Phase lines, ranges, notes, trials
-│   │   ├── services/apiService.js         # Dual-mode API & LocalStorage engine
+│   │   ├── services/apiService.js         # LocalStorage demo analytics service
 │   │   ├── utils/exportUtils.js           # SVG, PNG, CSV & Zip exporters
-│   │   └── data/mockData.js               # Clinical ABA dataset
+│   │   └── data/mockData.js               # Shared fixture adapter
 │   └── vite.config.js                     # GitHub Pages subfolder config
+├── data/clinicalSeed.json                # Shared fictional clinical fixture
+├── scripts/generate_clinical_seed.py     # Reproducible fixture generator
+├── tests/clinicalSeed.test.mjs           # Fixture integrity and demo-service tests
 ├── docs/                                  # Pre-built static bundle for GitHub Pages
 └── .github/workflows/deploy.yml           # Automated CI/CD deployment to Pages
 ```
+
+---
+
+## Fictional Demo Seed
+
+`data/clinicalSeed.json` is the **single source of demo data** for the GitHub Pages frontend and the .NET in-memory API (embedded at build time). As of **2026-10-14**, it contains 3 fictional clients, 13 Skill Acquisition (SA) programs with multiple targets where appropriate, 9 **unitary** Behavior Reduction (BR) programs, 38 targets, 297 session observations, and 42 ABC entries. It covers all 8 program statuses and 8 target phases. No real patient data is included.
+
+- SA targets exercise Trial by Trial, Frequency, Duration, Interval Data, Anecdotal, and Fluency/Rate. BR targets exercise only Frequency, Duration, and Interval Data. Each numeric observation carries tool-appropriate counts, seconds, intervals or probe minutes; anecdotes carry narrative text. An explicit BR zero means *observed with no occurrence*; `DataNotTracked` means *no measurement* and is omitted from analytics but retained in raw exports.
+- Program definitions include objectives, teaching instructions, optional tags, baseline, treatment area, master-defined custom fields, and actual downloadable demo learning materials. Target definitions include discriminative stimuli, manual/automatic mastery, prompt-template references **only** for Trial by Trial, interval start/length/capture/count **only** for interval targets, and count-up/down start types **only** for Fluency/Rate. Expand **Program definition** in Section B to inspect these settings.
+- Each client's ABC setup contains treatment area, teaching instructions and textual lists of antecedents, behaviors, consequences and locations. The 42 event records select from those lists. Expand **ABC recording setup** in Section C to inspect the catalog.
+- The frontend demo stores editable records in localStorage. The first load after a fixture change (detected by a content-derived revision) replaces old **demo** localStorage records; **Reset Demo Data** restores the fixture again. The `asOfDate` is fixed so date filters illustrate the same story on every run. This is a demo fixture, not a production database or program-creation/upload implementation.
+
+To change the fixture, edit `scripts/generate_clinical_seed.py`, then run:
+
+```bash
+python3 scripts/generate_clinical_seed.py
+cd frontend && npm ci && npm test && npm run build
+```
+
+`npm test` checks cross-references, conditional fields, clinical measurement consistency, date windows, ABC catalogs, migration, and generator reproducibility. The API additionally exposes `GET /api/programs/catalogs` and `GET /api/abcanalytics/configuration?clientId=cli-liam`.
 
 ---
 
@@ -133,7 +156,8 @@ API runs on `http://localhost:5000`. Access Swagger UI documentation at [http://
 
 Or run via Docker:
 ```bash
-docker build -t welina-analytics-backend -f backend/Dockerfile backend/
+# From the repository root (includes data/clinicalSeed.json):
+docker build -t welina-analytics-backend -f backend/Dockerfile .
 docker run -p 5000:5000 welina-analytics-backend
 ```
 

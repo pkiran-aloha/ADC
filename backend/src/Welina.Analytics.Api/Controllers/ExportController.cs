@@ -28,15 +28,11 @@ namespace Welina.Analytics.Api.Controllers
                 return BadRequest("clientId and targetIds are required.");
 
             var ids = targetIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-            var rawData = _service.GetTargetDataPoints(clientId, ids, startDate, endDate, AggregationType.PerDay, splitByTherapist: true);
+            var rawData = _service.GetTargetDataPoints(clientId, ids, startDate, endDate, AggregationType.PerDay, splitByTherapist: true, includeUntracked: true);
 
             var sb = new StringBuilder();
-            sb.AppendLine("Timestamp,TargetId,Therapist,Value,CorrectCount,TotalTrials,DurationSeconds,OccurrenceCount,LessonDurationMinutes,MissingDataMode");
-
-            foreach (var point in rawData)
-            {
-                sb.AppendLine($"\"{point.Timestamp:yyyy-MM-dd HH:mm:ss}\",\"{point.TargetId}\",\"{point.TherapistName}\",{point.Value},{point.CorrectCount},{point.TotalTrials},{point.DurationSeconds},{point.OccurrenceCount},{point.LessonDurationMinutes},\"{point.MissingDataMode}\"");
-            }
+            sb.AppendLine(RawHeader);
+            foreach (var point in rawData) sb.AppendLine(FormatRawRow(point));
 
             return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", $"Raw_Trials_{clientId}_{DateTime.UtcNow:yyyyMMdd}.csv");
         }
@@ -56,21 +52,26 @@ namespace Welina.Analytics.Api.Controllers
             {
                 foreach (var tid in ids)
                 {
-                    var data = _service.GetTargetDataPoints(clientId, new List<string> { tid }, splitByTherapist: true);
+                    var data = _service.GetTargetDataPoints(clientId, new List<string> { tid }, splitByTherapist: true, includeUntracked: true);
                     var entry = archive.CreateEntry($"{tid}_raw_trials.csv");
                     using var entryStream = entry.Open();
                     using var writer = new StreamWriter(entryStream, Encoding.UTF8);
                     
-                    writer.WriteLine("Timestamp,TargetId,Therapist,Value,CorrectCount,TotalTrials,DurationSeconds,OccurrenceCount,LessonDurationMinutes,MissingDataMode");
-                    foreach (var point in data)
-                    {
-                        writer.WriteLine($"\"{point.Timestamp:yyyy-MM-dd HH:mm:ss}\",\"{point.TargetId}\",\"{point.TherapistName}\",{point.Value},{point.CorrectCount},{point.TotalTrials},{point.DurationSeconds},{point.OccurrenceCount},{point.LessonDurationMinutes},\"{point.MissingDataMode}\"");
-                    }
+                    writer.WriteLine(RawHeader);
+                    foreach (var point in data) writer.WriteLine(FormatRawRow(point));
                 }
             }
 
             memoryStream.Seek(0, SeekOrigin.Begin);
             return File(memoryStream.ToArray(), "application/zip", $"{clientId}_Structured_Analytics_Export.zip");
+        }
+
+        private const string RawHeader = "Timestamp,TargetId,Therapist,Value,CorrectCount,TotalTrials,OccurredIntervals,TotalIntervals,DurationSeconds,OccurrenceCount,LessonDurationMinutes,QualitativeEntry,MissingDataMode";
+
+        private static string FormatRawRow(SessionDataPoint point)
+        {
+            var note = (point.QualitativeEntry ?? string.Empty).Replace("\"", "\"\"");
+            return $"\"{point.Timestamp:yyyy-MM-dd HH:mm:ss}\",\"{point.TargetId}\",\"{point.TherapistName}\",{point.Value},{point.CorrectCount},{point.TotalTrials},{point.OccurredIntervals},{point.TotalIntervals},{point.DurationSeconds},{point.OccurrenceCount},{point.LessonDurationMinutes},\"{note}\",\"{point.MissingDataMode}\"";
         }
     }
 }

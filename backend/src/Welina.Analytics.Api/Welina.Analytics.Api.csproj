@@ -11,6 +11,8 @@
 
   <ItemGroup>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    <!-- Shared with the frontend; embed it so published API builds need no data file at runtime. -->
+    <EmbeddedResource Include="../../../data/clinicalSeed.json" LogicalName="Welina.Analytics.Api.clinicalSeed.json" />
   </ItemGroup>
 
 </Project>
