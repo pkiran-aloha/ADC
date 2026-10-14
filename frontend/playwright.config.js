@@ -7,7 +7,7 @@ export default defineConfig({
   expect: { timeout: 8_000 },
   fullyParallel: false,
   workers: 1,
-  reporter: [['list']],
+  reporter: process.env.CI ? [['github'], ['list']] : [['list']],
   outputDir: './test-results',
   use: {
     baseURL,
