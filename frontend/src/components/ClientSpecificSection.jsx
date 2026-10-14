@@ -30,6 +30,25 @@ import {
   exportRawTrialDataCsv,
   exportStructuredZip 
 } from '../utils/exportUtils';
+import ProgramDetails from './ProgramDetails';
+import { SEED_AS_OF_DATE } from '../data/mockData';
+
+function getMinDate(durationFilter) {
+  const now = new Date(`${SEED_AS_OF_DATE}T23:59:59`);
+  const minDate = new Date(now);
+  switch (durationFilter) {
+    case '3 days': minDate.setDate(now.getDate() - 3); break;
+    case '5 days': minDate.setDate(now.getDate() - 5); break;
+    case '7 days': minDate.setDate(now.getDate() - 7); break;
+    case '2 weeks': minDate.setDate(now.getDate() - 14); break;
+    case '1 month': minDate.setMonth(now.getMonth() - 1); break;
+    case '3 months': minDate.setMonth(now.getMonth() - 3); break;
+    case '6 months': minDate.setMonth(now.getMonth() - 6); break;
+    case '1 year': minDate.setFullYear(now.getFullYear() - 1); break;
+    case '2 years': minDate.setFullYear(now.getFullYear() - 2); break;
+  }
+  return minDate;
+}
 
 export default function ClientSpecificSection({
   client,
@@ -113,18 +132,20 @@ export default function ClientSpecificSection({
     return list;
   }, [behaviorPrograms]);
 
-  // Set default selection when programs load
+  // Keep selections valid when the client changes (all three have different programs).
   useEffect(() => {
-    if (activeCategoryTab === 'SkillAcquisition') {
-      if (skillPrograms.length > 0 && !selectedProgramId) {
-        setSelectedProgramId(skillPrograms[0].id);
-      }
-    } else {
-      if (allBehaviors.length > 0 && selectedBehaviorIds.length === 0) {
-        setSelectedBehaviorIds([allBehaviors[0].id]);
-      }
+    if (!skillPrograms.some(p => p.id === selectedProgramId)) {
+      setSelectedProgramId(skillPrograms[0]?.id || '');
     }
-  }, [programs, activeCategoryTab]);
+  }, [skillPrograms, selectedProgramId]);
+
+  useEffect(() => {
+    setSelectedBehaviorIds(ids => {
+      const valid = ids.filter(id => allBehaviors.some(b => b.id === id));
+      if (valid.length === ids.length && ids.length) return ids;
+      return valid.length ? valid : (allBehaviors[0] ? [allBehaviors[0].id] : []);
+    });
+  }, [allBehaviors]);
 
   // Currently selected program object
   const currentSelectedProgram = useMemo(() => {
@@ -143,6 +164,11 @@ export default function ClientSpecificSection({
     }
   }, [activeCategoryTab, currentSelectedProgram, allBehaviors, selectedBehaviorIds]);
 
+  const detailPrograms = useMemo(() => activeCategoryTab === 'SkillAcquisition'
+    ? (currentSelectedProgram ? [currentSelectedProgram] : [])
+    : behaviorPrograms.filter(p => p.targets.some(t => selectedBehaviorIds.includes(t.id))),
+  [activeCategoryTab, currentSelectedProgram, behaviorPrograms, selectedBehaviorIds]);
+
   // Sync visible targets whenever activeTargets change
   useEffect(() => {
     const ids = new Set(activeTargets.map(t => t.id));
@@ -153,18 +179,17 @@ export default function ClientSpecificSection({
   const availableTargetTypes = useMemo(() => {
     if (activeTargets.length === 0) return [];
     
-    // Check which target types actually have data recorded or exist in selected targets
+    // A pending target (or one with only DataNotTracked records) has no data tab.
     const typesWithData = new Set();
     activeTargets.forEach(tgt => {
-      const hasData = sessions.some(s => s.targetId === tgt.id);
-      if (hasData || tgt.type) {
-        typesWithData.add(tgt.type);
-      }
+      const hasData = sessions.some(s => s.clientId === client?.id &&
+        s.targetId === tgt.id && s.missingDataMode !== 'DataNotTracked');
+      if (hasData) typesWithData.add(tgt.type);
     });
 
     const standardOrder = ['TrialByTrial', 'Duration', 'Frequency', 'IntervalData', 'Anecdotal', 'FluencyRate'];
     return standardOrder.filter(type => typesWithData.has(type));
-  }, [activeTargets, sessions]);
+  }, [activeTargets, sessions, client]);
 
   // Set first available target type tab by default (Section 9.4)
   useEffect(() => {
@@ -212,32 +237,16 @@ export default function ClientSpecificSection({
     if (!client || activeTargets.length === 0) return [];
 
     const targetIdList = activeTargets.map(t => t.id);
-    let list = sessions.filter(s => s.clientId === client.id && targetIdList.includes(s.targetId));
+    let list = sessions.filter(s => s.clientId === client.id &&
+      targetIdList.includes(s.targetId) && s.missingDataMode !== 'DataNotTracked');
 
-    // Duration filter calculation (Section 7.3)
-    const now = new Date('2026-10-14T23:59:59');
-    let minDate = new Date(now);
-
-    switch (durationFilter) {
-      case '3 days': minDate.setDate(now.getDate() - 3); break;
-      case '5 days': minDate.setDate(now.getDate() - 5); break;
-      case '7 days': minDate.setDate(now.getDate() - 7); break;
-      case '2 weeks': minDate.setDate(now.getDate() - 14); break;
-      case '1 month': minDate.setMonth(now.getMonth() - 1); break;
-      case '3 months': minDate.setMonth(now.getMonth() - 3); break;
-      case '6 months': minDate.setMonth(now.getMonth() - 6); break;
-      case '1 year': minDate.setFullYear(now.getFullYear() - 1); break;
-      case '2 years': minDate.setFullYear(now.getFullYear() - 2); break;
-      default: minDate.setMonth(now.getMonth() - 1); break;
-    }
-
-    list = list.filter(s => new Date(s.timestamp) >= minDate);
+    list = list.filter(s => new Date(s.timestamp) >= getMinDate(durationFilter));
     list.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
     // Behavior Reduction missing data handling (Section 8.3)
     if (activeCategoryTab === 'Behavior') {
       if (!behaviorZeroOut) {
-        list = list.filter(s => s.value !== 0 && s.value !== null);
+        list = list.filter(s => s.missingDataMode !== 'ZeroOut');
       }
     }
 
@@ -383,7 +392,11 @@ export default function ClientSpecificSection({
     } else if (type === 'png') {
       exportPngFromSvg(svgRef.current, `${chartTitle.replace(/\s+/g, '_')}.png`);
     } else if (type === 'raw-csv') {
-      exportRawTrialDataCsv(filteredSessions, client?.name, tabTargets.map(t => t.name));
+      // Unlike the graph, the raw export includes DataNotTracked and zero-out dates.
+      const ids = new Set(tabTargets.map(t => t.id));
+      const raw = sessions.filter(s => s.clientId === client?.id && ids.has(s.targetId) &&
+        new Date(s.timestamp) >= getMinDate(durationFilter));
+      exportRawTrialDataCsv(raw, client?.name);
     } else if (type === 'zip') {
       exportStructuredZip({ clientName: client?.name || 'Client', programs, allRawRecords: sessions });
     }
@@ -454,7 +467,7 @@ export default function ClientSpecificSection({
             >
               <option value="">-- Select Program --</option>
               {skillPrograms.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+                <option key={p.id} value={p.id}>{p.name} · {p.status}</option>
               ))}
             </select>
           ) : (
@@ -487,7 +500,7 @@ export default function ClientSpecificSection({
                         }}
                         className="rounded border-slate-300 text-blue-600"
                       />
-                      <span className="font-medium text-slate-700">{b.name}</span>
+                      <span className="font-medium text-slate-700">{b.name} · {b.type === 'IntervalData' ? 'Interval Data' : b.type}</span>
                     </label>
                   );
                 })}
@@ -577,6 +590,8 @@ export default function ClientSpecificSection({
 
         </div>
       </div>
+
+      <ProgramDetails programs={detailPrograms} />
 
       {/* 2. Target Type Tabs (Section 7 & 9.4) */}
       <div className="px-5 pt-3 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between overflow-x-auto">
@@ -1063,7 +1078,7 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
   // Y-axis label by target type
   const getYAxisLabel = () => {
     if (targetType === 'TrialByTrial') return '% Correct Responses';
-    if (targetType === 'IntervalData') return '% Correct Intervals';
+    if (targetType === 'IntervalData') return '% Intervals Scored';
     if (targetType === 'Duration') return durationView;
     if (targetType === 'FluencyRate') return rateView;
     if (targetType === 'Frequency') return 'Occurrences (Count)';
@@ -1452,7 +1467,7 @@ function AnecdotalTableView({ targets, sessions, durationFilter, onFilterChange 
                     <tbody className="divide-y divide-slate-100">
                       {targetEntries.map(row => (
                         <tr key={row.id} className="hover:bg-slate-50/60">
-                          <td className="py-2.5 px-4 font-mono text-slate-600">{row.timestamp}</td>
+                          <td className="py-2.5 px-4 font-mono text-slate-600">{row.timestamp.replace('T', ' ').slice(0, 16)}</td>
                           <td className="py-2.5 px-4 font-medium text-slate-800">{row.therapistName}</td>
                           <td className="py-2.5 px-4 text-slate-700 leading-relaxed font-normal">{row.qualitativeEntry}</td>
                         </tr>
@@ -1554,12 +1569,10 @@ function calculateMetricPoint(xKey, sList, targetType, durationView, rateView, f
   // 2. Duration (Total Duration, Total Count, Average Duration - Section 15)
   if (targetType === 'Duration') {
     const totalSecs = sList.reduce((acc, s) => acc + (s.durationSeconds || s.value || 0), 0);
-    const count = sList.length;
-    let computedVal = totalSecs;
+    const count = sList.reduce((acc, s) => acc + (s.occurrenceCount ?? (s.durationSeconds > 0 ? 1 : 0)), 0);
 
     if (durationView === 'Total Count') {
-      computedVal = count;
-      return { xKey, val: count, displayVal: `${count} entries`, therapist: therapists };
+      return { xKey, val: count, displayVal: `${count} occurrences`, therapist: therapists };
     } else if (durationView === 'Average Duration') {
       const avgSecs = count > 0 ? Math.round(totalSecs / count) : 0;
       const mins = Math.floor(avgSecs / 60);
@@ -1604,10 +1617,10 @@ function calculateMetricPoint(xKey, sList, targetType, durationView, rateView, f
     return { xKey, val: totalCount, displayVal: `${totalCount} occurrences`, therapist: therapists };
   }
 
-  // 5. Interval Data (% intervals occurred + count)
+  // 5. Interval Data (% intervals scored + count); BR intervals are occurrences.
   if (targetType === 'IntervalData') {
-    const total = sList.reduce((acc, s) => acc + (s.totalTrials || 20), 0);
-    const occurred = sList.reduce((acc, s) => acc + (s.correctCount || 0), 0);
+    const total = sList.reduce((acc, s) => acc + (s.totalIntervals ?? s.totalTrials ?? 0), 0);
+    const occurred = sList.reduce((acc, s) => acc + (s.occurredIntervals ?? s.correctCount ?? 0), 0);
     const pct = total > 0 ? Math.round((occurred / total) * 100) : 0;
     return {
       xKey,

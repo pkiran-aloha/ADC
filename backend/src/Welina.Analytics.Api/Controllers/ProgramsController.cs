@@ -22,6 +22,9 @@ namespace Welina.Analytics.Api.Controllers
             return Ok(_service.GetProgramsByClient(clientId, category));
         }
 
+        [HttpGet("catalogs")]
+        public ActionResult<ProgramCatalog> GetCatalogs() => Ok(_service.GetProgramCatalog());
+
         [HttpPost("targets/{targetId}/phase")]
         public ActionResult<Target> UpdateTargetPhase(
             string targetId, 

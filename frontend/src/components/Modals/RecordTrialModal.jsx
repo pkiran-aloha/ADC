@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CheckCircle, AlertTriangle, PlusCircle } from 'lucide-react';
+import { X, AlertTriangle, PlusCircle } from 'lucide-react';
 
 export default function RecordTrialModal({
   isOpen,
@@ -10,16 +10,17 @@ export default function RecordTrialModal({
   onUpdatePhase
 }) {
   const [selectedTargetId, setSelectedTargetId] = useState('');
-  const [value, setValue] = useState(80);
   const [correctCount, setCorrectCount] = useState(8);
   const [totalTrials, setTotalTrials] = useState(10);
   const [durationSeconds, setDurationSeconds] = useState(180);
   const [occurrenceCount, setOccurrenceCount] = useState(5);
+  const [occurredIntervals, setOccurredIntervals] = useState(5);
+  const [totalIntervals, setTotalIntervals] = useState(10);
+  const [lessonDurationMinutes, setLessonDurationMinutes] = useState(7);
   const [therapistName, setTherapistName] = useState('Sarah Jenkins, BCBA');
   const [qualitativeEntry, setQualitativeEntry] = useState('');
 
   // Behavior reduction missing data handling (Section 8.2)
-  const [isBehaviorTarget, setIsBehaviorTarget] = useState(false);
   const [missingDataMode, setMissingDataMode] = useState('ZeroOut');
 
   // Target Phase Change simulation (Section 11.1)
@@ -38,46 +39,54 @@ export default function RecordTrialModal({
   });
 
   const currentTarget = allTargets.find(t => t.id === selectedTargetId) || allTargets[0];
+  const isBehaviorTarget = currentTarget?.category === 'BehaviorReduction';
 
   const handleTargetChange = (e) => {
     const tid = e.target.value;
     setSelectedTargetId(tid);
     const tgt = allTargets.find(t => t.id === tid);
-    if (tgt && tgt.category === 'BehaviorReduction') {
-      setIsBehaviorTarget(true);
-    } else {
-      setIsBehaviorTarget(false);
-    }
+    setTotalIntervals(tgt?.intervalSettings?.numberOfIntervals || 10);
+    setOccurredIntervals(0);
+    setLessonDurationMinutes(tgt?.type === 'FluencyRate' ? 7 : 60);
+    setMissingDataMode('ZeroOut');
   };
 
   const handleSaveTrial = (e) => {
     e.preventDefault();
     if (!currentTarget) return;
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const timestamp = new Date().toISOString().substring(0, 19);
+    const point = { clientId: selectedClientId, targetId: currentTarget.id, timestamp, therapistName };
 
-    let finalVal = value;
-    if (currentTarget.type === 'TrialByTrial') {
-      finalVal = totalTrials > 0 ? Math.round((correctCount / totalTrials) * 100) : 0;
-    } else if (currentTarget.type === 'Duration') {
-      finalVal = durationSeconds;
-    } else if (currentTarget.type === 'Frequency') {
-      finalVal = occurrenceCount;
+    if (isBehaviorTarget && missingDataMode === 'DataNotTracked') {
+      point.value = null;
+      point.missingDataMode = 'DataNotTracked';
+    } else {
+      switch (currentTarget.type) {
+        case 'TrialByTrial':
+          Object.assign(point, { correctCount, totalTrials,
+            value: Math.round(100 * correctCount / totalTrials) });
+          break;
+        case 'IntervalData':
+          Object.assign(point, { occurredIntervals, totalIntervals,
+            value: Math.round(100 * occurredIntervals / totalIntervals) });
+          break;
+        case 'Duration':
+          Object.assign(point, { durationSeconds, occurrenceCount: durationSeconds > 0 ? 1 : 0,
+            value: durationSeconds });
+          break;
+        case 'Frequency':
+        case 'FluencyRate':
+          Object.assign(point, { occurrenceCount, lessonDurationMinutes, value: occurrenceCount });
+          break;
+        case 'Anecdotal':
+          point.qualitativeEntry = qualitativeEntry;
+          break;
+      }
+      if (isBehaviorTarget && point.value === 0) point.missingDataMode = 'ZeroOut';
     }
 
-    onRecordTrial({
-      clientId: selectedClientId,
-      targetId: currentTarget.id,
-      timestamp,
-      therapistName,
-      value: finalVal,
-      correctCount,
-      totalTrials,
-      durationSeconds,
-      occurrenceCount,
-      qualitativeEntry,
-      missingDataMode: isBehaviorTarget ? missingDataMode : null
-    });
+    onRecordTrial(point);
 
     // Check if user also wanted to update phase
     if (showPhaseChangePrompt) {
@@ -112,7 +121,7 @@ export default function RecordTrialModal({
           <div>
             <label className="block font-semibold text-slate-700 mb-1">Select Program & Target</label>
             <select
-              value={selectedTargetId || (currentTarget ? currentTarget.id : '')}
+              value={currentTarget?.id || ''}
               onChange={handleTargetChange}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
             >
@@ -137,6 +146,10 @@ export default function RecordTrialModal({
                 <option value="Joe Ronald, RBT">Joe Ronald, RBT</option>
                 <option value="Maya Patel, RBT">Maya Patel, RBT</option>
                 <option value="David Kim, RBT">David Kim, RBT</option>
+                <option value="David Vance, BCBA">David Vance, BCBA</option>
+                <option value="Nina Torres, RBT">Nina Torres, RBT</option>
+                <option value="Alex Chen, RBT">Alex Chen, RBT</option>
+                <option value="Ava Brooks, RBT">Ava Brooks, RBT</option>
               </select>
             </div>
 
@@ -184,6 +197,30 @@ export default function RecordTrialModal({
             </div>
           )}
 
+          {currentTarget?.type === 'IntervalData' && (
+            <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-100 space-y-2">
+              <span className="font-bold text-blue-900 block">Interval Observation:</span>
+              <p className="text-[11px] text-slate-600">
+                {currentTarget.intervalSettings?.captureType} · {currentTarget.intervalSettings?.intervalLength} per interval
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-slate-600 font-medium">Intervals with Occurrence
+                  <input type="number" min="0" max={totalIntervals} value={occurredIntervals}
+                    onChange={e => setOccurredIntervals(Number(e.target.value))}
+                    className="w-full border border-slate-300 rounded px-2 py-1 bg-white" />
+                </label>
+                <label className="text-slate-600 font-medium">Total Intervals
+                  <input type="number" min="1" value={totalIntervals}
+                    onChange={e => setTotalIntervals(Number(e.target.value))}
+                    className="w-full border border-slate-300 rounded px-2 py-1 bg-white" />
+                </label>
+              </div>
+              <p className="text-blue-700 text-[11px] font-semibold">
+                {totalIntervals > 0 ? Math.round(100 * occurredIntervals / totalIntervals) : 0}% ({occurredIntervals}/{totalIntervals})
+              </p>
+            </div>
+          )}
+
           {currentTarget && currentTarget.type === 'Duration' && (
             <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-100 space-y-2">
               <span className="font-bold text-blue-900 block">Duration Data:</span>
@@ -206,15 +243,17 @@ export default function RecordTrialModal({
           {currentTarget && (currentTarget.type === 'Frequency' || currentTarget.type === 'FluencyRate') && (
             <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-100 space-y-2">
               <span className="font-bold text-blue-900 block">Frequency Count:</span>
-              <div>
-                <label className="text-slate-600 font-medium">Number of Occurrences</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={occurrenceCount}
-                  onChange={(e) => setOccurrenceCount(parseInt(e.target.value) || 0)}
-                  className="w-full border border-slate-300 rounded px-2 py-1 bg-white"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-slate-600 font-medium">Number of Occurrences
+                  <input type="number" min="0" value={occurrenceCount}
+                    onChange={e => setOccurrenceCount(Number(e.target.value))}
+                    className="w-full border border-slate-300 rounded px-2 py-1 bg-white" />
+                </label>
+                <label className="text-slate-600 font-medium">Observation / Probe Minutes
+                  <input type="number" min="0.1" step="0.1" value={lessonDurationMinutes}
+                    onChange={e => setLessonDurationMinutes(Number(e.target.value))}
+                    className="w-full border border-slate-300 rounded px-2 py-1 bg-white" />
+                </label>
               </div>
             </div>
           )}
@@ -225,6 +264,7 @@ export default function RecordTrialModal({
               <textarea
                 rows={2}
                 value={qualitativeEntry}
+                required
                 onChange={(e) => setQualitativeEntry(e.target.value)}
                 placeholder="e.g. Requested snack using full 3-word sentence independently."
                 className="w-full border border-slate-300 rounded-lg p-2 text-slate-800"
@@ -233,14 +273,14 @@ export default function RecordTrialModal({
           )}
 
           {/* Behavior Reduction Data Handling Prompt (Section 8.2) */}
-          {(isBehaviorTarget || currentTarget?.category === 'BehaviorReduction') && (
+          {isBehaviorTarget && (
             <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
               <div className="flex items-center space-x-2 text-amber-900 font-bold mb-1">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>Behavior Tracking Decision (Section 8.2):</span>
               </div>
               <p className="text-amber-800 text-[11px] mb-2 italic">
-                “How would you like your behaviors to be tracked and plotted on Analytics?”
+                Use Zero Out when observed without an occurrence; use Data Not Tracked when no observation was made. Positive counts are always recorded normally.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <label className={`p-2 rounded border flex flex-col cursor-pointer transition-colors ${missingDataMode === 'ZeroOut' ? 'bg-amber-100/80 border-amber-400 font-bold' : 'bg-white border-slate-200'}`}>
@@ -303,10 +343,13 @@ export default function RecordTrialModal({
                       className="w-full border border-slate-300 rounded px-2 py-1 bg-white text-xs"
                     >
                       <option value="Baseline">Baseline</option>
+                      <option value="Pending">Pending</option>
                       <option value="Acquisition">Acquisition</option>
                       <option value="Maintenance">Maintenance</option>
                       <option value="Generalization">Generalization</option>
                       <option value="Completed">Completed</option>
+                      <option value="OnHold">On Hold</option>
+                      <option value="Discontinued">Discontinued</option>
                     </select>
                   </div>
                   <div>

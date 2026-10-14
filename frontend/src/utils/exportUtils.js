@@ -87,7 +87,7 @@ export function exportMasteryCsv(data, programName = 'Program') {
 }
 
 // Export Raw Data (Section 21) - trial level non-aggregated CSV
-export function exportRawTrialDataCsv(records, clientName = 'Client', targetNames = []) {
+export function exportRawTrialDataCsv(records, clientName = 'Client') {
   const headers = [
     'Timestamp',
     'Session Number',
@@ -97,6 +97,8 @@ export function exportRawTrialDataCsv(records, clientName = 'Client', targetName
     'Correct Count',
     'Total Trials',
     'Accuracy (%)',
+    'Intervals Occurred',
+    'Total Intervals',
     'Duration (Seconds)',
     'Occurrence Count',
     'Lesson Duration (Min)',
@@ -113,6 +115,8 @@ export function exportRawTrialDataCsv(records, clientName = 'Client', targetName
     r.correctCount !== null && r.correctCount !== undefined ? r.correctCount : '',
     r.totalTrials !== null && r.totalTrials !== undefined ? r.totalTrials : '',
     r.totalTrials && r.correctCount !== undefined ? Math.round((r.correctCount / r.totalTrials) * 100) + '%' : '',
+    r.occurredIntervals ?? '',
+    r.totalIntervals ?? '',
     r.durationSeconds !== null && r.durationSeconds !== undefined ? r.durationSeconds : '',
     r.occurrenceCount !== null && r.occurrenceCount !== undefined ? r.occurrenceCount : '',
     r.lessonDurationMinutes || '',
@@ -170,7 +174,7 @@ export async function exportStructuredZip({ clientName, programs, allRawRecords 
       const records = allRawRecords.filter(r => r.targetId === tgt.id);
       const safeTarget = tgt.name.replace(/[^a-zA-Z0-9_-]/g, '_');
       
-      const headers = ['Timestamp', 'Session', 'Therapist', 'Value', 'CorrectCount', 'TotalTrials', 'DurationSeconds', 'OccurrenceCount', 'Notes'];
+      const headers = ['Timestamp', 'Session', 'Therapist', 'Value', 'CorrectCount', 'TotalTrials', 'OccurredIntervals', 'TotalIntervals', 'DurationSeconds', 'OccurrenceCount', 'LessonDurationMinutes', 'Notes', 'MissingDataMode'];
       const rows = records.map(r => [
         `"${r.timestamp}"`,
         r.sessionNumber || 1,
@@ -178,9 +182,13 @@ export async function exportStructuredZip({ clientName, programs, allRawRecords 
         r.value ?? '',
         r.correctCount ?? '',
         r.totalTrials ?? '',
+        r.occurredIntervals ?? '',
+        r.totalIntervals ?? '',
         r.durationSeconds ?? '',
         r.occurrenceCount ?? '',
-        `"${(r.qualitativeEntry || '').replace(/"/g, '""')}"`
+        r.lessonDurationMinutes ?? '',
+        `"${(r.qualitativeEntry || '').replace(/"/g, '""')}"`,
+        `"${r.missingDataMode || 'Tracked'}"`
       ]);
 
       const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');

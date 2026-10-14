@@ -35,9 +35,21 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Validate shared clinical fixture and demo analytics
+        working-directory: frontend
+        run: npm test
+
       - name: Build frontend application
         working-directory: frontend
         run: npm run build
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build API with embedded clinical fixture
+        run: dotnet build backend/Welina.Analytics.sln --configuration Release
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6

@@ -9,7 +9,7 @@ import PhaseRangeModal from './components/Modals/PhaseRangeModal';
 import GraphNoteModal from './components/Modals/GraphNoteModal';
 import RecordTrialModal from './components/Modals/RecordTrialModal';
 import { apiService } from './services/apiService';
-import { User, ShieldCheck, Sparkles, AlertCircle, ArrowUpRight, Terminal } from 'lucide-react';
+import { User, Sparkles } from 'lucide-react';
 
 export default function App() {
   const [clients, setClients] = useState([]);
@@ -183,7 +183,7 @@ export default function App() {
                   Welina Applied Behavior Analysis (ABA) Analytics Module
                 </h1>
                 <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                  Transforms session trials into interactive graphs: Overall Targets Mastered, Client-Specific Targets & Behaviors, Phase Change Line annotations, Therapist breakdown splits, and contextual ABC (Antecedent-Behavior-Consequence-Location) tracking.
+                  Fictional demo data as of October 14, 2026: Skill Acquisition, unitary Behavior Reduction, and ABC recording across three clients. Explore measurement tools, target settings, and contextual behavior trends.
                 </p>
               </div>
 
@@ -254,6 +254,7 @@ export default function App() {
                 <AbcDataSection
                   client={currentClient}
                   abcEntries={abcEntries}
+                  abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
                   isDisabled={!selectedClientId}
                   onRefresh={refreshAll}
                 />

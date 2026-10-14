@@ -1,0 +1,5549 @@
+{
+  "asOfDate": "2026-10-14",
+  "clients": [
+    {
+      "id": "cli-liam",
+      "name": "Liam Miller",
+      "code": "CL-1042",
+      "dateOfBirth": "2018-04-12",
+      "primaryDiagnosis": "Autism Spectrum Disorder (Level 2)",
+      "supervisingBcba": "Sarah Jenkins, BCBA",
+      "location": "Metro ABA Center - East"
+    },
+    {
+      "id": "cli-emma",
+      "name": "Emma Watson",
+      "code": "CL-1088",
+      "dateOfBirth": "2019-09-21",
+      "primaryDiagnosis": "ASD with Speech Apraxia",
+      "supervisingBcba": "David Vance, BCBA",
+      "location": "Metro ABA Center - North"
+    },
+    {
+      "id": "cli-noah",
+      "name": "Noah Davis",
+      "code": "CL-1095",
+      "dateOfBirth": "2017-11-05",
+      "primaryDiagnosis": "ASD with Sensory Processing Disorder",
+      "supervisingBcba": "Sarah Jenkins, BCBA",
+      "location": "In-Home Therapy"
+    }
+  ],
+  "promptHierarchyTemplates": [
+    {
+      "id": "least-to-most",
+      "name": "Least to Most",
+      "levels": [
+        "Independent",
+        "Gestural",
+        "Model",
+        "Partial physical",
+        "Full physical"
+      ]
+    },
+    {
+      "id": "most-to-least",
+      "name": "Most to Least",
+      "levels": [
+        "Full physical",
+        "Partial physical",
+        "Model",
+        "Gestural",
+        "Independent"
+      ]
+    },
+    {
+      "id": "verbal-fading",
+      "name": "Verbal Prompt Fading",
+      "levels": [
+        "Full verbal model",
+        "Partial verbal model",
+        "Initial sound",
+        "Independent"
+      ]
+    }
+  ],
+  "customFieldDefinitions": [
+    {
+      "key": "reinforcer",
+      "label": "Preferred reinforcer",
+      "inputType": "text"
+    },
+    {
+      "key": "generalizationSetting",
+      "label": "Generalization setting",
+      "inputType": "text"
+    },
+    {
+      "key": "caregiverPractice",
+      "label": "Caregiver practice",
+      "inputType": "text"
+    }
+  ],
+  "programs": [
+    {
+      "id": "prog-expressive",
+      "clientId": "cli-liam",
+      "name": "Expressive Labeling",
+      "category": "SkillAcquisition",
+      "status": "Generalizing",
+      "domain": "Communication",
+      "programObjective": "Independently label familiar foods and actions across people and settings.",
+      "teachingInstructions": "Present one picture at a time, wait five seconds, follow the assigned prompt hierarchy, and reinforce independent labels.",
+      "description": "Independently label familiar foods and actions across people and settings.",
+      "targets": [
+        {
+          "id": "tgt-expr-food",
+          "name": "Expressive Food Items",
+          "description": "Names foods shown on picture cards.",
+          "type": "TrialByTrial",
+          "phase": "Generalization",
+          "phaseEnteredDate": "2026-09-28",
+          "discriminativeStimuli": "Show a food card and ask 'What is this?'",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 8/10 independent labels for 3 sessions",
+          "color": "#3B82F6",
+          "promptHierarchyId": "verbal-fading",
+          "programId": "prog-expressive"
+        },
+        {
+          "id": "tgt-expr-actions",
+          "name": "Label Everyday Actions",
+          "description": "Names actions without an echoic prompt.",
+          "type": "TrialByTrial",
+          "phase": "Maintenance",
+          "phaseEnteredDate": "2026-09-22",
+          "discriminativeStimuli": "Show an action picture and ask 'What is happening?'",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 8/10 for 3 sessions",
+          "color": "#6366F1",
+          "promptHierarchyId": "least-to-most",
+          "programId": "prog-expressive"
+        },
+        {
+          "id": "tgt-expr-preference",
+          "name": "Food Preference Observations",
+          "description": "Record the client's own words and context.",
+          "type": "Anecdotal",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Offer two snack options and wait for a choice.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "Clinical review of spontaneous requests",
+          "color": "#8B5CF6",
+          "programId": "prog-expressive"
+        }
+      ],
+      "treatmentArea": "Communication",
+      "tags": [
+        "Tacting",
+        "Communication"
+      ],
+      "learningMaterials": [
+        {
+          "fileName": "food-labeling-prompts.txt",
+          "contentType": "text/plain",
+          "path": "learning-materials/food-labeling-prompts.txt"
+        }
+      ],
+      "baseline": "4 of 10 food cards named without prompts on 2026-09-15.",
+      "customFields": {
+        "reinforcer": "Choice of sticker or music",
+        "generalizationSetting": "Clinic and kitchen"
+      }
+    },
+    {
+      "id": "prog-playing",
+      "clientId": "cli-liam",
+      "name": "Playing with Toys",
+      "category": "SkillAcquisition",
+      "status": "Maintaining",
+      "domain": "Play & Leisure",
+      "programObjective": "Build sustained independent play and reciprocal peer play.",
+      "teachingInstructions": "Offer a choice of materials; start timing on independent engagement and record each scheduled observation interval.",
+      "description": "Build sustained independent play and reciprocal peer play.",
+      "targets": [
+        {
+          "id": "tgt-play-independent",
+          "name": "Independent Block Play",
+          "description": "Seconds of uninterrupted independent play.",
+          "type": "Duration",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Place the building blocks on the mat and say 'You can build.'",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 300 seconds for 3 sessions",
+          "color": "#2563EB",
+          "targetInstructions": "Stop timer for prompts or disengagement.",
+          "programId": "prog-playing"
+        },
+        {
+          "id": "tgt-play-turn-taking",
+          "name": "Turn Taking in Board Games",
+          "description": "Observe unprompted turn taking across whole intervals.",
+          "type": "IntervalData",
+          "phase": "Maintenance",
+          "phaseEnteredDate": "2026-09-25",
+          "discriminativeStimuli": "Say 'Your turn' or 'Wait for your friend.'",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 85% of intervals for 3 sessions",
+          "color": "#10B981",
+          "intervalSettings": {
+            "startType": "LessonStart",
+            "intervalLength": "00:30",
+            "captureType": "Whole",
+            "numberOfIntervals": 20
+          },
+          "programId": "prog-playing"
+        },
+        {
+          "id": "tgt-play-share",
+          "name": "Share Materials with a Peer",
+          "description": "Hands over a block when requested.",
+          "type": "TrialByTrial",
+          "phase": "Completed",
+          "phaseEnteredDate": "2026-10-02",
+          "discriminativeStimuli": "Peer asks to borrow one shared block.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "At least 9/10 across 3 peers",
+          "color": "#14B8A6",
+          "promptHierarchyId": "least-to-most",
+          "programId": "prog-playing"
+        }
+      ],
+      "treatmentArea": "Play & Leisure",
+      "tags": [
+        "Play",
+        "Social"
+      ],
+      "learningMaterials": [
+        {
+          "fileName": "interval-observation-guide.txt",
+          "contentType": "text/plain",
+          "path": "learning-materials/interval-observation-guide.txt"
+        }
+      ],
+      "baseline": "Independent play averaged 75 seconds; turn taking occurred in 6 of 20 intervals.",
+      "customFields": {
+        "reinforcer": "Choice of next game"
+      }
+    },
+    {
+      "id": "prog-manding",
+      "clientId": "cli-liam",
+      "name": "Spontaneous Requests",
+      "category": "SkillAcquisition",
+      "status": "Teaching",
+      "domain": "Functional Communication",
+      "programObjective": "Increase unprompted requests for items and help.",
+      "teachingInstructions": "Arrange motivating opportunities, pause to allow initiation, and count only independently initiated requests.",
+      "description": "Increase unprompted requests for items and help.",
+      "targets": [
+        {
+          "id": "tgt-mands-spontaneous",
+          "name": "Spontaneous Two-Word Requests",
+          "description": "Count independent two-word requests.",
+          "type": "Frequency",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Preferred item visible but out of reach.",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 15 per hour for 3 sessions",
+          "color": "#F59E0B",
+          "programId": "prog-manding"
+        },
+        {
+          "id": "tgt-mands-help",
+          "name": "Request Help",
+          "description": "Count requests for assistance without prompting.",
+          "type": "Frequency",
+          "phase": "Baseline",
+          "phaseEnteredDate": "2026-09-19",
+          "discriminativeStimuli": "Present a closed container containing a desired item.",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 6 per hour for 3 sessions",
+          "color": "#D97706",
+          "programId": "prog-manding"
+        }
+      ],
+      "treatmentArea": "Functional Communication",
+      "tags": [
+        "Mand",
+        "Communication"
+      ],
+      "customFields": {
+        "caregiverPractice": "Practice during snack at home"
+      }
+    },
+    {
+      "id": "prog-fluency",
+      "clientId": "cli-liam",
+      "name": "Fluent Naming",
+      "category": "SkillAcquisition",
+      "status": "Teaching",
+      "domain": "Academic / Fluency",
+      "programObjective": "Increase correct responses during timed naming opportunities.",
+      "teachingInstructions": "Run a timed probe, count accurate responses, and record the actual probe length in minutes.",
+      "description": "Increase correct responses during timed naming opportunities.",
+      "targets": [
+        {
+          "id": "tgt-sight-words",
+          "name": "Rapid Sight Word Naming",
+          "description": "Correct words during a seven-minute probe.",
+          "type": "FluencyRate",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Present primer sight word cards and say 'Read.'",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 30 correct in 7 minutes",
+          "color": "#EC4899",
+          "fluencySettings": {
+            "startType": "ManualStartCountDown"
+          },
+          "programId": "prog-fluency"
+        },
+        {
+          "id": "tgt-action-fluency",
+          "name": "Action Naming Fluency",
+          "description": "Correct action labels in three minutes.",
+          "type": "FluencyRate",
+          "phase": "Maintenance",
+          "phaseEnteredDate": "2026-09-29",
+          "discriminativeStimuli": "Show action cards and say 'Name as many as you can.'",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 20 correct in 3 minutes",
+          "color": "#DB2777",
+          "fluencySettings": {
+            "startType": "LessonStartCountUp"
+          },
+          "programId": "prog-fluency"
+        },
+        {
+          "id": "tgt-object-fluency",
+          "name": "Classroom Object Fluency",
+          "description": "Correct object names in five minutes.",
+          "type": "FluencyRate",
+          "phase": "Baseline",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Lay out classroom object cards; say 'Name these.'",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 25 correct in 5 minutes",
+          "color": "#BE185D",
+          "fluencySettings": {
+            "startType": "ManualStartCountUp"
+          },
+          "programId": "prog-fluency"
+        }
+      ],
+      "treatmentArea": "Academic / Fluency",
+      "tags": [
+        "Fluency",
+        "Timed probe"
+      ],
+      "baseline": "14 correct words in seven minutes."
+    },
+    {
+      "id": "prog-receptive",
+      "clientId": "cli-liam",
+      "name": "Following Classroom Directions",
+      "category": "SkillAcquisition",
+      "status": "Baselining",
+      "domain": "Receptive Language",
+      "programObjective": "Establish a baseline for receptive directions before teaching.",
+      "teachingInstructions": "Give one clear direction without a second cue; record independent responses and observation intervals.",
+      "description": "Establish a baseline for receptive directions before teaching.",
+      "targets": [
+        {
+          "id": "tgt-receptive-shapes",
+          "name": "Identify Shapes",
+          "description": "Independently touches the named shape.",
+          "type": "TrialByTrial",
+          "phase": "Baseline",
+          "phaseEnteredDate": "2026-10-01",
+          "discriminativeStimuli": "Place three shapes and say 'Touch the circle.'",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 8/10 for 3 sessions",
+          "color": "#0EA5E9",
+          "promptHierarchyId": "least-to-most",
+          "programId": "prog-receptive"
+        },
+        {
+          "id": "tgt-receptive-attend",
+          "name": "Attend to Group Directions",
+          "description": "Record any attending within a partial interval.",
+          "type": "IntervalData",
+          "phase": "Baseline",
+          "phaseEnteredDate": "2026-10-01",
+          "discriminativeStimuli": "Teacher announces a group activity.",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 75% of intervals",
+          "color": "#0284C7",
+          "intervalSettings": {
+            "startType": "Manual",
+            "intervalLength": "00:45",
+            "captureType": "Partial"
+          },
+          "programId": "prog-receptive"
+        }
+      ],
+      "treatmentArea": "Receptive Language",
+      "tags": [
+        "Baseline",
+        "Classroom"
+      ],
+      "learningMaterials": [
+        {
+          "fileName": "first-then-visual-guide.txt",
+          "contentType": "text/plain",
+          "path": "learning-materials/first-then-visual-guide.txt"
+        }
+      ]
+    },
+    {
+      "id": "prog-liam-greetings",
+      "clientId": "cli-liam",
+      "name": "Greeting Familiar Adults",
+      "category": "SkillAcquisition",
+      "status": "Completed",
+      "domain": "Social Skills",
+      "programObjective": "Respond to greetings from familiar adults without prompts.",
+      "teachingInstructions": "Provide a natural greeting, wait five seconds, and score the independent response.",
+      "description": "Respond to greetings from familiar adults without prompts.",
+      "targets": [
+        {
+          "id": "tgt-liam-greeting",
+          "name": "Respond to Hello",
+          "description": "Says hello or waves independently.",
+          "type": "TrialByTrial",
+          "phase": "Completed",
+          "phaseEnteredDate": "2026-10-05",
+          "discriminativeStimuli": "A familiar adult says 'Hello, Liam.'",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 9/10 across 3 adults",
+          "color": "#16A34A",
+          "promptHierarchyId": "least-to-most",
+          "programId": "prog-liam-greetings"
+        }
+      ],
+      "treatmentArea": "Social Skills",
+      "tags": [
+        "Social",
+        "Mastered"
+      ]
+    },
+    {
+      "id": "prog-emma-requests",
+      "clientId": "cli-emma",
+      "name": "Picture-Assisted Requests",
+      "category": "SkillAcquisition",
+      "status": "Teaching",
+      "domain": "Communication",
+      "programObjective": "Use picture exchange and speech to make functional requests.",
+      "teachingInstructions": "Place communication icons within reach, allow initiation, and use the assigned prompt hierarchy for exchange trials.",
+      "description": "Use picture exchange and speech to make functional requests.",
+      "targets": [
+        {
+          "id": "tgt-emma-exchange",
+          "name": "Exchange a Picture for Snack",
+          "description": "Hands over the matching icon to request.",
+          "type": "TrialByTrial",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Hold a preferred snack and display the matching picture.",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 8/10 independent exchanges",
+          "color": "#4F46E5",
+          "promptHierarchyId": "most-to-least",
+          "programId": "prog-emma-requests"
+        },
+        {
+          "id": "tgt-emma-requests",
+          "name": "Vocal Requests",
+          "description": "Count independently initiated spoken requests.",
+          "type": "Frequency",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Offer a choice of two activities.",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 8 per session",
+          "color": "#EAB308",
+          "programId": "prog-emma-requests"
+        },
+        {
+          "id": "tgt-emma-choices",
+          "name": "Choice-Making Notes",
+          "description": "Write the exact words or gesture used for the choice.",
+          "type": "Anecdotal",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Present a preferred and neutral activity.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "Review weekly with supervisor",
+          "color": "#A855F7",
+          "programId": "prog-emma-requests"
+        }
+      ],
+      "treatmentArea": "Communication",
+      "tags": [
+        "AAC",
+        "Mands"
+      ],
+      "learningMaterials": [
+        {
+          "fileName": "food-labeling-prompts.txt",
+          "contentType": "text/plain",
+          "path": "learning-materials/food-labeling-prompts.txt"
+        }
+      ],
+      "baseline": "3 of 10 independent picture exchanges at the start of September.",
+      "customFields": {
+        "reinforcer": "Preferred snack",
+        "caregiverPractice": "Offer icon board at breakfast"
+      }
+    },
+    {
+      "id": "prog-emma-social",
+      "clientId": "cli-emma",
+      "name": "Peer Engagement",
+      "category": "SkillAcquisition",
+      "status": "Generalizing",
+      "domain": "Social Skills",
+      "programObjective": "Greet peers and sustain short shared activities in different rooms.",
+      "teachingInstructions": "Use a peer model, fade adult prompts, and measure duration and momentary attending in group play.",
+      "description": "Greet peers and sustain short shared activities in different rooms.",
+      "targets": [
+        {
+          "id": "tgt-emma-greeting",
+          "name": "Greet a Peer",
+          "description": "Returns a greeting without a prompt.",
+          "type": "TrialByTrial",
+          "phase": "Generalization",
+          "phaseEnteredDate": "2026-09-30",
+          "discriminativeStimuli": "Peer approaches and says 'Hi.'",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 8/10 across 2 settings",
+          "color": "#0D9488",
+          "promptHierarchyId": "least-to-most",
+          "programId": "prog-emma-social"
+        },
+        {
+          "id": "tgt-emma-peer-play",
+          "name": "Shared Play",
+          "description": "Seconds participating in joint play.",
+          "type": "Duration",
+          "phase": "Maintenance",
+          "phaseEnteredDate": "2026-09-26",
+          "discriminativeStimuli": "Peer invites client to build together.",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 240 seconds for 3 sessions",
+          "color": "#059669",
+          "programId": "prog-emma-social"
+        },
+        {
+          "id": "tgt-emma-attending",
+          "name": "Group Circle Attending",
+          "description": "Eyes/body oriented to group at the observation instant.",
+          "type": "IntervalData",
+          "phase": "Generalization",
+          "phaseEnteredDate": "2026-10-03",
+          "discriminativeStimuli": "Teacher begins circle time.",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 80% of checks",
+          "color": "#14B8A6",
+          "intervalSettings": {
+            "startType": "LessonStart",
+            "intervalLength": "01:00",
+            "captureType": "MomentaryTimeSampling",
+            "numberOfIntervals": 15
+          },
+          "programId": "prog-emma-social"
+        }
+      ],
+      "treatmentArea": "Social Skills",
+      "tags": [
+        "Peer play",
+        "Generalization"
+      ],
+      "learningMaterials": [
+        {
+          "fileName": "interval-observation-guide.txt",
+          "contentType": "text/plain",
+          "path": "learning-materials/interval-observation-guide.txt"
+        }
+      ],
+      "customFields": {
+        "generalizationSetting": "Playroom and community group"
+      }
+    },
+    {
+      "id": "prog-emma-pending",
+      "clientId": "cli-emma",
+      "name": "Community Safety Preview",
+      "category": "SkillAcquisition",
+      "status": "Pending",
+      "domain": "Community Skills",
+      "programObjective": "Introduce safety routines after caregiver consent and baseline planning.",
+      "teachingInstructions": "Do not collect trials until the supervisor activates this program.",
+      "description": "Introduce safety routines after caregiver consent and baseline planning.",
+      "targets": [
+        {
+          "id": "tgt-emma-crosswalk",
+          "name": "Stop at Crosswalk",
+          "description": "Stops at the boundary with an adult.",
+          "type": "TrialByTrial",
+          "phase": "Pending",
+          "phaseEnteredDate": "2026-10-14",
+          "discriminativeStimuli": "An adult approaches a marked crossing.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "At least 9/10 across 3 outings",
+          "color": "#3B82F6",
+          "promptHierarchyId": "least-to-most",
+          "programId": "prog-emma-pending"
+        }
+      ],
+      "tags": [
+        "Pending"
+      ]
+    },
+    {
+      "id": "prog-emma-onhold",
+      "clientId": "cli-emma",
+      "name": "Fine Motor Beading",
+      "category": "SkillAcquisition",
+      "status": "OnHold",
+      "domain": "Motor Skills",
+      "programObjective": "Sustain fine motor bead placement during short activities.",
+      "teachingInstructions": "Pause instruction pending updated occupational therapy guidance; historical data is retained.",
+      "description": "Sustain fine motor bead placement during short activities.",
+      "targets": [
+        {
+          "id": "tgt-emma-beads",
+          "name": "String Beads Independently",
+          "description": "Seconds of independent fine motor engagement.",
+          "type": "Duration",
+          "phase": "OnHold",
+          "phaseEnteredDate": "2026-09-01",
+          "discriminativeStimuli": "Present beads and a cord.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "At least 180 seconds",
+          "color": "#7C3AED",
+          "programId": "prog-emma-onhold"
+        }
+      ],
+      "treatmentArea": "Motor Skills"
+    },
+    {
+      "id": "prog-noah-routines",
+      "clientId": "cli-noah",
+      "name": "Daily Living Routines",
+      "category": "SkillAcquisition",
+      "status": "Maintaining",
+      "domain": "Adaptive Living",
+      "programObjective": "Complete self-care steps and wait calmly during routine transitions.",
+      "teachingInstructions": "Use a visual schedule, record each independent response, and time continuous routine engagement.",
+      "description": "Complete self-care steps and wait calmly during routine transitions.",
+      "targets": [
+        {
+          "id": "tgt-noah-dressing",
+          "name": "Follow Dressing Sequence",
+          "description": "Completes the requested step independently.",
+          "type": "TrialByTrial",
+          "phase": "Maintenance",
+          "phaseEnteredDate": "2026-09-28",
+          "discriminativeStimuli": "Present visual dressing sequence and clothes.",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 8/10 steps for 3 sessions",
+          "color": "#2563EB",
+          "promptHierarchyId": "least-to-most",
+          "programId": "prog-noah-routines"
+        },
+        {
+          "id": "tgt-noah-washing",
+          "name": "Hand-Washing Engagement",
+          "description": "Seconds engaged in washing sequence.",
+          "type": "Duration",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Show handwashing card at sink.",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 120 continuous seconds",
+          "color": "#0EA5E9",
+          "programId": "prog-noah-routines"
+        },
+        {
+          "id": "tgt-noah-waiting",
+          "name": "Wait with Visual Schedule",
+          "description": "Waits during any part of a partial interval.",
+          "type": "IntervalData",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Show 'wait' icon before a transition.",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 80% of intervals",
+          "color": "#10B981",
+          "intervalSettings": {
+            "startType": "Manual",
+            "intervalLength": "00:30",
+            "captureType": "Partial",
+            "numberOfIntervals": 10
+          },
+          "programId": "prog-noah-routines"
+        }
+      ],
+      "treatmentArea": "Adaptive Living",
+      "tags": [
+        "Adaptive",
+        "Transitions"
+      ],
+      "learningMaterials": [
+        {
+          "fileName": "first-then-visual-guide.txt",
+          "contentType": "text/plain",
+          "path": "learning-materials/first-then-visual-guide.txt"
+        }
+      ],
+      "baseline": "Needed prompts for seven of ten dressing steps.",
+      "customFields": {
+        "caregiverPractice": "Practice at morning routine",
+        "reinforcer": "Choose breakfast music"
+      }
+    },
+    {
+      "id": "prog-noah-community",
+      "clientId": "cli-noah",
+      "name": "Community Communication",
+      "category": "SkillAcquisition",
+      "status": "Teaching",
+      "domain": "Community Skills",
+      "programObjective": "Ask for help and label useful community items.",
+      "teachingInstructions": "Arrange community role-play, tally spontaneous requests, and time naming probes using a count-up timer.",
+      "description": "Ask for help and label useful community items.",
+      "targets": [
+        {
+          "id": "tgt-noah-help",
+          "name": "Ask for Help in Community",
+          "description": "Counts independent requests for help.",
+          "type": "Frequency",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "A familiar item is placed out of reach in role-play.",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 6 per session",
+          "color": "#D97706",
+          "programId": "prog-noah-community"
+        },
+        {
+          "id": "tgt-noah-signs",
+          "name": "Name Community Signs",
+          "description": "Correct sign labels in two minutes.",
+          "type": "FluencyRate",
+          "phase": "Baseline",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Show familiar street sign cards and say 'Name these.'",
+          "masterySettings": "Automatic",
+          "masteryCriteria": "At least 12 correct in 2 minutes",
+          "color": "#DB2777",
+          "fluencySettings": {
+            "startType": "LessonStartCountUp"
+          },
+          "programId": "prog-noah-community"
+        },
+        {
+          "id": "tgt-noah-observations",
+          "name": "Community Role-Play Notes",
+          "description": "Record exact words and context for requests.",
+          "type": "Anecdotal",
+          "phase": "Baseline",
+          "phaseEnteredDate": "2026-09-20",
+          "discriminativeStimuli": "Begin a simulated store visit.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "Review each session",
+          "color": "#9333EA",
+          "programId": "prog-noah-community"
+        }
+      ],
+      "treatmentArea": "Community Skills",
+      "tags": [
+        "Community",
+        "Communication"
+      ],
+      "customFields": {
+        "generalizationSetting": "Clinic role-play, then neighborhood"
+      }
+    },
+    {
+      "id": "prog-noah-discontinued",
+      "clientId": "cli-noah",
+      "name": "Legacy Puzzle Sorting",
+      "category": "SkillAcquisition",
+      "status": "Discontinued",
+      "domain": "Academic",
+      "programObjective": "Retain historical sorting data for review after goals changed.",
+      "teachingInstructions": "Do not run new trials; the archived goal has been replaced by functional living skills.",
+      "description": "Retain historical sorting data for review after goals changed.",
+      "targets": [
+        {
+          "id": "tgt-noah-puzzle",
+          "name": "Sort Puzzle Pieces",
+          "description": "Places a piece in the matching group.",
+          "type": "TrialByTrial",
+          "phase": "Discontinued",
+          "phaseEnteredDate": "2026-08-20",
+          "discriminativeStimuli": "Show two puzzle-piece groups and say 'Sort.'",
+          "masterySettings": "Manual",
+          "masteryCriteria": "Historical goal; no new mastery evaluation",
+          "color": "#3B82F6",
+          "promptHierarchyId": "least-to-most",
+          "programId": "prog-noah-discontinued"
+        }
+      ],
+      "treatmentArea": "Academic",
+      "tags": [
+        "Archived"
+      ]
+    },
+    {
+      "id": "prog-br-vocal",
+      "clientId": "cli-liam",
+      "name": "Vocal Disruption / Screaming",
+      "category": "BehaviorReduction",
+      "status": "Teaching",
+      "domain": "Behavior Reduction",
+      "programObjective": "Count vocalizations above conversational volume that interrupt instruction.",
+      "teachingInstructions": "Offer a functional break request before demand; count each episode separated by 10 seconds of quiet.",
+      "description": "Count vocalizations above conversational volume that interrupt instruction.",
+      "targets": [
+        {
+          "id": "br-vocal",
+          "name": "Vocal Disruption / Screaming",
+          "description": "Count vocalizations above conversational volume that interrupt instruction.",
+          "type": "Frequency",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-22",
+          "discriminativeStimuli": "A demand is presented or access to an item is delayed.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "Fewer than 2 per session for 4 sessions",
+          "color": "#EF4444",
+          "programId": "prog-br-vocal"
+        }
+      ],
+      "treatmentArea": "Behavior Reduction",
+      "tags": [
+        "Behavior reduction",
+        "Frequency"
+      ],
+      "baseline": "12 episodes per hour"
+    },
+    {
+      "id": "prog-br-elopement",
+      "clientId": "cli-liam",
+      "name": "Elopement / Leaving Area",
+      "category": "BehaviorReduction",
+      "status": "Maintaining",
+      "domain": "Behavior Reduction",
+      "programObjective": "Time movement beyond five feet from the assigned area without permission.",
+      "teachingInstructions": "Maintain line of sight; start timer on departure, stop on return, and teach asking for a break.",
+      "description": "Time movement beyond five feet from the assigned area without permission.",
+      "targets": [
+        {
+          "id": "br-elopement",
+          "name": "Elopement / Leaving Area",
+          "description": "Time movement beyond five feet from the assigned area without permission.",
+          "type": "Duration",
+          "phase": "Maintenance",
+          "phaseEnteredDate": "2026-09-22",
+          "discriminativeStimuli": "Transition away from a preferred activity.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "Under 30 seconds per session",
+          "color": "#B91C1C",
+          "programId": "prog-br-elopement"
+        }
+      ],
+      "treatmentArea": "Behavior Reduction",
+      "tags": [
+        "Behavior reduction",
+        "Duration"
+      ],
+      "baseline": "240 seconds per session"
+    },
+    {
+      "id": "prog-br-property",
+      "clientId": "cli-liam",
+      "name": "Property Disruption",
+      "category": "BehaviorReduction",
+      "status": "Teaching",
+      "domain": "Behavior Reduction",
+      "programObjective": "Record intervals in which materials are thrown or swept off the table.",
+      "teachingInstructions": "Use partial-interval recording and offer a short choice before the demand.",
+      "description": "Record intervals in which materials are thrown or swept off the table.",
+      "targets": [
+        {
+          "id": "br-property",
+          "name": "Property Disruption",
+          "description": "Record intervals in which materials are thrown or swept off the table.",
+          "type": "IntervalData",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-22",
+          "discriminativeStimuli": "A work demand is introduced.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "At most 1 of 12 intervals for 4 sessions",
+          "color": "#F97316",
+          "intervalSettings": {
+            "startType": "Manual",
+            "intervalLength": "00:30",
+            "captureType": "Partial",
+            "numberOfIntervals": 12
+          },
+          "programId": "prog-br-property"
+        }
+      ],
+      "treatmentArea": "Behavior Reduction",
+      "tags": [
+        "Behavior reduction",
+        "IntervalData"
+      ],
+      "baseline": "7 of 12 intervals"
+    },
+    {
+      "id": "prog-br-refusal",
+      "clientId": "cli-emma",
+      "name": "Task Refusal",
+      "category": "BehaviorReduction",
+      "status": "Teaching",
+      "domain": "Behavior Reduction",
+      "programObjective": "Count verbal refusal or pushing work away, separated by 10 seconds of participation.",
+      "teachingInstructions": "Offer a choice of task order, prompt a break request, and return to instruction after the break.",
+      "description": "Count verbal refusal or pushing work away, separated by 10 seconds of participation.",
+      "targets": [
+        {
+          "id": "br-refusal",
+          "name": "Task Refusal",
+          "description": "Count verbal refusal or pushing work away, separated by 10 seconds of participation.",
+          "type": "Frequency",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-22",
+          "discriminativeStimuli": "A non-preferred task is presented.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "At most 1 per session",
+          "color": "#EA580C",
+          "programId": "prog-br-refusal"
+        }
+      ],
+      "treatmentArea": "Behavior Reduction",
+      "tags": [
+        "Behavior reduction",
+        "Frequency"
+      ],
+      "baseline": "8 episodes per session"
+    },
+    {
+      "id": "prog-br-drop",
+      "clientId": "cli-emma",
+      "name": "Drop to Floor",
+      "category": "BehaviorReduction",
+      "status": "Teaching",
+      "domain": "Behavior Reduction",
+      "programObjective": "Time lying on the floor instead of walking with the group.",
+      "teachingInstructions": "Present a first/then card; stop timing after client stands and resumes walking.",
+      "description": "Time lying on the floor instead of walking with the group.",
+      "targets": [
+        {
+          "id": "br-drop",
+          "name": "Drop to Floor",
+          "description": "Time lying on the floor instead of walking with the group.",
+          "type": "Duration",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-22",
+          "discriminativeStimuli": "Transition into group instruction.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "Under 20 seconds per session",
+          "color": "#DC2626",
+          "programId": "prog-br-drop"
+        }
+      ],
+      "treatmentArea": "Behavior Reduction",
+      "tags": [
+        "Behavior reduction",
+        "Duration"
+      ]
+    },
+    {
+      "id": "prog-br-disruptive",
+      "clientId": "cli-emma",
+      "name": "Disruptive Vocalizations",
+      "category": "BehaviorReduction",
+      "status": "Teaching",
+      "domain": "Behavior Reduction",
+      "programObjective": "Count whole intervals containing disruptive vocalizations.",
+      "teachingInstructions": "Reinforce quiet participation at each 20-second interval boundary.",
+      "description": "Count whole intervals containing disruptive vocalizations.",
+      "targets": [
+        {
+          "id": "br-disruptive",
+          "name": "Disruptive Vocalizations",
+          "description": "Count whole intervals containing disruptive vocalizations.",
+          "type": "IntervalData",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-22",
+          "discriminativeStimuli": "Group circle starts or a peer is speaking.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "At most 1 of 15 intervals",
+          "color": "#BE123C",
+          "intervalSettings": {
+            "startType": "LessonStart",
+            "intervalLength": "00:20",
+            "captureType": "Whole",
+            "numberOfIntervals": 15
+          },
+          "programId": "prog-br-disruptive"
+        }
+      ],
+      "treatmentArea": "Behavior Reduction",
+      "tags": [
+        "Behavior reduction",
+        "IntervalData"
+      ]
+    },
+    {
+      "id": "prog-br-bolting",
+      "clientId": "cli-noah",
+      "name": "Bolting from Group",
+      "category": "BehaviorReduction",
+      "status": "Generalizing",
+      "domain": "Behavior Reduction",
+      "programObjective": "Count each departure beyond the visual boundary without permission.",
+      "teachingInstructions": "Use a visual boundary, rehearse staying near the adult, and count new departures after return.",
+      "description": "Count each departure beyond the visual boundary without permission.",
+      "targets": [
+        {
+          "id": "br-bolting",
+          "name": "Bolting from Group",
+          "description": "Count each departure beyond the visual boundary without permission.",
+          "type": "Frequency",
+          "phase": "Generalization",
+          "phaseEnteredDate": "2026-09-22",
+          "discriminativeStimuli": "A community group changes activities.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "0 for 5 sessions",
+          "color": "#EF4444",
+          "programId": "prog-br-bolting"
+        }
+      ],
+      "treatmentArea": "Behavior Reduction",
+      "tags": [
+        "Behavior reduction",
+        "Frequency"
+      ]
+    },
+    {
+      "id": "prog-br-hand-biting",
+      "clientId": "cli-noah",
+      "name": "Hand Biting",
+      "category": "BehaviorReduction",
+      "status": "Teaching",
+      "domain": "Behavior Reduction",
+      "programObjective": "Time contact of teeth with hand; stop timing when contact ceases.",
+      "teachingInstructions": "Offer a sensory alternative and document total seconds per session.",
+      "description": "Time contact of teeth with hand; stop timing when contact ceases.",
+      "targets": [
+        {
+          "id": "br-hand-biting",
+          "name": "Hand Biting",
+          "description": "Time contact of teeth with hand; stop timing when contact ceases.",
+          "type": "Duration",
+          "phase": "Acquisition",
+          "phaseEnteredDate": "2026-09-22",
+          "discriminativeStimuli": "A loud noise is heard during activities.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "Under 15 seconds per session",
+          "color": "#B91C1C",
+          "programId": "prog-br-hand-biting"
+        }
+      ],
+      "treatmentArea": "Behavior Reduction",
+      "tags": [
+        "Behavior reduction",
+        "Duration"
+      ]
+    },
+    {
+      "id": "prog-br-repetitive",
+      "clientId": "cli-noah",
+      "name": "Repetitive Vocalizations",
+      "category": "BehaviorReduction",
+      "status": "Maintaining",
+      "domain": "Behavior Reduction",
+      "programObjective": "Mark whether repeated vocalizations occur at each observation instant.",
+      "teachingInstructions": "Use momentary time sampling; reinforce participation after quiet checks.",
+      "description": "Mark whether repeated vocalizations occur at each observation instant.",
+      "targets": [
+        {
+          "id": "br-repetitive",
+          "name": "Repetitive Vocalizations",
+          "description": "Mark whether repeated vocalizations occur at each observation instant.",
+          "type": "IntervalData",
+          "phase": "Maintenance",
+          "phaseEnteredDate": "2026-09-22",
+          "discriminativeStimuli": "An adult delivers a lengthy direction.",
+          "masterySettings": "Manual",
+          "masteryCriteria": "At most 2 of 10 checks",
+          "color": "#F97316",
+          "intervalSettings": {
+            "startType": "Manual",
+            "intervalLength": "01:00",
+            "captureType": "MomentaryTimeSampling",
+            "numberOfIntervals": 10
+          },
+          "programId": "prog-br-repetitive"
+        }
+      ],
+      "treatmentArea": "Behavior Reduction",
+      "tags": [
+        "Behavior reduction",
+        "IntervalData"
+      ]
+    }
+  ],
+  "sessionData": [
+    {
+      "id": "seed-tgt-expr-food-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-09-21T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 50,
+      "correctCount": 5,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-09-23T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 60,
+      "correctCount": 6,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-09-25T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 60,
+      "correctCount": 6,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-09-27T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 70,
+      "correctCount": 7,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 80,
+      "correctCount": 8,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 80,
+      "correctCount": 8,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-07",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-08",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-09",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Maya Patel, RBT",
+      "value": 100,
+      "correctCount": 10,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-10",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 10,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-11",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 11,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 100,
+      "correctCount": 10,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-12",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 12,
+      "therapistName": "Maya Patel, RBT",
+      "value": 100,
+      "correctCount": 10,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-food-extra",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-food",
+      "timestamp": "2026-10-13T15:45:00",
+      "sessionNumber": 13,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 100,
+      "correctCount": 10,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-actions-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-actions",
+      "timestamp": "2026-09-28T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 40,
+      "correctCount": 4,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-actions-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-actions",
+      "timestamp": "2026-09-30T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 50,
+      "correctCount": 5,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-actions-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-actions",
+      "timestamp": "2026-10-02T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 70,
+      "correctCount": 7,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-actions-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-actions",
+      "timestamp": "2026-10-04T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 70,
+      "correctCount": 7,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-actions-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-actions",
+      "timestamp": "2026-10-06T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 80,
+      "correctCount": 8,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-actions-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-actions",
+      "timestamp": "2026-10-08T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 80,
+      "correctCount": 8,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-actions-07",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-actions",
+      "timestamp": "2026-10-10T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-actions-08",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-actions",
+      "timestamp": "2026-10-12T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-expr-preference-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-preference",
+      "timestamp": "2026-10-01T13:25:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "qualitativeEntry": "Chose yogurt when offered yogurt or crackers without prompting."
+    },
+    {
+      "id": "seed-tgt-expr-preference-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-preference",
+      "timestamp": "2026-10-04T13:25:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "qualitativeEntry": "Asked for apple slices using a full sentence at the snack table."
+    },
+    {
+      "id": "seed-tgt-expr-preference-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-preference",
+      "timestamp": "2026-10-07T13:25:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "qualitativeEntry": "Said 'No broccoli, please' and chose another vegetable."
+    },
+    {
+      "id": "seed-tgt-expr-preference-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-preference",
+      "timestamp": "2026-10-10T13:25:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "qualitativeEntry": "Requested banana while the picture cards were being put away."
+    },
+    {
+      "id": "seed-tgt-expr-preference-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-expr-preference",
+      "timestamp": "2026-10-13T13:25:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "qualitativeEntry": "Asked for water before staff offered a drink."
+    },
+    {
+      "id": "seed-tgt-play-independent-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-independent",
+      "timestamp": "2026-09-23T14:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 95,
+      "durationSeconds": 95,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-tgt-play-independent-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-independent",
+      "timestamp": "2026-09-25T14:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 120,
+      "durationSeconds": 120,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-tgt-play-independent-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-independent",
+      "timestamp": "2026-09-27T14:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 158,
+      "durationSeconds": 158,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-tgt-play-independent-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-independent",
+      "timestamp": "2026-09-29T14:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 185,
+      "durationSeconds": 185,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-tgt-play-independent-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-independent",
+      "timestamp": "2026-10-01T14:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 210,
+      "durationSeconds": 210,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-tgt-play-independent-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-independent",
+      "timestamp": "2026-10-03T14:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 228,
+      "durationSeconds": 228,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-tgt-play-independent-07",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-independent",
+      "timestamp": "2026-10-05T14:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 255,
+      "durationSeconds": 255,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-tgt-play-independent-08",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-independent",
+      "timestamp": "2026-10-07T14:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 280,
+      "durationSeconds": 280,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-tgt-play-independent-09",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-independent",
+      "timestamp": "2026-10-09T14:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Maya Patel, RBT",
+      "value": 310,
+      "durationSeconds": 310,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-tgt-play-independent-10",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-independent",
+      "timestamp": "2026-10-11T14:15:00",
+      "sessionNumber": 10,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 345,
+      "durationSeconds": 345,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-tgt-play-independent-11",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-independent",
+      "timestamp": "2026-10-13T14:15:00",
+      "sessionNumber": 11,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 360,
+      "durationSeconds": 360,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-tgt-play-turn-taking-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-turn-taking",
+      "timestamp": "2026-09-29T11:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 45,
+      "occurredIntervals": 9,
+      "totalIntervals": 20,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-tgt-play-turn-taking-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-turn-taking",
+      "timestamp": "2026-10-01T11:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 55,
+      "occurredIntervals": 11,
+      "totalIntervals": 20,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-tgt-play-turn-taking-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-turn-taking",
+      "timestamp": "2026-10-03T11:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 65,
+      "occurredIntervals": 13,
+      "totalIntervals": 20,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-tgt-play-turn-taking-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-turn-taking",
+      "timestamp": "2026-10-05T11:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 75,
+      "occurredIntervals": 15,
+      "totalIntervals": 20,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-tgt-play-turn-taking-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-turn-taking",
+      "timestamp": "2026-10-07T11:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 80,
+      "occurredIntervals": 16,
+      "totalIntervals": 20,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-tgt-play-turn-taking-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-turn-taking",
+      "timestamp": "2026-10-09T11:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 85,
+      "occurredIntervals": 17,
+      "totalIntervals": 20,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-tgt-play-turn-taking-07",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-turn-taking",
+      "timestamp": "2026-10-11T11:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 90,
+      "occurredIntervals": 18,
+      "totalIntervals": 20,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-tgt-play-turn-taking-08",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-turn-taking",
+      "timestamp": "2026-10-13T11:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 95,
+      "occurredIntervals": 19,
+      "totalIntervals": 20,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-tgt-play-share-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-share",
+      "timestamp": "2026-10-03T11:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 60,
+      "correctCount": 6,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-play-share-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-share",
+      "timestamp": "2026-10-05T11:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 70,
+      "correctCount": 7,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-play-share-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-share",
+      "timestamp": "2026-10-07T11:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 80,
+      "correctCount": 8,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-play-share-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-share",
+      "timestamp": "2026-10-09T11:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-play-share-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-share",
+      "timestamp": "2026-10-11T11:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-play-share-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-play-share",
+      "timestamp": "2026-10-13T11:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 100,
+      "correctCount": 10,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-mands-spontaneous-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-spontaneous",
+      "timestamp": "2026-09-25T09:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 6,
+      "occurrenceCount": 6,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-spontaneous-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-spontaneous",
+      "timestamp": "2026-09-27T09:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 8,
+      "occurrenceCount": 8,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-spontaneous-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-spontaneous",
+      "timestamp": "2026-09-29T09:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 7,
+      "occurrenceCount": 7,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-spontaneous-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-spontaneous",
+      "timestamp": "2026-10-01T09:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 10,
+      "occurrenceCount": 10,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-spontaneous-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-spontaneous",
+      "timestamp": "2026-10-03T09:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 12,
+      "occurrenceCount": 12,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-spontaneous-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-spontaneous",
+      "timestamp": "2026-10-05T09:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 11,
+      "occurrenceCount": 11,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-spontaneous-07",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-spontaneous",
+      "timestamp": "2026-10-07T09:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 15,
+      "occurrenceCount": 15,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-spontaneous-08",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-spontaneous",
+      "timestamp": "2026-10-09T09:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 14,
+      "occurrenceCount": 14,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-spontaneous-09",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-spontaneous",
+      "timestamp": "2026-10-11T09:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Maya Patel, RBT",
+      "value": 18,
+      "occurrenceCount": 18,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-spontaneous-10",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-spontaneous",
+      "timestamp": "2026-10-13T09:15:00",
+      "sessionNumber": 10,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 20,
+      "occurrenceCount": 20,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-help-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-help",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 1,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-help-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-help",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 1,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-help-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-help",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 2,
+      "occurrenceCount": 2,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-help-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-help",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 2,
+      "occurrenceCount": 2,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-help-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-help",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 3,
+      "occurrenceCount": 3,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-help-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-help",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 3,
+      "occurrenceCount": 3,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-mands-help-07",
+      "clientId": "cli-liam",
+      "targetId": "tgt-mands-help",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 4,
+      "occurrenceCount": 4,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-tgt-sight-words-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-sight-words",
+      "timestamp": "2026-09-27T15:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 14,
+      "occurrenceCount": 14,
+      "lessonDurationMinutes": 7
+    },
+    {
+      "id": "seed-tgt-sight-words-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-sight-words",
+      "timestamp": "2026-09-29T15:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 18,
+      "occurrenceCount": 18,
+      "lessonDurationMinutes": 7
+    },
+    {
+      "id": "seed-tgt-sight-words-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-sight-words",
+      "timestamp": "2026-10-01T15:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 17,
+      "occurrenceCount": 17,
+      "lessonDurationMinutes": 7
+    },
+    {
+      "id": "seed-tgt-sight-words-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-sight-words",
+      "timestamp": "2026-10-03T15:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 21,
+      "occurrenceCount": 21,
+      "lessonDurationMinutes": 7
+    },
+    {
+      "id": "seed-tgt-sight-words-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-sight-words",
+      "timestamp": "2026-10-05T15:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 24,
+      "occurrenceCount": 24,
+      "lessonDurationMinutes": 7
+    },
+    {
+      "id": "seed-tgt-sight-words-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-sight-words",
+      "timestamp": "2026-10-07T15:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 26,
+      "occurrenceCount": 26,
+      "lessonDurationMinutes": 7
+    },
+    {
+      "id": "seed-tgt-sight-words-07",
+      "clientId": "cli-liam",
+      "targetId": "tgt-sight-words",
+      "timestamp": "2026-10-09T15:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 28,
+      "occurrenceCount": 28,
+      "lessonDurationMinutes": 7
+    },
+    {
+      "id": "seed-tgt-sight-words-08",
+      "clientId": "cli-liam",
+      "targetId": "tgt-sight-words",
+      "timestamp": "2026-10-11T15:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 30,
+      "occurrenceCount": 30,
+      "lessonDurationMinutes": 7
+    },
+    {
+      "id": "seed-tgt-sight-words-09",
+      "clientId": "cli-liam",
+      "targetId": "tgt-sight-words",
+      "timestamp": "2026-10-13T15:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Maya Patel, RBT",
+      "value": 32,
+      "occurrenceCount": 32,
+      "lessonDurationMinutes": 7
+    },
+    {
+      "id": "seed-tgt-action-fluency-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-action-fluency",
+      "timestamp": "2026-10-01T15:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 10,
+      "occurrenceCount": 10,
+      "lessonDurationMinutes": 3
+    },
+    {
+      "id": "seed-tgt-action-fluency-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-action-fluency",
+      "timestamp": "2026-10-03T15:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 12,
+      "occurrenceCount": 12,
+      "lessonDurationMinutes": 3
+    },
+    {
+      "id": "seed-tgt-action-fluency-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-action-fluency",
+      "timestamp": "2026-10-05T15:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 14,
+      "occurrenceCount": 14,
+      "lessonDurationMinutes": 3
+    },
+    {
+      "id": "seed-tgt-action-fluency-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-action-fluency",
+      "timestamp": "2026-10-07T15:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 16,
+      "occurrenceCount": 16,
+      "lessonDurationMinutes": 3
+    },
+    {
+      "id": "seed-tgt-action-fluency-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-action-fluency",
+      "timestamp": "2026-10-09T15:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 18,
+      "occurrenceCount": 18,
+      "lessonDurationMinutes": 3
+    },
+    {
+      "id": "seed-tgt-action-fluency-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-action-fluency",
+      "timestamp": "2026-10-11T15:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 19,
+      "occurrenceCount": 19,
+      "lessonDurationMinutes": 3
+    },
+    {
+      "id": "seed-tgt-action-fluency-07",
+      "clientId": "cli-liam",
+      "targetId": "tgt-action-fluency",
+      "timestamp": "2026-10-13T15:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 21,
+      "occurrenceCount": 21,
+      "lessonDurationMinutes": 3
+    },
+    {
+      "id": "seed-tgt-object-fluency-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-object-fluency",
+      "timestamp": "2026-10-03T15:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 5,
+      "occurrenceCount": 5,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-object-fluency-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-object-fluency",
+      "timestamp": "2026-10-05T15:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 7,
+      "occurrenceCount": 7,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-object-fluency-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-object-fluency",
+      "timestamp": "2026-10-07T15:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 8,
+      "occurrenceCount": 8,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-object-fluency-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-object-fluency",
+      "timestamp": "2026-10-09T15:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 9,
+      "occurrenceCount": 9,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-object-fluency-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-object-fluency",
+      "timestamp": "2026-10-11T15:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 10,
+      "occurrenceCount": 10,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-object-fluency-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-object-fluency",
+      "timestamp": "2026-10-13T15:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 11,
+      "occurrenceCount": 11,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-receptive-shapes-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-shapes",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 30,
+      "correctCount": 3,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-receptive-shapes-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-shapes",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 40,
+      "correctCount": 4,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-receptive-shapes-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-shapes",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 40,
+      "correctCount": 4,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-receptive-shapes-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-shapes",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 50,
+      "correctCount": 5,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-receptive-shapes-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-shapes",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 60,
+      "correctCount": 6,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-receptive-shapes-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-shapes",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 60,
+      "correctCount": 6,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-receptive-attend-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-attend",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 33,
+      "occurredIntervals": 4,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 9
+    },
+    {
+      "id": "seed-tgt-receptive-attend-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-attend",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 42,
+      "occurredIntervals": 5,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 9
+    },
+    {
+      "id": "seed-tgt-receptive-attend-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-attend",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 42,
+      "occurredIntervals": 5,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 9
+    },
+    {
+      "id": "seed-tgt-receptive-attend-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-attend",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 50,
+      "occurredIntervals": 6,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 9
+    },
+    {
+      "id": "seed-tgt-receptive-attend-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-attend",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 58,
+      "occurredIntervals": 7,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 9
+    },
+    {
+      "id": "seed-tgt-receptive-attend-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-receptive-attend",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 67,
+      "occurredIntervals": 8,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 9
+    },
+    {
+      "id": "seed-tgt-liam-greeting-01",
+      "clientId": "cli-liam",
+      "targetId": "tgt-liam-greeting",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 70,
+      "correctCount": 7,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-liam-greeting-02",
+      "clientId": "cli-liam",
+      "targetId": "tgt-liam-greeting",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 80,
+      "correctCount": 8,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-liam-greeting-03",
+      "clientId": "cli-liam",
+      "targetId": "tgt-liam-greeting",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-liam-greeting-04",
+      "clientId": "cli-liam",
+      "targetId": "tgt-liam-greeting",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-liam-greeting-05",
+      "clientId": "cli-liam",
+      "targetId": "tgt-liam-greeting",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 100,
+      "correctCount": 10,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-liam-greeting-06",
+      "clientId": "cli-liam",
+      "targetId": "tgt-liam-greeting",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 100,
+      "correctCount": 10,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-exchange-01",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-exchange",
+      "timestamp": "2026-09-25T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "David Vance, BCBA",
+      "value": 30,
+      "correctCount": 3,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-exchange-02",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-exchange",
+      "timestamp": "2026-09-27T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Nina Torres, RBT",
+      "value": 40,
+      "correctCount": 4,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-exchange-03",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-exchange",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Alex Chen, RBT",
+      "value": 50,
+      "correctCount": 5,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-exchange-04",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-exchange",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "David Vance, BCBA",
+      "value": 60,
+      "correctCount": 6,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-exchange-05",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-exchange",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Nina Torres, RBT",
+      "value": 60,
+      "correctCount": 6,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-exchange-06",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-exchange",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Alex Chen, RBT",
+      "value": 70,
+      "correctCount": 7,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-exchange-07",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-exchange",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "David Vance, BCBA",
+      "value": 80,
+      "correctCount": 8,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-exchange-08",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-exchange",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Nina Torres, RBT",
+      "value": 80,
+      "correctCount": 8,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-exchange-09",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-exchange",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Alex Chen, RBT",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-exchange-10",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-exchange",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 10,
+      "therapistName": "David Vance, BCBA",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-requests-01",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-requests",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "David Vance, BCBA",
+      "value": 1,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-requests-02",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-requests",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Nina Torres, RBT",
+      "value": 2,
+      "occurrenceCount": 2,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-requests-03",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-requests",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Alex Chen, RBT",
+      "value": 3,
+      "occurrenceCount": 3,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-requests-04",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-requests",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "David Vance, BCBA",
+      "value": 4,
+      "occurrenceCount": 4,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-requests-05",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-requests",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Nina Torres, RBT",
+      "value": 5,
+      "occurrenceCount": 5,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-requests-06",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-requests",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Alex Chen, RBT",
+      "value": 5,
+      "occurrenceCount": 5,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-requests-07",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-requests",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "David Vance, BCBA",
+      "value": 7,
+      "occurrenceCount": 7,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-requests-08",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-requests",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Nina Torres, RBT",
+      "value": 8,
+      "occurrenceCount": 8,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-choices-01",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-choices",
+      "timestamp": "2026-10-04T13:25:00",
+      "sessionNumber": 1,
+      "therapistName": "David Vance, BCBA",
+      "qualitativeEntry": "Selected the swing icon and pointed to the door."
+    },
+    {
+      "id": "seed-tgt-emma-choices-02",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-choices",
+      "timestamp": "2026-10-07T13:25:00",
+      "sessionNumber": 2,
+      "therapistName": "Nina Torres, RBT",
+      "qualitativeEntry": "Exchanged a snack picture with the visiting therapist."
+    },
+    {
+      "id": "seed-tgt-emma-choices-03",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-choices",
+      "timestamp": "2026-10-10T13:25:00",
+      "sessionNumber": 3,
+      "therapistName": "Alex Chen, RBT",
+      "qualitativeEntry": "Used 'more bubbles' after the first round of play."
+    },
+    {
+      "id": "seed-tgt-emma-choices-04",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-choices",
+      "timestamp": "2026-10-13T13:25:00",
+      "sessionNumber": 4,
+      "therapistName": "David Vance, BCBA",
+      "qualitativeEntry": "Chose a book using an icon without adult prompting."
+    },
+    {
+      "id": "seed-tgt-emma-greeting-01",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-greeting",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "David Vance, BCBA",
+      "value": 40,
+      "correctCount": 4,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-greeting-02",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-greeting",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Nina Torres, RBT",
+      "value": 50,
+      "correctCount": 5,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-greeting-03",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-greeting",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Alex Chen, RBT",
+      "value": 60,
+      "correctCount": 6,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-greeting-04",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-greeting",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "David Vance, BCBA",
+      "value": 70,
+      "correctCount": 7,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-greeting-05",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-greeting",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Nina Torres, RBT",
+      "value": 70,
+      "correctCount": 7,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-greeting-06",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-greeting",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Alex Chen, RBT",
+      "value": 80,
+      "correctCount": 8,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-greeting-07",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-greeting",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "David Vance, BCBA",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-greeting-08",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-greeting",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Nina Torres, RBT",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-peer-play-01",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-peer-play",
+      "timestamp": "2026-09-29T14:15:00",
+      "sessionNumber": 1,
+      "therapistName": "David Vance, BCBA",
+      "value": 65,
+      "durationSeconds": 65,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 40
+    },
+    {
+      "id": "seed-tgt-emma-peer-play-02",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-peer-play",
+      "timestamp": "2026-10-01T14:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Nina Torres, RBT",
+      "value": 90,
+      "durationSeconds": 90,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 40
+    },
+    {
+      "id": "seed-tgt-emma-peer-play-03",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-peer-play",
+      "timestamp": "2026-10-03T14:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Alex Chen, RBT",
+      "value": 120,
+      "durationSeconds": 120,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 40
+    },
+    {
+      "id": "seed-tgt-emma-peer-play-04",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-peer-play",
+      "timestamp": "2026-10-05T14:15:00",
+      "sessionNumber": 4,
+      "therapistName": "David Vance, BCBA",
+      "value": 160,
+      "durationSeconds": 160,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 40
+    },
+    {
+      "id": "seed-tgt-emma-peer-play-05",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-peer-play",
+      "timestamp": "2026-10-07T14:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Nina Torres, RBT",
+      "value": 180,
+      "durationSeconds": 180,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 40
+    },
+    {
+      "id": "seed-tgt-emma-peer-play-06",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-peer-play",
+      "timestamp": "2026-10-09T14:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Alex Chen, RBT",
+      "value": 210,
+      "durationSeconds": 210,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 40
+    },
+    {
+      "id": "seed-tgt-emma-peer-play-07",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-peer-play",
+      "timestamp": "2026-10-11T14:15:00",
+      "sessionNumber": 7,
+      "therapistName": "David Vance, BCBA",
+      "value": 235,
+      "durationSeconds": 235,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 40
+    },
+    {
+      "id": "seed-tgt-emma-peer-play-08",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-peer-play",
+      "timestamp": "2026-10-13T14:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Nina Torres, RBT",
+      "value": 255,
+      "durationSeconds": 255,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 40
+    },
+    {
+      "id": "seed-tgt-emma-attending-01",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-attending",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "David Vance, BCBA",
+      "value": 33,
+      "occurredIntervals": 5,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 15
+    },
+    {
+      "id": "seed-tgt-emma-attending-02",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-attending",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Nina Torres, RBT",
+      "value": 47,
+      "occurredIntervals": 7,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 15
+    },
+    {
+      "id": "seed-tgt-emma-attending-03",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-attending",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Alex Chen, RBT",
+      "value": 53,
+      "occurredIntervals": 8,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 15
+    },
+    {
+      "id": "seed-tgt-emma-attending-04",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-attending",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "David Vance, BCBA",
+      "value": 60,
+      "occurredIntervals": 9,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 15
+    },
+    {
+      "id": "seed-tgt-emma-attending-05",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-attending",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Nina Torres, RBT",
+      "value": 67,
+      "occurredIntervals": 10,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 15
+    },
+    {
+      "id": "seed-tgt-emma-attending-06",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-attending",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Alex Chen, RBT",
+      "value": 73,
+      "occurredIntervals": 11,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 15
+    },
+    {
+      "id": "seed-tgt-emma-attending-07",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-attending",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "David Vance, BCBA",
+      "value": 80,
+      "occurredIntervals": 12,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 15
+    },
+    {
+      "id": "seed-tgt-emma-attending-08",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-attending",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Nina Torres, RBT",
+      "value": 87,
+      "occurredIntervals": 13,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 15
+    },
+    {
+      "id": "seed-tgt-emma-beads-01",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-beads",
+      "timestamp": "2026-08-14T14:15:00",
+      "sessionNumber": 1,
+      "therapistName": "David Vance, BCBA",
+      "value": 65,
+      "durationSeconds": 65,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-beads-02",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-beads",
+      "timestamp": "2026-08-16T14:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Nina Torres, RBT",
+      "value": 75,
+      "durationSeconds": 75,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-beads-03",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-beads",
+      "timestamp": "2026-08-18T14:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Alex Chen, RBT",
+      "value": 100,
+      "durationSeconds": 100,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-emma-beads-04",
+      "clientId": "cli-emma",
+      "targetId": "tgt-emma-beads",
+      "timestamp": "2026-08-20T14:15:00",
+      "sessionNumber": 4,
+      "therapistName": "David Vance, BCBA",
+      "value": 110,
+      "durationSeconds": 110,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-dressing-01",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-dressing",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 50,
+      "correctCount": 5,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-dressing-02",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-dressing",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "David Kim, RBT",
+      "value": 60,
+      "correctCount": 6,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-dressing-03",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-dressing",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 70,
+      "correctCount": 7,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-dressing-04",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-dressing",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 70,
+      "correctCount": 7,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-dressing-05",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-dressing",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "David Kim, RBT",
+      "value": 80,
+      "correctCount": 8,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-dressing-06",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-dressing",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 80,
+      "correctCount": 8,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-dressing-07",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-dressing",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-dressing-08",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-dressing",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "David Kim, RBT",
+      "value": 90,
+      "correctCount": 9,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-washing-01",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-washing",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 40,
+      "durationSeconds": 40,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 30
+    },
+    {
+      "id": "seed-tgt-noah-washing-02",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-washing",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "David Kim, RBT",
+      "value": 55,
+      "durationSeconds": 55,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 30
+    },
+    {
+      "id": "seed-tgt-noah-washing-03",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-washing",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 65,
+      "durationSeconds": 65,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 30
+    },
+    {
+      "id": "seed-tgt-noah-washing-04",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-washing",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 75,
+      "durationSeconds": 75,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 30
+    },
+    {
+      "id": "seed-tgt-noah-washing-05",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-washing",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "David Kim, RBT",
+      "value": 85,
+      "durationSeconds": 85,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 30
+    },
+    {
+      "id": "seed-tgt-noah-washing-06",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-washing",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 100,
+      "durationSeconds": 100,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 30
+    },
+    {
+      "id": "seed-tgt-noah-washing-07",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-washing",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 112,
+      "durationSeconds": 112,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 30
+    },
+    {
+      "id": "seed-tgt-noah-washing-08",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-washing",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "David Kim, RBT",
+      "value": 120,
+      "durationSeconds": 120,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 30
+    },
+    {
+      "id": "seed-tgt-noah-waiting-01",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-waiting",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 30,
+      "occurredIntervals": 3,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-noah-waiting-02",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-waiting",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "David Kim, RBT",
+      "value": 40,
+      "occurredIntervals": 4,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-noah-waiting-03",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-waiting",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 50,
+      "occurredIntervals": 5,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-noah-waiting-04",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-waiting",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 60,
+      "occurredIntervals": 6,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-noah-waiting-05",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-waiting",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "David Kim, RBT",
+      "value": 60,
+      "occurredIntervals": 6,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-noah-waiting-06",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-waiting",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 70,
+      "occurredIntervals": 7,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-noah-waiting-07",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-waiting",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 80,
+      "occurredIntervals": 8,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-noah-waiting-08",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-waiting",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "David Kim, RBT",
+      "value": 80,
+      "occurredIntervals": 8,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-tgt-noah-help-01",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-help",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 1,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-help-02",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-help",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "David Kim, RBT",
+      "value": 2,
+      "occurrenceCount": 2,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-help-03",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-help",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 2,
+      "occurrenceCount": 2,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-help-04",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-help",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 3,
+      "occurrenceCount": 3,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-help-05",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-help",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "David Kim, RBT",
+      "value": 3,
+      "occurrenceCount": 3,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-help-06",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-help",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 4,
+      "occurrenceCount": 4,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-help-07",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-help",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 5,
+      "occurrenceCount": 5,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-help-08",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-help",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "David Kim, RBT",
+      "value": 6,
+      "occurrenceCount": 6,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-signs-01",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-signs",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 3,
+      "occurrenceCount": 3,
+      "lessonDurationMinutes": 2
+    },
+    {
+      "id": "seed-tgt-noah-signs-02",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-signs",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "David Kim, RBT",
+      "value": 4,
+      "occurrenceCount": 4,
+      "lessonDurationMinutes": 2
+    },
+    {
+      "id": "seed-tgt-noah-signs-03",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-signs",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 5,
+      "occurrenceCount": 5,
+      "lessonDurationMinutes": 2
+    },
+    {
+      "id": "seed-tgt-noah-signs-04",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-signs",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 6,
+      "occurrenceCount": 6,
+      "lessonDurationMinutes": 2
+    },
+    {
+      "id": "seed-tgt-noah-signs-05",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-signs",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "David Kim, RBT",
+      "value": 8,
+      "occurrenceCount": 8,
+      "lessonDurationMinutes": 2
+    },
+    {
+      "id": "seed-tgt-noah-signs-06",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-signs",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 9,
+      "occurrenceCount": 9,
+      "lessonDurationMinutes": 2
+    },
+    {
+      "id": "seed-tgt-noah-signs-07",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-signs",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 10,
+      "occurrenceCount": 10,
+      "lessonDurationMinutes": 2
+    },
+    {
+      "id": "seed-tgt-noah-observations-01",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-observations",
+      "timestamp": "2026-10-04T13:25:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "qualitativeEntry": "Asked the therapist to open the pretend store door."
+    },
+    {
+      "id": "seed-tgt-noah-observations-02",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-observations",
+      "timestamp": "2026-10-07T13:25:00",
+      "sessionNumber": 2,
+      "therapistName": "David Kim, RBT",
+      "qualitativeEntry": "Looked at a stop sign and asked what it meant."
+    },
+    {
+      "id": "seed-tgt-noah-observations-03",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-observations",
+      "timestamp": "2026-10-10T13:25:00",
+      "sessionNumber": 3,
+      "therapistName": "Ava Brooks, RBT",
+      "qualitativeEntry": "Requested a cart during role-play without prompting."
+    },
+    {
+      "id": "seed-tgt-noah-observations-04",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-observations",
+      "timestamp": "2026-10-13T13:25:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "qualitativeEntry": "Asked for a break before entering the simulated market."
+    },
+    {
+      "id": "seed-tgt-noah-puzzle-01",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-puzzle",
+      "timestamp": "2026-08-04T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 30,
+      "correctCount": 3,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-puzzle-02",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-puzzle",
+      "timestamp": "2026-08-06T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "David Kim, RBT",
+      "value": 40,
+      "correctCount": 4,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-puzzle-03",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-puzzle",
+      "timestamp": "2026-08-08T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 40,
+      "correctCount": 4,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-tgt-noah-puzzle-04",
+      "clientId": "cli-noah",
+      "targetId": "tgt-noah-puzzle",
+      "timestamp": "2026-08-10T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 50,
+      "correctCount": 5,
+      "totalTrials": 10,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-vocal-01",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-09-21T11:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 12,
+      "occurrenceCount": 12,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-vocal-02",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-09-23T11:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 10,
+      "occurrenceCount": 10,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-vocal-03",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-09-25T11:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 11,
+      "occurrenceCount": 11,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-vocal-04",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-09-27T11:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 8,
+      "occurrenceCount": 8,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-vocal-05",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-09-29T11:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 7,
+      "occurrenceCount": 7,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-vocal-06",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-10-01T11:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": null,
+      "missingDataMode": "DataNotTracked"
+    },
+    {
+      "id": "seed-br-vocal-07",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-10-03T11:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 5,
+      "occurrenceCount": 5,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-vocal-08",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-10-05T11:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 4,
+      "occurrenceCount": 4,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-vocal-09",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-10-07T11:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Maya Patel, RBT",
+      "value": 3,
+      "occurrenceCount": 3,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-vocal-10",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-10-09T11:15:00",
+      "sessionNumber": 10,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 2,
+      "occurrenceCount": 2,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-vocal-11",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-10-11T11:15:00",
+      "sessionNumber": 11,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 0,
+      "occurrenceCount": 0,
+      "lessonDurationMinutes": 60,
+      "missingDataMode": "ZeroOut"
+    },
+    {
+      "id": "seed-br-vocal-12",
+      "clientId": "cli-liam",
+      "targetId": "br-vocal",
+      "timestamp": "2026-10-13T11:15:00",
+      "sessionNumber": 12,
+      "therapistName": "Maya Patel, RBT",
+      "value": 0,
+      "occurrenceCount": 0,
+      "lessonDurationMinutes": 60,
+      "missingDataMode": "ZeroOut"
+    },
+    {
+      "id": "seed-br-elopement-01",
+      "clientId": "cli-liam",
+      "targetId": "br-elopement",
+      "timestamp": "2026-09-25T14:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 240,
+      "durationSeconds": 240,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-elopement-02",
+      "clientId": "cli-liam",
+      "targetId": "br-elopement",
+      "timestamp": "2026-09-27T14:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 190,
+      "durationSeconds": 190,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-elopement-03",
+      "clientId": "cli-liam",
+      "targetId": "br-elopement",
+      "timestamp": "2026-09-29T14:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 145,
+      "durationSeconds": 145,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-elopement-04",
+      "clientId": "cli-liam",
+      "targetId": "br-elopement",
+      "timestamp": "2026-10-01T14:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": null,
+      "missingDataMode": "DataNotTracked"
+    },
+    {
+      "id": "seed-br-elopement-05",
+      "clientId": "cli-liam",
+      "targetId": "br-elopement",
+      "timestamp": "2026-10-03T14:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 110,
+      "durationSeconds": 110,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-elopement-06",
+      "clientId": "cli-liam",
+      "targetId": "br-elopement",
+      "timestamp": "2026-10-05T14:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 75,
+      "durationSeconds": 75,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-elopement-07",
+      "clientId": "cli-liam",
+      "targetId": "br-elopement",
+      "timestamp": "2026-10-07T14:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 50,
+      "durationSeconds": 50,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-elopement-08",
+      "clientId": "cli-liam",
+      "targetId": "br-elopement",
+      "timestamp": "2026-10-09T14:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 30,
+      "durationSeconds": 30,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-elopement-09",
+      "clientId": "cli-liam",
+      "targetId": "br-elopement",
+      "timestamp": "2026-10-11T14:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Maya Patel, RBT",
+      "value": 0,
+      "durationSeconds": 0,
+      "occurrenceCount": 0,
+      "lessonDurationMinutes": 60,
+      "missingDataMode": "ZeroOut"
+    },
+    {
+      "id": "seed-br-elopement-10",
+      "clientId": "cli-liam",
+      "targetId": "br-elopement",
+      "timestamp": "2026-10-13T14:15:00",
+      "sessionNumber": 10,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 0,
+      "durationSeconds": 0,
+      "occurrenceCount": 0,
+      "lessonDurationMinutes": 60,
+      "missingDataMode": "ZeroOut"
+    },
+    {
+      "id": "seed-br-property-01",
+      "clientId": "cli-liam",
+      "targetId": "br-property",
+      "timestamp": "2026-09-25T14:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 58,
+      "occurredIntervals": 7,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 6
+    },
+    {
+      "id": "seed-br-property-02",
+      "clientId": "cli-liam",
+      "targetId": "br-property",
+      "timestamp": "2026-09-27T14:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 50,
+      "occurredIntervals": 6,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 6
+    },
+    {
+      "id": "seed-br-property-03",
+      "clientId": "cli-liam",
+      "targetId": "br-property",
+      "timestamp": "2026-09-29T14:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Maya Patel, RBT",
+      "value": 42,
+      "occurredIntervals": 5,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 6
+    },
+    {
+      "id": "seed-br-property-04",
+      "clientId": "cli-liam",
+      "targetId": "br-property",
+      "timestamp": "2026-10-01T14:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 42,
+      "occurredIntervals": 5,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 6
+    },
+    {
+      "id": "seed-br-property-05",
+      "clientId": "cli-liam",
+      "targetId": "br-property",
+      "timestamp": "2026-10-03T14:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Joe Ronald, RBT",
+      "value": null,
+      "missingDataMode": "DataNotTracked"
+    },
+    {
+      "id": "seed-br-property-06",
+      "clientId": "cli-liam",
+      "targetId": "br-property",
+      "timestamp": "2026-10-05T14:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Maya Patel, RBT",
+      "value": 33,
+      "occurredIntervals": 4,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 6
+    },
+    {
+      "id": "seed-br-property-07",
+      "clientId": "cli-liam",
+      "targetId": "br-property",
+      "timestamp": "2026-10-07T14:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 25,
+      "occurredIntervals": 3,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 6
+    },
+    {
+      "id": "seed-br-property-08",
+      "clientId": "cli-liam",
+      "targetId": "br-property",
+      "timestamp": "2026-10-09T14:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Joe Ronald, RBT",
+      "value": 17,
+      "occurredIntervals": 2,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 6
+    },
+    {
+      "id": "seed-br-property-09",
+      "clientId": "cli-liam",
+      "targetId": "br-property",
+      "timestamp": "2026-10-11T14:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Maya Patel, RBT",
+      "value": 8,
+      "occurredIntervals": 1,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 6
+    },
+    {
+      "id": "seed-br-property-10",
+      "clientId": "cli-liam",
+      "targetId": "br-property",
+      "timestamp": "2026-10-13T14:15:00",
+      "sessionNumber": 10,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 0,
+      "occurredIntervals": 0,
+      "totalIntervals": 12,
+      "lessonDurationMinutes": 6,
+      "missingDataMode": "ZeroOut"
+    },
+    {
+      "id": "seed-br-refusal-01",
+      "clientId": "cli-emma",
+      "targetId": "br-refusal",
+      "timestamp": "2026-09-25T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "David Vance, BCBA",
+      "value": 8,
+      "occurrenceCount": 8,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-refusal-02",
+      "clientId": "cli-emma",
+      "targetId": "br-refusal",
+      "timestamp": "2026-09-27T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Nina Torres, RBT",
+      "value": 7,
+      "occurrenceCount": 7,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-refusal-03",
+      "clientId": "cli-emma",
+      "targetId": "br-refusal",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Alex Chen, RBT",
+      "value": 7,
+      "occurrenceCount": 7,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-refusal-04",
+      "clientId": "cli-emma",
+      "targetId": "br-refusal",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "David Vance, BCBA",
+      "value": 5,
+      "occurrenceCount": 5,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-refusal-05",
+      "clientId": "cli-emma",
+      "targetId": "br-refusal",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Nina Torres, RBT",
+      "value": null,
+      "missingDataMode": "DataNotTracked"
+    },
+    {
+      "id": "seed-br-refusal-06",
+      "clientId": "cli-emma",
+      "targetId": "br-refusal",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Alex Chen, RBT",
+      "value": 4,
+      "occurrenceCount": 4,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-refusal-07",
+      "clientId": "cli-emma",
+      "targetId": "br-refusal",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "David Vance, BCBA",
+      "value": 3,
+      "occurrenceCount": 3,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-refusal-08",
+      "clientId": "cli-emma",
+      "targetId": "br-refusal",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Nina Torres, RBT",
+      "value": 2,
+      "occurrenceCount": 2,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-refusal-09",
+      "clientId": "cli-emma",
+      "targetId": "br-refusal",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Alex Chen, RBT",
+      "value": 1,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-refusal-10",
+      "clientId": "cli-emma",
+      "targetId": "br-refusal",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 10,
+      "therapistName": "David Vance, BCBA",
+      "value": 0,
+      "occurrenceCount": 0,
+      "lessonDurationMinutes": 45,
+      "missingDataMode": "ZeroOut"
+    },
+    {
+      "id": "seed-br-drop-01",
+      "clientId": "cli-emma",
+      "targetId": "br-drop",
+      "timestamp": "2026-09-25T14:15:00",
+      "sessionNumber": 1,
+      "therapistName": "David Vance, BCBA",
+      "value": 150,
+      "durationSeconds": 150,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-br-drop-02",
+      "clientId": "cli-emma",
+      "targetId": "br-drop",
+      "timestamp": "2026-09-27T14:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Nina Torres, RBT",
+      "value": 130,
+      "durationSeconds": 130,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-br-drop-03",
+      "clientId": "cli-emma",
+      "targetId": "br-drop",
+      "timestamp": "2026-09-29T14:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Alex Chen, RBT",
+      "value": 105,
+      "durationSeconds": 105,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-br-drop-04",
+      "clientId": "cli-emma",
+      "targetId": "br-drop",
+      "timestamp": "2026-10-01T14:15:00",
+      "sessionNumber": 4,
+      "therapistName": "David Vance, BCBA",
+      "value": 90,
+      "durationSeconds": 90,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-br-drop-05",
+      "clientId": "cli-emma",
+      "targetId": "br-drop",
+      "timestamp": "2026-10-03T14:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Nina Torres, RBT",
+      "value": 70,
+      "durationSeconds": 70,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-br-drop-06",
+      "clientId": "cli-emma",
+      "targetId": "br-drop",
+      "timestamp": "2026-10-05T14:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Alex Chen, RBT",
+      "value": null,
+      "missingDataMode": "DataNotTracked"
+    },
+    {
+      "id": "seed-br-drop-07",
+      "clientId": "cli-emma",
+      "targetId": "br-drop",
+      "timestamp": "2026-10-07T14:15:00",
+      "sessionNumber": 7,
+      "therapistName": "David Vance, BCBA",
+      "value": 45,
+      "durationSeconds": 45,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-br-drop-08",
+      "clientId": "cli-emma",
+      "targetId": "br-drop",
+      "timestamp": "2026-10-09T14:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Nina Torres, RBT",
+      "value": 30,
+      "durationSeconds": 30,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-br-drop-09",
+      "clientId": "cli-emma",
+      "targetId": "br-drop",
+      "timestamp": "2026-10-11T14:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Alex Chen, RBT",
+      "value": 15,
+      "durationSeconds": 15,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 50
+    },
+    {
+      "id": "seed-br-drop-10",
+      "clientId": "cli-emma",
+      "targetId": "br-drop",
+      "timestamp": "2026-10-13T14:15:00",
+      "sessionNumber": 10,
+      "therapistName": "David Vance, BCBA",
+      "value": 0,
+      "durationSeconds": 0,
+      "occurrenceCount": 0,
+      "lessonDurationMinutes": 50,
+      "missingDataMode": "ZeroOut"
+    },
+    {
+      "id": "seed-br-disruptive-01",
+      "clientId": "cli-emma",
+      "targetId": "br-disruptive",
+      "timestamp": "2026-09-25T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "David Vance, BCBA",
+      "value": 67,
+      "occurredIntervals": 10,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-br-disruptive-02",
+      "clientId": "cli-emma",
+      "targetId": "br-disruptive",
+      "timestamp": "2026-09-27T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "Nina Torres, RBT",
+      "value": 60,
+      "occurredIntervals": 9,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-br-disruptive-03",
+      "clientId": "cli-emma",
+      "targetId": "br-disruptive",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Alex Chen, RBT",
+      "value": 53,
+      "occurredIntervals": 8,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-br-disruptive-04",
+      "clientId": "cli-emma",
+      "targetId": "br-disruptive",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "David Vance, BCBA",
+      "value": null,
+      "missingDataMode": "DataNotTracked"
+    },
+    {
+      "id": "seed-br-disruptive-05",
+      "clientId": "cli-emma",
+      "targetId": "br-disruptive",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "Nina Torres, RBT",
+      "value": 47,
+      "occurredIntervals": 7,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-br-disruptive-06",
+      "clientId": "cli-emma",
+      "targetId": "br-disruptive",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Alex Chen, RBT",
+      "value": 33,
+      "occurredIntervals": 5,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-br-disruptive-07",
+      "clientId": "cli-emma",
+      "targetId": "br-disruptive",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "David Vance, BCBA",
+      "value": 27,
+      "occurredIntervals": 4,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-br-disruptive-08",
+      "clientId": "cli-emma",
+      "targetId": "br-disruptive",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "Nina Torres, RBT",
+      "value": 20,
+      "occurredIntervals": 3,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-br-disruptive-09",
+      "clientId": "cli-emma",
+      "targetId": "br-disruptive",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Alex Chen, RBT",
+      "value": 13,
+      "occurredIntervals": 2,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 5
+    },
+    {
+      "id": "seed-br-disruptive-10",
+      "clientId": "cli-emma",
+      "targetId": "br-disruptive",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 10,
+      "therapistName": "David Vance, BCBA",
+      "value": 0,
+      "occurredIntervals": 0,
+      "totalIntervals": 15,
+      "lessonDurationMinutes": 5,
+      "missingDataMode": "ZeroOut"
+    },
+    {
+      "id": "seed-br-bolting-01",
+      "clientId": "cli-noah",
+      "targetId": "br-bolting",
+      "timestamp": "2026-09-25T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 6,
+      "occurrenceCount": 6,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-bolting-02",
+      "clientId": "cli-noah",
+      "targetId": "br-bolting",
+      "timestamp": "2026-09-27T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "David Kim, RBT",
+      "value": 5,
+      "occurrenceCount": 5,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-bolting-03",
+      "clientId": "cli-noah",
+      "targetId": "br-bolting",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 5,
+      "occurrenceCount": 5,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-bolting-04",
+      "clientId": "cli-noah",
+      "targetId": "br-bolting",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 4,
+      "occurrenceCount": 4,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-bolting-05",
+      "clientId": "cli-noah",
+      "targetId": "br-bolting",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "David Kim, RBT",
+      "value": null,
+      "missingDataMode": "DataNotTracked"
+    },
+    {
+      "id": "seed-br-bolting-06",
+      "clientId": "cli-noah",
+      "targetId": "br-bolting",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 3,
+      "occurrenceCount": 3,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-bolting-07",
+      "clientId": "cli-noah",
+      "targetId": "br-bolting",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 2,
+      "occurrenceCount": 2,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-bolting-08",
+      "clientId": "cli-noah",
+      "targetId": "br-bolting",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "David Kim, RBT",
+      "value": 1,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 60
+    },
+    {
+      "id": "seed-br-bolting-09",
+      "clientId": "cli-noah",
+      "targetId": "br-bolting",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 0,
+      "occurrenceCount": 0,
+      "lessonDurationMinutes": 60,
+      "missingDataMode": "ZeroOut"
+    },
+    {
+      "id": "seed-br-bolting-10",
+      "clientId": "cli-noah",
+      "targetId": "br-bolting",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 10,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 0,
+      "occurrenceCount": 0,
+      "lessonDurationMinutes": 60,
+      "missingDataMode": "ZeroOut"
+    },
+    {
+      "id": "seed-br-hand-biting-01",
+      "clientId": "cli-noah",
+      "targetId": "br-hand-biting",
+      "timestamp": "2026-09-25T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 100,
+      "durationSeconds": 100,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-hand-biting-02",
+      "clientId": "cli-noah",
+      "targetId": "br-hand-biting",
+      "timestamp": "2026-09-27T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "David Kim, RBT",
+      "value": 90,
+      "durationSeconds": 90,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-hand-biting-03",
+      "clientId": "cli-noah",
+      "targetId": "br-hand-biting",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 75,
+      "durationSeconds": 75,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-hand-biting-04",
+      "clientId": "cli-noah",
+      "targetId": "br-hand-biting",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 65,
+      "durationSeconds": 65,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-hand-biting-05",
+      "clientId": "cli-noah",
+      "targetId": "br-hand-biting",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "David Kim, RBT",
+      "value": 50,
+      "durationSeconds": 50,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-hand-biting-06",
+      "clientId": "cli-noah",
+      "targetId": "br-hand-biting",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 40,
+      "durationSeconds": 40,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-hand-biting-07",
+      "clientId": "cli-noah",
+      "targetId": "br-hand-biting",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": null,
+      "missingDataMode": "DataNotTracked"
+    },
+    {
+      "id": "seed-br-hand-biting-08",
+      "clientId": "cli-noah",
+      "targetId": "br-hand-biting",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "David Kim, RBT",
+      "value": 25,
+      "durationSeconds": 25,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-hand-biting-09",
+      "clientId": "cli-noah",
+      "targetId": "br-hand-biting",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 12,
+      "durationSeconds": 12,
+      "occurrenceCount": 1,
+      "lessonDurationMinutes": 45
+    },
+    {
+      "id": "seed-br-hand-biting-10",
+      "clientId": "cli-noah",
+      "targetId": "br-hand-biting",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 10,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 0,
+      "durationSeconds": 0,
+      "occurrenceCount": 0,
+      "lessonDurationMinutes": 45,
+      "missingDataMode": "ZeroOut"
+    },
+    {
+      "id": "seed-br-repetitive-01",
+      "clientId": "cli-noah",
+      "targetId": "br-repetitive",
+      "timestamp": "2026-09-25T10:15:00",
+      "sessionNumber": 1,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 70,
+      "occurredIntervals": 7,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-br-repetitive-02",
+      "clientId": "cli-noah",
+      "targetId": "br-repetitive",
+      "timestamp": "2026-09-27T10:15:00",
+      "sessionNumber": 2,
+      "therapistName": "David Kim, RBT",
+      "value": 60,
+      "occurredIntervals": 6,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-br-repetitive-03",
+      "clientId": "cli-noah",
+      "targetId": "br-repetitive",
+      "timestamp": "2026-09-29T10:15:00",
+      "sessionNumber": 3,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 60,
+      "occurredIntervals": 6,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-br-repetitive-04",
+      "clientId": "cli-noah",
+      "targetId": "br-repetitive",
+      "timestamp": "2026-10-01T10:15:00",
+      "sessionNumber": 4,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 50,
+      "occurredIntervals": 5,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-br-repetitive-05",
+      "clientId": "cli-noah",
+      "targetId": "br-repetitive",
+      "timestamp": "2026-10-03T10:15:00",
+      "sessionNumber": 5,
+      "therapistName": "David Kim, RBT",
+      "value": 40,
+      "occurredIntervals": 4,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-br-repetitive-06",
+      "clientId": "cli-noah",
+      "targetId": "br-repetitive",
+      "timestamp": "2026-10-05T10:15:00",
+      "sessionNumber": 6,
+      "therapistName": "Ava Brooks, RBT",
+      "value": null,
+      "missingDataMode": "DataNotTracked"
+    },
+    {
+      "id": "seed-br-repetitive-07",
+      "clientId": "cli-noah",
+      "targetId": "br-repetitive",
+      "timestamp": "2026-10-07T10:15:00",
+      "sessionNumber": 7,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 30,
+      "occurredIntervals": 3,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-br-repetitive-08",
+      "clientId": "cli-noah",
+      "targetId": "br-repetitive",
+      "timestamp": "2026-10-09T10:15:00",
+      "sessionNumber": 8,
+      "therapistName": "David Kim, RBT",
+      "value": 20,
+      "occurredIntervals": 2,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-br-repetitive-09",
+      "clientId": "cli-noah",
+      "targetId": "br-repetitive",
+      "timestamp": "2026-10-11T10:15:00",
+      "sessionNumber": 9,
+      "therapistName": "Ava Brooks, RBT",
+      "value": 10,
+      "occurredIntervals": 1,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 10
+    },
+    {
+      "id": "seed-br-repetitive-10",
+      "clientId": "cli-noah",
+      "targetId": "br-repetitive",
+      "timestamp": "2026-10-13T10:15:00",
+      "sessionNumber": 10,
+      "therapistName": "Sarah Jenkins, BCBA",
+      "value": 0,
+      "occurredIntervals": 0,
+      "totalIntervals": 10,
+      "lessonDurationMinutes": 10,
+      "missingDataMode": "ZeroOut"
+    }
+  ],
+  "phaseLines": [
+    {
+      "id": "pcl-1",
+      "targetId": "tgt-expr-food",
+      "date": "2026-09-23",
+      "label": "Differential reinforcement introduced",
+      "style": "Solid",
+      "color": "#2563EB",
+      "isAutomated": false,
+      "source": "Manual"
+    },
+    {
+      "id": "pcl-2",
+      "targetId": "tgt-expr-food",
+      "date": "2026-09-28",
+      "label": "Generalization across settings",
+      "style": "Dotted",
+      "color": "#059669",
+      "isAutomated": true,
+      "source": "OutcomesPromotions"
+    },
+    {
+      "id": "pcl-3",
+      "targetId": "br-vocal",
+      "date": "2026-09-25",
+      "label": "Functional communication training",
+      "style": "Solid",
+      "color": "#DC2626",
+      "isAutomated": false,
+      "source": "Manual"
+    },
+    {
+      "id": "pcl-4",
+      "targetId": "tgt-emma-attending",
+      "date": "2026-10-03",
+      "label": "Group setting generalization",
+      "style": "Dotted",
+      "color": "#059669",
+      "isAutomated": true,
+      "source": "OutcomesPromotions"
+    },
+    {
+      "id": "pcl-5",
+      "targetId": "br-bolting",
+      "date": "2026-09-30",
+      "label": "Visual boundary introduced",
+      "style": "Solid",
+      "color": "#DC2626",
+      "isAutomated": false,
+      "source": "Manual"
+    }
+  ],
+  "phaseRanges": [
+    {
+      "id": "pr-1",
+      "targetId": "tgt-expr-food",
+      "startDate": "2026-09-15",
+      "endDate": "2026-09-22",
+      "label": "Baseline assessment",
+      "color": "rgba(147, 197, 253, 0.25)"
+    },
+    {
+      "id": "pr-2",
+      "targetId": "tgt-emma-exchange",
+      "startDate": "2026-09-16",
+      "endDate": "2026-09-23",
+      "label": "Initial picture exchange",
+      "color": "rgba(147, 197, 253, 0.25)"
+    }
+  ],
+  "graphNotes": [
+    {
+      "id": "gn-1",
+      "targetId": "tgt-expr-food",
+      "date": "2026-09-24",
+      "noteText": "Used familiar picture cards in a different therapy room.",
+      "color": "#F59E0B",
+      "staffName": "Sarah Jenkins, BCBA"
+    },
+    {
+      "id": "gn-2",
+      "targetId": "tgt-noah-waiting",
+      "date": "2026-10-04",
+      "noteText": "Visual schedule was moved next to the waiting area.",
+      "color": "#F59E0B",
+      "staffName": "David Kim, RBT"
+    }
+  ],
+  "abcConfigurations": [
+    {
+      "clientId": "cli-liam",
+      "treatmentArea": "Behavioral Regulation",
+      "teachingInstructions": "Record what occurred just before and after each event. Select all applicable entries; record the actual location, not a presumed function.",
+      "antecedents": [
+        "Tabletop demand",
+        "Transition from preferred play",
+        "Peer took a toy",
+        "Denied access to tablet",
+        "Loud cafeteria noise",
+        "Wait for attention"
+      ],
+      "behaviors": [
+        "Vocal Disruption / Screaming",
+        "Elopement / Leaving Area",
+        "Property Disruption"
+      ],
+      "consequences": [
+        "Prompted break request",
+        "First/then visual presented",
+        "Access to quiet corner",
+        "Blocked unsafe movement",
+        "Returned to task with choice",
+        "Peer turn supported"
+      ],
+      "locations": [
+        "Therapy Table",
+        "Play Area",
+        "Hallway",
+        "Cafeteria"
+      ]
+    },
+    {
+      "clientId": "cli-emma",
+      "treatmentArea": "Communication & Transitions",
+      "teachingInstructions": "Document the exact trigger and response during transitions; use communication icons before re-presenting the demand.",
+      "antecedents": [
+        "Non-preferred task presented",
+        "Transition to circle time",
+        "Preferred toy removed",
+        "Peer begins speaking",
+        "Snack delayed",
+        "Group moves to playroom"
+      ],
+      "behaviors": [
+        "Task Refusal",
+        "Drop to Floor",
+        "Disruptive Vocalizations"
+      ],
+      "consequences": [
+        "Offered task-order choice",
+        "First/then card shown",
+        "Prompted picture exchange",
+        "Break card offered",
+        "Rejoined group",
+        "Quiet participation reinforced"
+      ],
+      "locations": [
+        "Classroom",
+        "Circle Area",
+        "Playroom",
+        "Therapy Table"
+      ]
+    },
+    {
+      "clientId": "cli-noah",
+      "treatmentArea": "Safety & Sensory Regulation",
+      "teachingInstructions": "Document safety events immediately; offer a sensory alternative and reinforce remaining with the group.",
+      "antecedents": [
+        "Group changed activity",
+        "Loud hallway sound",
+        "Extended instruction",
+        "Preferred item put away",
+        "Community role-play begins",
+        "Asked to wait"
+      ],
+      "behaviors": [
+        "Bolting from Group",
+        "Hand Biting",
+        "Repetitive Vocalizations"
+      ],
+      "consequences": [
+        "Visual boundary reviewed",
+        "Sensory alternative offered",
+        "Rejoined group with prompt",
+        "Break request modeled",
+        "Quiet interval reinforced",
+        "Caregiver notified"
+      ],
+      "locations": [
+        "Home Therapy Room",
+        "Hallway",
+        "Community Practice Area",
+        "Sensory Corner"
+      ]
+    }
+  ],
+  "abcEntries": [
+    {
+      "id": "abc-cli-liam-01",
+      "clientId": "cli-liam",
+      "timestamp": "2026-10-13T09:00:00",
+      "therapist": "Sarah Jenkins, BCBA",
+      "antecedents": [
+        "Tabletop demand",
+        "Wait for attention"
+      ],
+      "behaviors": [
+        "Vocal Disruption / Screaming"
+      ],
+      "consequences": [
+        "Prompted break request",
+        "Returned to task with choice"
+      ],
+      "location": "Therapy Table",
+      "notes": "Requested a break; returned to table after two minutes.",
+      "intensity": 3,
+      "durationMinutes": 4
+    },
+    {
+      "id": "abc-cli-liam-02",
+      "clientId": "cli-liam",
+      "timestamp": "2026-10-13T10:11:00",
+      "therapist": "Joe Ronald, RBT",
+      "antecedents": [
+        "Transition from preferred play"
+      ],
+      "behaviors": [
+        "Elopement / Leaving Area"
+      ],
+      "consequences": [
+        "First/then visual presented",
+        "Blocked unsafe movement"
+      ],
+      "location": "Hallway",
+      "notes": "Checked the first/then board and walked back with staff.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-liam-03",
+      "clientId": "cli-liam",
+      "timestamp": "2026-10-11T11:22:00",
+      "therapist": "Maya Patel, RBT",
+      "antecedents": [
+        "Peer took a toy"
+      ],
+      "behaviors": [
+        "Property Disruption",
+        "Vocal Disruption / Screaming"
+      ],
+      "consequences": [
+        "Peer turn supported",
+        "Prompted break request"
+      ],
+      "location": "Play Area",
+      "notes": "Peer turn was restored using a visual timer.",
+      "intensity": 3,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-liam-04",
+      "clientId": "cli-liam",
+      "timestamp": "2026-10-10T12:33:00",
+      "therapist": "Sarah Jenkins, BCBA",
+      "antecedents": [
+        "Denied access to tablet"
+      ],
+      "behaviors": [
+        "Vocal Disruption / Screaming"
+      ],
+      "consequences": [
+        "Prompted break request"
+      ],
+      "location": "Therapy Table",
+      "notes": "Used a break request rather than escalating further.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-liam-05",
+      "clientId": "cli-liam",
+      "timestamp": "2026-10-08T13:44:00",
+      "therapist": "Joe Ronald, RBT",
+      "antecedents": [
+        "Loud cafeteria noise"
+      ],
+      "behaviors": [
+        "Elopement / Leaving Area"
+      ],
+      "consequences": [
+        "Access to quiet corner",
+        "Blocked unsafe movement"
+      ],
+      "location": "Cafeteria",
+      "notes": "Quiet corner reduced agitation during lunch.",
+      "intensity": 2,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-liam-06",
+      "clientId": "cli-liam",
+      "timestamp": "2026-10-06T14:55:00",
+      "therapist": "Maya Patel, RBT",
+      "antecedents": [
+        "Tabletop demand"
+      ],
+      "behaviors": [
+        "Property Disruption"
+      ],
+      "consequences": [
+        "Returned to task with choice"
+      ],
+      "location": "Therapy Table",
+      "notes": "Chose an easier starter task and resumed instruction.",
+      "intensity": 3,
+      "durationMinutes": 5
+    },
+    {
+      "id": "abc-cli-liam-07",
+      "clientId": "cli-liam",
+      "timestamp": "2026-10-06T09:06:00",
+      "therapist": "Sarah Jenkins, BCBA",
+      "antecedents": [
+        "Peer took a toy",
+        "Wait for attention"
+      ],
+      "behaviors": [
+        "Vocal Disruption / Screaming"
+      ],
+      "consequences": [
+        "Peer turn supported"
+      ],
+      "location": "Play Area",
+      "notes": "Waited for a peer turn with one gestural cue.",
+      "intensity": 1,
+      "durationMinutes": 1
+    },
+    {
+      "id": "abc-cli-liam-08",
+      "clientId": "cli-liam",
+      "timestamp": "2026-10-04T10:17:00",
+      "therapist": "Joe Ronald, RBT",
+      "antecedents": [
+        "Transition from preferred play"
+      ],
+      "behaviors": [
+        "Elopement / Leaving Area"
+      ],
+      "consequences": [
+        "Blocked unsafe movement",
+        "First/then visual presented"
+      ],
+      "location": "Hallway",
+      "notes": "Returned independently after viewing the schedule.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-liam-09",
+      "clientId": "cli-liam",
+      "timestamp": "2026-10-02T11:28:00",
+      "therapist": "Maya Patel, RBT",
+      "antecedents": [
+        "Denied access to tablet"
+      ],
+      "behaviors": [
+        "Vocal Disruption / Screaming",
+        "Property Disruption"
+      ],
+      "consequences": [
+        "Prompted break request",
+        "Returned to task with choice"
+      ],
+      "location": "Therapy Table",
+      "notes": "Completed work after a prompted functional request.",
+      "intensity": 3,
+      "durationMinutes": 4
+    },
+    {
+      "id": "abc-cli-liam-10",
+      "clientId": "cli-liam",
+      "timestamp": "2026-09-29T12:39:00",
+      "therapist": "Sarah Jenkins, BCBA",
+      "antecedents": [
+        "Tabletop demand"
+      ],
+      "behaviors": [
+        "Vocal Disruption / Screaming"
+      ],
+      "consequences": [
+        "Returned to task with choice"
+      ],
+      "location": "Therapy Table",
+      "notes": "Demand was resumed after brief choice making.",
+      "intensity": 2,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-liam-11",
+      "clientId": "cli-liam",
+      "timestamp": "2026-09-25T13:50:00",
+      "therapist": "Joe Ronald, RBT",
+      "antecedents": [
+        "Loud cafeteria noise"
+      ],
+      "behaviors": [
+        "Elopement / Leaving Area"
+      ],
+      "consequences": [
+        "Access to quiet corner"
+      ],
+      "location": "Cafeteria",
+      "notes": "Accepted headphones in quieter corner.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-liam-12",
+      "clientId": "cli-liam",
+      "timestamp": "2026-09-20T14:01:00",
+      "therapist": "Maya Patel, RBT",
+      "antecedents": [
+        "Peer took a toy"
+      ],
+      "behaviors": [
+        "Property Disruption"
+      ],
+      "consequences": [
+        "Peer turn supported"
+      ],
+      "location": "Play Area",
+      "notes": "Shared toy with adult coaching.",
+      "intensity": 2,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-liam-13",
+      "clientId": "cli-liam",
+      "timestamp": "2026-09-02T09:12:00",
+      "therapist": "Sarah Jenkins, BCBA",
+      "antecedents": [
+        "Transition from preferred play"
+      ],
+      "behaviors": [
+        "Elopement / Leaving Area"
+      ],
+      "consequences": [
+        "First/then visual presented",
+        "Blocked unsafe movement"
+      ],
+      "location": "Hallway",
+      "notes": "Historical transition observation.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-liam-14",
+      "clientId": "cli-liam",
+      "timestamp": "2026-08-07T10:23:00",
+      "therapist": "Joe Ronald, RBT",
+      "antecedents": [
+        "Tabletop demand"
+      ],
+      "behaviors": [
+        "Vocal Disruption / Screaming"
+      ],
+      "consequences": [
+        "Prompted break request"
+      ],
+      "location": "Therapy Table",
+      "notes": "Historical baseline event.",
+      "intensity": 3,
+      "durationMinutes": 5
+    },
+    {
+      "id": "abc-cli-emma-01",
+      "clientId": "cli-emma",
+      "timestamp": "2026-10-13T09:00:00",
+      "therapist": "David Vance, BCBA",
+      "antecedents": [
+        "Non-preferred task presented"
+      ],
+      "behaviors": [
+        "Task Refusal"
+      ],
+      "consequences": [
+        "Offered task-order choice",
+        "Rejoined group"
+      ],
+      "location": "Classroom",
+      "notes": "Selected which task to complete first and rejoined work.",
+      "intensity": 2,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-emma-02",
+      "clientId": "cli-emma",
+      "timestamp": "2026-10-13T10:11:00",
+      "therapist": "Nina Torres, RBT",
+      "antecedents": [
+        "Transition to circle time"
+      ],
+      "behaviors": [
+        "Drop to Floor"
+      ],
+      "consequences": [
+        "First/then card shown",
+        "Break card offered"
+      ],
+      "location": "Circle Area",
+      "notes": "Stood up after using the break picture.",
+      "intensity": 3,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-emma-03",
+      "clientId": "cli-emma",
+      "timestamp": "2026-10-11T11:22:00",
+      "therapist": "Alex Chen, RBT",
+      "antecedents": [
+        "Peer begins speaking"
+      ],
+      "behaviors": [
+        "Disruptive Vocalizations"
+      ],
+      "consequences": [
+        "Quiet participation reinforced"
+      ],
+      "location": "Circle Area",
+      "notes": "Returned to listening after praise for quiet participation.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-emma-04",
+      "clientId": "cli-emma",
+      "timestamp": "2026-10-10T12:33:00",
+      "therapist": "David Vance, BCBA",
+      "antecedents": [
+        "Snack delayed"
+      ],
+      "behaviors": [
+        "Task Refusal"
+      ],
+      "consequences": [
+        "Prompted picture exchange"
+      ],
+      "location": "Therapy Table",
+      "notes": "Exchanged a snack icon independently after prompting.",
+      "intensity": 1,
+      "durationMinutes": 1
+    },
+    {
+      "id": "abc-cli-emma-05",
+      "clientId": "cli-emma",
+      "timestamp": "2026-10-08T13:44:00",
+      "therapist": "Nina Torres, RBT",
+      "antecedents": [
+        "Group moves to playroom"
+      ],
+      "behaviors": [
+        "Drop to Floor"
+      ],
+      "consequences": [
+        "First/then card shown",
+        "Rejoined group"
+      ],
+      "location": "Playroom",
+      "notes": "Used a first/then card to enter the playroom.",
+      "intensity": 3,
+      "durationMinutes": 4
+    },
+    {
+      "id": "abc-cli-emma-06",
+      "clientId": "cli-emma",
+      "timestamp": "2026-10-06T14:55:00",
+      "therapist": "Alex Chen, RBT",
+      "antecedents": [
+        "Non-preferred task presented",
+        "Snack delayed"
+      ],
+      "behaviors": [
+        "Task Refusal",
+        "Disruptive Vocalizations"
+      ],
+      "consequences": [
+        "Offered task-order choice",
+        "Prompted picture exchange"
+      ],
+      "location": "Therapy Table",
+      "notes": "Started the task after a visual choice.",
+      "intensity": 2,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-emma-07",
+      "clientId": "cli-emma",
+      "timestamp": "2026-10-06T09:06:00",
+      "therapist": "David Vance, BCBA",
+      "antecedents": [
+        "Peer begins speaking"
+      ],
+      "behaviors": [
+        "Disruptive Vocalizations"
+      ],
+      "consequences": [
+        "Quiet participation reinforced"
+      ],
+      "location": "Circle Area",
+      "notes": "Brief interruption, then followed the group model.",
+      "intensity": 1,
+      "durationMinutes": 1
+    },
+    {
+      "id": "abc-cli-emma-08",
+      "clientId": "cli-emma",
+      "timestamp": "2026-10-04T10:17:00",
+      "therapist": "Nina Torres, RBT",
+      "antecedents": [
+        "Transition to circle time"
+      ],
+      "behaviors": [
+        "Drop to Floor"
+      ],
+      "consequences": [
+        "Break card offered",
+        "Rejoined group"
+      ],
+      "location": "Circle Area",
+      "notes": "Practiced the transition with a break card.",
+      "intensity": 3,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-emma-09",
+      "clientId": "cli-emma",
+      "timestamp": "2026-10-02T11:28:00",
+      "therapist": "Alex Chen, RBT",
+      "antecedents": [
+        "Preferred toy removed"
+      ],
+      "behaviors": [
+        "Task Refusal"
+      ],
+      "consequences": [
+        "Prompted picture exchange"
+      ],
+      "location": "Playroom",
+      "notes": "Requested the toy using an icon.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-emma-10",
+      "clientId": "cli-emma",
+      "timestamp": "2026-09-29T12:39:00",
+      "therapist": "David Vance, BCBA",
+      "antecedents": [
+        "Non-preferred task presented"
+      ],
+      "behaviors": [
+        "Task Refusal"
+      ],
+      "consequences": [
+        "Offered task-order choice"
+      ],
+      "location": "Classroom",
+      "notes": "Chose a shorter first task.",
+      "intensity": 2,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-emma-11",
+      "clientId": "cli-emma",
+      "timestamp": "2026-09-25T13:50:00",
+      "therapist": "Nina Torres, RBT",
+      "antecedents": [
+        "Snack delayed"
+      ],
+      "behaviors": [
+        "Disruptive Vocalizations"
+      ],
+      "consequences": [
+        "Quiet participation reinforced"
+      ],
+      "location": "Therapy Table",
+      "notes": "Returned to quiet voice after reinforcement.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-emma-12",
+      "clientId": "cli-emma",
+      "timestamp": "2026-09-20T14:01:00",
+      "therapist": "Alex Chen, RBT",
+      "antecedents": [
+        "Group moves to playroom"
+      ],
+      "behaviors": [
+        "Drop to Floor"
+      ],
+      "consequences": [
+        "First/then card shown"
+      ],
+      "location": "Playroom",
+      "notes": "Needed help standing before moving to group.",
+      "intensity": 3,
+      "durationMinutes": 5
+    },
+    {
+      "id": "abc-cli-emma-13",
+      "clientId": "cli-emma",
+      "timestamp": "2026-09-02T09:12:00",
+      "therapist": "David Vance, BCBA",
+      "antecedents": [
+        "Non-preferred task presented"
+      ],
+      "behaviors": [
+        "Task Refusal"
+      ],
+      "consequences": [
+        "Offered task-order choice"
+      ],
+      "location": "Classroom",
+      "notes": "Earlier task transition entry.",
+      "intensity": 2,
+      "durationMinutes": 4
+    },
+    {
+      "id": "abc-cli-emma-14",
+      "clientId": "cli-emma",
+      "timestamp": "2026-08-07T10:23:00",
+      "therapist": "Nina Torres, RBT",
+      "antecedents": [
+        "Transition to circle time"
+      ],
+      "behaviors": [
+        "Drop to Floor"
+      ],
+      "consequences": [
+        "First/then card shown"
+      ],
+      "location": "Circle Area",
+      "notes": "Historical baseline entry.",
+      "intensity": 4,
+      "durationMinutes": 6
+    },
+    {
+      "id": "abc-cli-noah-01",
+      "clientId": "cli-noah",
+      "timestamp": "2026-10-13T09:00:00",
+      "therapist": "Sarah Jenkins, BCBA",
+      "antecedents": [
+        "Group changed activity"
+      ],
+      "behaviors": [
+        "Bolting from Group"
+      ],
+      "consequences": [
+        "Visual boundary reviewed",
+        "Rejoined group with prompt"
+      ],
+      "location": "Community Practice Area",
+      "notes": "Rejoined the group after boundary rehearsal.",
+      "intensity": 3,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-noah-02",
+      "clientId": "cli-noah",
+      "timestamp": "2026-10-13T10:11:00",
+      "therapist": "David Kim, RBT",
+      "antecedents": [
+        "Loud hallway sound"
+      ],
+      "behaviors": [
+        "Hand Biting"
+      ],
+      "consequences": [
+        "Sensory alternative offered",
+        "Break request modeled"
+      ],
+      "location": "Hallway",
+      "notes": "Accepted a sensory alternative and stopped biting.",
+      "intensity": 3,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-noah-03",
+      "clientId": "cli-noah",
+      "timestamp": "2026-10-11T11:22:00",
+      "therapist": "Ava Brooks, RBT",
+      "antecedents": [
+        "Extended instruction"
+      ],
+      "behaviors": [
+        "Repetitive Vocalizations"
+      ],
+      "consequences": [
+        "Quiet interval reinforced"
+      ],
+      "location": "Home Therapy Room",
+      "notes": "Quiet interval reinforced after instruction was shortened.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-noah-04",
+      "clientId": "cli-noah",
+      "timestamp": "2026-10-10T12:33:00",
+      "therapist": "Sarah Jenkins, BCBA",
+      "antecedents": [
+        "Asked to wait"
+      ],
+      "behaviors": [
+        "Repetitive Vocalizations"
+      ],
+      "consequences": [
+        "Break request modeled",
+        "Quiet interval reinforced"
+      ],
+      "location": "Home Therapy Room",
+      "notes": "Modeled asking for a break before waiting.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-noah-05",
+      "clientId": "cli-noah",
+      "timestamp": "2026-10-08T13:44:00",
+      "therapist": "David Kim, RBT",
+      "antecedents": [
+        "Community role-play begins"
+      ],
+      "behaviors": [
+        "Bolting from Group"
+      ],
+      "consequences": [
+        "Visual boundary reviewed"
+      ],
+      "location": "Community Practice Area",
+      "notes": "Stayed with adult following a boundary reminder.",
+      "intensity": 2,
+      "durationMinutes": 1
+    },
+    {
+      "id": "abc-cli-noah-06",
+      "clientId": "cli-noah",
+      "timestamp": "2026-10-06T14:55:00",
+      "therapist": "Ava Brooks, RBT",
+      "antecedents": [
+        "Loud hallway sound",
+        "Extended instruction"
+      ],
+      "behaviors": [
+        "Hand Biting",
+        "Repetitive Vocalizations"
+      ],
+      "consequences": [
+        "Sensory alternative offered",
+        "Caregiver notified"
+      ],
+      "location": "Hallway",
+      "notes": "Caregiver informed of sensory trigger.",
+      "intensity": 4,
+      "durationMinutes": 4
+    },
+    {
+      "id": "abc-cli-noah-07",
+      "clientId": "cli-noah",
+      "timestamp": "2026-10-06T09:06:00",
+      "therapist": "Sarah Jenkins, BCBA",
+      "antecedents": [
+        "Preferred item put away"
+      ],
+      "behaviors": [
+        "Repetitive Vocalizations"
+      ],
+      "consequences": [
+        "Break request modeled"
+      ],
+      "location": "Sensory Corner",
+      "notes": "Requested a brief pause, then resumed.",
+      "intensity": 1,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-noah-08",
+      "clientId": "cli-noah",
+      "timestamp": "2026-10-04T10:17:00",
+      "therapist": "David Kim, RBT",
+      "antecedents": [
+        "Group changed activity"
+      ],
+      "behaviors": [
+        "Bolting from Group"
+      ],
+      "consequences": [
+        "Visual boundary reviewed",
+        "Rejoined group with prompt"
+      ],
+      "location": "Community Practice Area",
+      "notes": "Practiced staying at the marked spot.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-noah-09",
+      "clientId": "cli-noah",
+      "timestamp": "2026-10-02T11:28:00",
+      "therapist": "Ava Brooks, RBT",
+      "antecedents": [
+        "Asked to wait"
+      ],
+      "behaviors": [
+        "Hand Biting"
+      ],
+      "consequences": [
+        "Sensory alternative offered"
+      ],
+      "location": "Sensory Corner",
+      "notes": "Used a chew alternative after a prompt.",
+      "intensity": 3,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-noah-10",
+      "clientId": "cli-noah",
+      "timestamp": "2026-09-29T12:39:00",
+      "therapist": "Sarah Jenkins, BCBA",
+      "antecedents": [
+        "Extended instruction"
+      ],
+      "behaviors": [
+        "Repetitive Vocalizations"
+      ],
+      "consequences": [
+        "Quiet interval reinforced"
+      ],
+      "location": "Home Therapy Room",
+      "notes": "Completed the next direction after praise.",
+      "intensity": 2,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-noah-11",
+      "clientId": "cli-noah",
+      "timestamp": "2026-09-25T13:50:00",
+      "therapist": "David Kim, RBT",
+      "antecedents": [
+        "Community role-play begins"
+      ],
+      "behaviors": [
+        "Bolting from Group"
+      ],
+      "consequences": [
+        "Visual boundary reviewed"
+      ],
+      "location": "Community Practice Area",
+      "notes": "Followed visual boundary to return.",
+      "intensity": 3,
+      "durationMinutes": 2
+    },
+    {
+      "id": "abc-cli-noah-12",
+      "clientId": "cli-noah",
+      "timestamp": "2026-09-20T14:01:00",
+      "therapist": "Ava Brooks, RBT",
+      "antecedents": [
+        "Loud hallway sound"
+      ],
+      "behaviors": [
+        "Hand Biting"
+      ],
+      "consequences": [
+        "Sensory alternative offered"
+      ],
+      "location": "Hallway",
+      "notes": "Noise reduced after moving to a quiet spot.",
+      "intensity": 3,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-noah-13",
+      "clientId": "cli-noah",
+      "timestamp": "2026-09-02T09:12:00",
+      "therapist": "Sarah Jenkins, BCBA",
+      "antecedents": [
+        "Group changed activity"
+      ],
+      "behaviors": [
+        "Bolting from Group"
+      ],
+      "consequences": [
+        "Visual boundary reviewed"
+      ],
+      "location": "Community Practice Area",
+      "notes": "Earlier group transition entry.",
+      "intensity": 3,
+      "durationMinutes": 3
+    },
+    {
+      "id": "abc-cli-noah-14",
+      "clientId": "cli-noah",
+      "timestamp": "2026-08-07T10:23:00",
+      "therapist": "David Kim, RBT",
+      "antecedents": [
+        "Extended instruction"
+      ],
+      "behaviors": [
+        "Repetitive Vocalizations"
+      ],
+      "consequences": [
+        "Quiet interval reinforced"
+      ],
+      "location": "Home Therapy Room",
+      "notes": "Historical baseline entry.",
+      "intensity": 2,
+      "durationMinutes": 2
+    }
+  ],
+  "revision": "9142d5c2394564a1"
+}

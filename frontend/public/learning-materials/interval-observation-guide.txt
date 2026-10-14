@@ -1,0 +1,9 @@
+DEMO LEARNING MATERIAL — Interval observation quick guide
+
+Whole interval: score occurrence only if the response lasts throughout the
+interval. Partial interval: score if it occurs at any point. Momentary time
+sampling: score only at the observation instant. Log occurred and total
+intervals separately, including zero-occurrence sessions. An unobserved
+session is Data Not Tracked, not a zero.
+
+Illustrative training content only; not a clinical prescription.

@@ -1,16 +1,13 @@
-# React + Vite
+# Welina Analytics frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 19 + Vite demo for Skill Acquisition, Behavior Reduction and ABC analysis. The data is fictional. `src/data/mockData.js` imports the shared fixture `data/clinicalSeed.json` at the repository root; the .NET API embeds that **same JSON**. To change the demo, update `scripts/generate_clinical_seed.py` and regenerate the shared JSON instead of adding separate frontend arrays.
 
-Currently, two official plugins are available:
+```bash
+# From frontend/
+npm ci
+npm run dev   # http://localhost:5173/
+npm test      # fixture integrity + localStorage analytics tests
+npm run build # static GitHub Pages bundle
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Expand **Program definition** or **ABC recording setup** in the analytics UI to inspect the seeded setup fields and master lists. The seed is anchored to October 14, 2026 so filters remain deterministic. Data simulated in the UI is saved in browser localStorage; the demo is automatically reseeded after a fixture version change, or with **Reset Demo Data**. See the repository root README for coverage and API details.

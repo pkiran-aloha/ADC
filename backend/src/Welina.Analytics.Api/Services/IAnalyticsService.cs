@@ -9,6 +9,7 @@ namespace Welina.Analytics.Api.Services
         List<Client> GetClients();
         Client? GetClient(string clientId);
         List<TherapyProgram> GetProgramsByClient(string clientId, ProgramCategory? category = null);
+        ProgramCatalog GetProgramCatalog();
         List<MasteryDataPoint> GetCumulativeMastery(string clientId, string programId);
         
         List<SessionDataPoint> GetTargetDataPoints(
@@ -17,9 +18,11 @@ namespace Welina.Analytics.Api.Services
             DateTime? startDate = null, 
             DateTime? endDate = null,
             AggregationType aggregation = AggregationType.PerDay,
-            bool splitByTherapist = false);
+            bool splitByTherapist = false,
+            bool includeUntracked = false);
 
         List<AbcEntry> GetAbcData(string clientId, DateTime? startDate = null, DateTime? endDate = null);
+        AbcConfiguration? GetAbcConfiguration(string clientId);
 
         // Annotations
         List<PhaseChangeLine> GetPhaseChangeLines(string clientId, string targetId);
