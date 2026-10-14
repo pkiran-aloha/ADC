@@ -23,8 +23,16 @@ async function open(page) {
   await expect(page.locator('#abc-observations')).toBeVisible();
 }
 async function accessible(page) {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    const finite = document.getAnimations().filter(animation =>
+      animation.playState === 'running' && animation.effect?.getComputedTiming().iterations !== Infinity);
+    await Promise.all(finite.map(animation => animation.finished.catch(() => {})));
+  });
   const scan = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  expect(scan.violations.map(violation => ({ id: violation.id, nodes: violation.nodes.map(node => node.target) }))).toEqual([]);
+  expect(scan.violations.map(violation => ({ id: violation.id, nodes: violation.nodes.map(node => ({
+    target: node.target, summary: node.failureSummary, checks: node.any.map(check => check.data)
+  })) }))).toEqual([]);
 }
 async function download(page, trigger, option) {
   await page.getByRole('button', { name: trigger, exact: true }).click();
@@ -643,4 +651,22 @@ test('default controls provide 44px pointer targets or full-sized associated lab
     .filter(element => element.bottom > 0 && (element.width < 43.9 || element.height < 43.9) && !(element.label?.width >= 43.9 && element.label?.height >= 43.9))
     .map(({ name, width, height }) => ({ name, width, height })));
   expect(small).toEqual([]);
+});
+
+test('404 return button retains contrast at rest, hover and keyboard focus', async ({ page }) => {
+  const response = await page.goto('missing/deep-page');
+  expect(response.status()).toBe(404);
+  const button = page.getByRole('link', { name: 'Back to analytics', exact: true });
+  await expect(button).toHaveCSS('color', 'rgb(255, 255, 255)');
+  await expect(button).toHaveCSS('background-color', 'rgb(52, 99, 76)');
+  // Foreground/background must change together, not interpolate through a low-contrast frame.
+  await expect(button).toHaveCSS('transition-property', 'transform');
+  await accessible(page);
+  await button.hover();
+  await expect(button).toHaveCSS('background-color', 'rgb(41, 79, 61)');
+  await accessible(page);
+  await page.mouse.move(0, 0);
+  for (let index = 0; index < 4; index++) await page.keyboard.press('Tab');
+  await expect(button).toBeFocused();
+  await accessible(page);
 });
