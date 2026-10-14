@@ -7,7 +7,7 @@ An interactive, clinical data visualization and reporting platform for **Applied
 ## Live Demo & GitHub Pages
 - **GitHub Pages URL**: [https://pkiran-aloha.github.io/ADC/](https://pkiran-aloha.github.io/ADC/)
 - **Repository**: [pkiran-aloha/ADC](https://github.com/pkiran-aloha/ADC)
-- **Branch**: `arena/9261d7dd-adc`
+- **Deployment**: The GitHub Actions workflow in `.github/workflows/deploy.yml` builds and publishes the frontend.
 
 ---
 
@@ -139,9 +139,7 @@ docker run -p 5000:5000 welina-analytics-backend
 
 ---
 
-## Enabling GitHub Pages in GitHub
-1. Go to repository **Settings** ➔ **Pages**.
-2. Under **Build and deployment** ➔ **Source**:
-   - Choose **GitHub Actions** (automated deployment using `.github/workflows/deploy.yml`), OR
-   - Choose **Deploy from a branch** ➔ select branch `main` (or `arena/9261d7dd-adc`) and folder `/docs`.
-3. Your site will be live at `https://pkiran-aloha.github.io/ADC/`.
+## GitHub Pages Deployment
+1. In repository **Settings** ➔ **Pages**, set **Build and deployment** ➔ **Source** to **GitHub Actions**.
+2. The workflow in `.github/workflows/deploy.yml` builds the React frontend and deploys it when a configured deployment branch is updated. It can also be run manually from the **Actions** tab using **Run workflow**.
+3. The site is published at [https://pkiran-aloha.github.io/ADC/](https://pkiran-aloha.github.io/ADC/).
