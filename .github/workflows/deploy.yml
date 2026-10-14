@@ -4,12 +4,15 @@ on:
   push:
     branches:
       - main
-      - arena/be0834b9-adc
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
+# Keep production deployments in order; only superseded PR checks are canceled.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: pages-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -17,9 +20,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -39,9 +40,21 @@ jobs:
         working-directory: frontend
         run: npm test
 
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
       - name: Build frontend application
         working-directory: frontend
         run: npm run build
+
+      - name: Install Chromium for UX regression checks
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify accessible desktop and mobile flows under the Pages path
+        working-directory: frontend
+        run: npx playwright test
 
       - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
@@ -51,24 +64,28 @@ jobs:
       - name: Build API with embedded clinical fixture
         run: dotnet build backend/Welina.Analytics.sln --configuration Release
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v6
-
+      # PRs and manual runs on development branches validate without publishing.
       - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
           path: frontend/dist
 
   deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: build
     permissions:
       pages: write
       id-token: write
     steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5

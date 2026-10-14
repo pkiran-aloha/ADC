@@ -1,107 +1,32 @@
-import React, { useState } from 'react';
-import { X, StickyNote } from 'lucide-react';
+import { useState } from 'react';
+import { StickyNote } from '../ui/Icons';
+import Dialog from '../ui/Dialog';
+import { Field, FormFeedback } from '../ui/Field';
+import { useFormValidation } from '../../utils/useFormValidation';
+import { validateAnnotation } from '../../utils/formValidation';
+import { SEED_AS_OF_DATE } from '../../data/mockData';
 
-export default function GraphNoteModal({ isOpen, onClose, onSave, defaultTargetId }) {
-  const [date, setDate] = useState('2026-10-05');
-  const [noteText, setNoteText] = useState('Medication adjustment reported by parent; observation notes appended.');
-  const [staffName, setStaffName] = useState('Sarah Jenkins, BCBA');
-  const [color, setColor] = useState('#F59E0B');
-
-  if (!isOpen) return null;
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave({
-      targetId: defaultTargetId,
-      date,
-      noteText,
-      staffName,
-      color
-    });
+export default function GraphNoteModal({ isOpen, onClose, onSave, target, initialData }) {
+  const [date, setDate] = useState(initialData?.date || SEED_AS_OF_DATE);
+  const [noteText, setNoteText] = useState(initialData?.noteText || '');
+  const [staffName, setStaffName] = useState(initialData?.staffName || '');
+  const [color, setColor] = useState(initialData?.color?.slice(0, 7) || '#34634c');
+  const { errors, formRef, validate } = useFormValidation();
+  function submit(event) {
+    event.preventDefault();
+    if (!validate(validateAnnotation({ date, noteText, staffName, color }, 'note'))) return;
+    onSave({ ...initialData, targetId: target.id, date, noteText: noteText.trim(), staffName: staffName.trim(), color });
     onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
-        
-        <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-          <div className="flex items-center space-x-2">
-            <StickyNote className="w-5 h-5 text-amber-500" />
-            <h3 className="text-sm font-bold text-slate-800">Add Graph Note (Annotation)</h3>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Date</label>
-              <input
-                type="date"
-                required
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Staff / Author</label>
-              <input
-                type="text"
-                required
-                value={staffName}
-                onChange={(e) => setStaffName(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">Note Content</label>
-            <textarea
-              required
-              rows={3}
-              placeholder="Enter qualitative notes, session conditions, or environmental changes..."
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">Marker Color</label>
-            <div className="flex items-center space-x-2">
-              <input
-                type="color"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="w-8 h-8 rounded-md border border-slate-300 cursor-pointer p-0.5"
-              />
-              <span className="font-mono text-slate-600 text-xs">{color}</span>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 flex justify-end space-x-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold shadow-xs transition-colors"
-            >
-              + Add Graph Note
-            </button>
-          </div>
-        </form>
-
-      </div>
-    </div>
-  );
+  }
+  return <Dialog isOpen={isOpen} onClose={onClose} title={initialData ? 'Edit graph note' : 'Add graph note'} icon={StickyNote}
+    description={`Add context to ${target?.name || 'this target'} without changing the measurement.`}>
+    <form ref={formRef} noValidate onSubmit={submit} className="form-layout">
+      <FormFeedback errors={errors} />
+      <Field id="note-date" label="Observation date" error={errors.date}><input type="date" required value={date} onChange={event => setDate(event.target.value)} data-autofocus /></Field>
+      <Field id="note-author" label="Author" error={errors.staffName}><input type="text" required maxLength={100} placeholder="Clinician’s name and role" value={staffName} onChange={event => setStaffName(event.target.value)} /></Field>
+      <Field id="note-text" label="Note" error={errors.noteText} hint="Use fictional information only. Don’t enter patient identifiers."><textarea required rows={4} maxLength={2000} placeholder="What changed, or what should the next clinician know?" value={noteText} onChange={event => setNoteText(event.target.value)} /></Field>
+      <Field id="note-color" label="Marker color" error={errors.color}><input type="color" value={color} onChange={event => setColor(event.target.value)} /></Field>
+      <div className="form-actions"><button type="button" className="button button--secondary" onClick={onClose}>Cancel</button><button type="submit" className="button button--primary">Save graph note</button></div>
+    </form>
+  </Dialog>;
 }

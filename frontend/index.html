@@ -2,12 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Welina Analytics (Web) - ABA Clinical Reporting</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="theme-color" content="#34634c" />
+    <meta name="description" content="Explore Welina’s fictional ABA analytics workspace. Review skill mastery, target measurements, and ABC observations with browser-local demo records." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Welina — progress, in context" />
+    <meta property="og:description" content="A clinical analytics demo for skill mastery, target observations, and behavior context. Fictional data, not patient records." />
+    <meta property="og:url" content="https://pkiran-aloha.github.io/ADC/" />
+    <meta property="og:image" content="https://pkiran-aloha.github.io/ADC/social-preview.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Welina clinical analytics demo, with a forest-green progress chart on a warm neutral surface." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Welina — progress, in context" />
+    <meta name="twitter:description" content="Explore fictional skill mastery, target observations, and ABC context." />
+    <meta name="twitter:image" content="https://pkiran-aloha.github.io/ADC/social-preview.png" />
+    <title>Client analytics — Welina</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="analytics-skeleton" role="status" aria-busy="true"><span>Opening your analytics workspace…</span><div class="skeleton skeleton-toolbar"></div><div class="skeleton skeleton-chart"></div></div></div>
+    <noscript>This analytics demo needs JavaScript. No patient information is stored or requested.</noscript>
     <script type="module" src="./src/main.jsx"></script>
   </body>
 </html>

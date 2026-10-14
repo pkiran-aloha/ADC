@@ -1,309 +1,99 @@
-import React, { useState, useRef } from 'react';
-import { 
-  Download, 
-  HelpCircle, 
-  CheckCircle2, 
-  ChevronDown, 
-  AlertCircle,
-  FileSpreadsheet,
-  FileCode,
-  Image as ImageIcon
-} from 'lucide-react';
+import { useRef } from 'react';
+import SectionHeader from './ui/SectionHeader';
+import ExportMenu from './ui/ExportMenu';
+import EmptyState from './ui/EmptyState';
+import { CheckCircle2 } from './ui/Icons';
+import { formatChartDate, CHART_GRID, CHART_MUTED, CHART_INK } from '../utils/chartTheme';
 import { exportMasteryCsv, exportSvgElement, exportPngFromSvg } from '../utils/exportUtils';
 
-export default function OverallMasterySection({
-  programs = [],
-  selectedProgramId,
-  onSelectProgram,
-  masteryData = [],
-  isDisabled = false
-}) {
-  const [showExportMenu, setShowExportMenu] = useState(false);
+export default function OverallMasterySection({ programs = [], selectedProgramId, onSelectProgram, masteryData = [] }) {
   const svgRef = useRef(null);
-
-  const selectedProgram = programs.find(p => p.id === selectedProgramId);
-
-  // Filter only Skill Acquisition programs that make sense for cumulative mastery
-  const skillPrograms = programs.filter(p => p.category === 'SkillAcquisition');
-
-  const handleExport = (type) => {
-    setShowExportMenu(false);
-    if (!selectedProgram) return;
-
-    if (type === 'csv') {
-      exportMasteryCsv(masteryData, selectedProgram.name);
-    } else if (type === 'svg') {
-      exportSvgElement(svgRef.current, `Mastery_${selectedProgram.name}.svg`);
-    } else if (type === 'png') {
-      exportPngFromSvg(svgRef.current, `Mastery_${selectedProgram.name}.png`);
-    }
-  };
-
-  // Dimensions for SVG Graph
-  const width = 800;
-  const height = 260;
-  const padding = { top: 30, right: 30, bottom: 40, left: 50 };
+  const selectedProgram = programs.find(program => program.id === selectedProgramId);
+  const skillPrograms = programs.filter(program => program.category === 'SkillAcquisition');
+  const count = masteryData.at(-1)?.cumulativeCount || 0;
+  const latest = masteryData.at(-1);
+  const width = 720;
+  const height = 180;
+  const padding = { top: 25, right: 35, bottom: 40, left: 45 };
   const graphWidth = width - padding.left - padding.right;
   const graphHeight = height - padding.top - padding.bottom;
+  const maxVal = Math.max(2, selectedProgram?.targets.length || 0, count);
+  const points = masteryData.map((data, index) => ({ ...data,
+    x: padding.left + (masteryData.length > 1 ? index / (masteryData.length - 1) * graphWidth : graphWidth / 2),
+    y: padding.top + graphHeight - data.cumulativeCount / maxVal * graphHeight
+  }));
+  const pathD = points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
 
-  // Max value for Y-axis (at least 5 for scale)
-  const maxVal = Math.max(
-    5,
-    masteryData.reduce((max, d) => Math.max(max, d.cumulativeCount), 0) + 1
-  );
+  function handleExport(type) {
+    if (!selectedProgram || !masteryData.length) throw new Error('No mastery data to export');
+    if (type === 'csv') return exportMasteryCsv(masteryData, selectedProgram.name);
+    if (type === 'svg') return exportSvgElement(svgRef.current, `Mastery_${selectedProgram.name}.svg`);
+    return exportPngFromSvg(svgRef.current, `Mastery_${selectedProgram.name}.png`);
+  }
 
-  const points = masteryData.map((d, i) => {
-    const x = padding.left + (masteryData.length > 1 ? (i / (masteryData.length - 1)) * graphWidth : graphWidth / 2);
-    const y = padding.top + graphHeight - (d.cumulativeCount / maxVal) * graphHeight;
-    return { ...d, x, y };
-  });
-
-  const pathD = points.length > 0 
-    ? points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-    : '';
-
-  return (
-    <div className={`bg-white rounded-xl border border-slate-200 shadow-xs transition-opacity ${isDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
-      
-      {/* Widget Header */}
-      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2">
-            <h2 className="text-base font-bold text-slate-900">
-              Section A: Overall Targets Mastered
-            </h2>
-            <div className="relative group">
-              <HelpCircle className="w-4 h-4 text-slate-400 hover:text-slate-600 cursor-pointer" />
-              <div className="absolute left-0 top-6 hidden group-hover:block w-72 p-2.5 bg-slate-900 text-slate-100 text-xs rounded-lg shadow-lg z-20">
-                Tracks how targets progress into mastered states (Maintenance, Generalization, or Completed) over time. Only transition dates are plotted.
+  return <section className="panel" aria-labelledby="mastery-title">
+    <SectionHeader id="mastery-title" title="Skill mastery" description="How mastered targets accumulate over time."
+      help="A target counts as mastered when it enters maintenance, generalization, or completed. This chart plots those transition dates, not each session."
+      actions={<>
+        <div className="control-field"><label htmlFor="mastery-prog">Program</label>
+          <select id="mastery-prog" value={selectedProgramId || ''} onChange={event => onSelectProgram(event.target.value)}>
+            <option value="">Choose a program</option>
+            {skillPrograms.map(program => <option key={program.id} value={program.id}>{program.name}</option>)}
+          </select>
+        </div>
+        <ExportMenu label="Export mastery" disabled={!masteryData.length} onExport={handleExport}
+          formats={[{ id: 'csv', label: 'Mastery data · CSV' }, { id: 'svg', label: 'Vector chart · SVG' }, { id: 'png', label: 'Chart image · PNG' }]} />
+      </>} />
+    {!selectedProgram ? <EmptyState title="Choose a skill program." description="Select a program above to see how its targets progress."
+      action={{ label: 'Choose a program', onClick: () => document.getElementById('mastery-prog').focus() }} />
+      : !masteryData.length ? <EmptyState icon={CheckCircle2} title="Mastery is still ahead."
+        description={`No targets in “${selectedProgram.name}” have entered maintenance, generalization, or completed yet. Review session observations in target analysis below.`}
+        action={{ label: 'Review target analysis', onClick: () => document.getElementById('target-analysis')?.scrollIntoView({ block: 'start' }) }} />
+      : <>
+        <div className="mastery-content">
+          <div className="mastery-summary">
+            <dl><dt>Targets mastered</dt><dd>{count}<small>/ {selectedProgram.targets.length}</small></dd></dl>
+            <p>Latest transition<strong>{formatChartDate(latest.date)}, {latest.date.slice(0, 4)}</strong>{latest.newlyMastered.join(' · ')}</p>
+          </div>
+          <div>
+            <div className="chart-scroll" tabIndex={0} role="region" aria-label="Skill mastery chart. Scroll horizontally for the full timeline.">
+              <div className="chart-inner chart-inner--mastery">
+                <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} className="chart-svg" role="img"
+                  aria-label={`${selectedProgram.name}: ${count} of ${selectedProgram.targets.length} targets mastered.`}>
+                  <title>Skill mastery over time</title><desc>A cumulative line chart. The transition dates and mastered targets are also listed in the data table below.</desc>
+                  {[0, Math.ceil(maxVal / 2), maxVal].map(value => {
+                    const y = padding.top + graphHeight - value / maxVal * graphHeight;
+                    return <g key={value}><line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke={CHART_GRID} strokeDasharray="3 5" />
+                      <text x={padding.left - 14} y={y + 4} textAnchor="end" fontSize="13" fill={CHART_MUTED} fontFamily="Geist, sans-serif">{value}</text>
+                    </g>;
+                  })}
+                  <defs><linearGradient id="mastery-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#34634c" stopOpacity="0.14" /><stop offset="100%" stopColor="#34634c" stopOpacity="0.02" />
+                  </linearGradient></defs>
+                  <path d={`${pathD} L ${points.at(-1).x} ${padding.top + graphHeight} L ${points[0].x} ${padding.top + graphHeight} Z`} fill="url(#mastery-fill)" />
+                  <path d={pathD} fill="none" stroke="#34634c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  {points.map(point => <g key={point.date}>
+                    <circle cx={point.x} cy={point.y} r="5" fill="#fff" stroke="#34634c" strokeWidth="2.5" />
+                    <text x={point.x} y={point.y - 14} textAnchor="middle" fontSize="14" fontWeight="600" fill="#294f3d" fontFamily="Geist, sans-serif">{point.cumulativeCount}</text>
+                    <text x={point.x} y={height - padding.bottom + 25} textAnchor="middle" fontSize="13" fill={CHART_MUTED} fontFamily="Geist, sans-serif">{formatChartDate(point.date)}</text>
+                    <title>{`${point.date}: ${point.cumulativeCount} mastered. Newly mastered: ${point.newlyMastered.join(', ')}`}</title>
+                  </g>)}
+                  <text x={padding.left} y={16} fontSize="12" fill={CHART_INK} fontFamily="Geist, sans-serif">Mastered targets</text>
+                </svg>
               </div>
             </div>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Cumulative progression of mastered skills within the selected program
-          </p>
-        </div>
-
-        {/* Controls: Program Selector & Export */}
-        <div className="flex items-center space-x-3 self-end sm:self-auto">
-          <div className="flex items-center space-x-2">
-            <label htmlFor="mastery-prog" className="text-xs font-semibold text-slate-600 hidden md:block">
-              Select Program:
-            </label>
-            <select
-              id="mastery-prog"
-              value={selectedProgramId || ''}
-              onChange={(e) => onSelectProgram(e.target.value)}
-              className="text-xs font-medium bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-            >
-              <option value="">-- Choose Program --</option>
-              {skillPrograms.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Export Dropdown (Section 5.7) */}
-          <div className="relative">
-            <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              disabled={masteryData.length === 0}
-              className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center space-x-1"
-              title="Download Graph & Data"
-            >
-              <Download className="w-4 h-4" />
-              <ChevronDown className="w-3 h-3" />
-            </button>
-
-            {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-30 text-xs">
-                <div className="px-3 py-1 font-bold text-slate-400 uppercase text-[10px]">
-                  Image Formats
-                </div>
-                <button
-                  onClick={() => handleExport('svg')}
-                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center space-x-2 text-slate-700"
-                >
-                  <FileCode className="w-3.5 h-3.5 text-blue-500" />
-                  <span>Export SVG</span>
-                </button>
-                <button
-                  onClick={() => handleExport('png')}
-                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center space-x-2 text-slate-700"
-                >
-                  <ImageIcon className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Export PNG</span>
-                </button>
-                <div className="border-t border-slate-100 my-1"></div>
-                <div className="px-3 py-1 font-bold text-slate-400 uppercase text-[10px]">
-                  Data Format
-                </div>
-                <button
-                  onClick={() => handleExport('csv')}
-                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center space-x-2 text-slate-700"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Export CSV</span>
-                </button>
-              </div>
-            )}
+            <div className="chart-caption"><span>Recorded mastery transitions</span><span className="scroll-hint">Scroll to see the full chart →</span></div>
           </div>
         </div>
-      </div>
-
-      {/* Graph Area / Empty State (Section 5.6) */}
-      <div className="p-4 sm:p-5">
-        {!selectedProgramId ? (
-          <div className="py-12 text-center text-slate-400">
-            <AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-            <p className="text-sm font-medium text-slate-600">Please select a program to view cumulative mastery.</p>
-            <p className="text-xs text-slate-400 mt-1">Choose from the dropdown in the top-right corner.</p>
+        <details className="chart-data mx-6 pb-3">
+          <summary>View mastery data table</summary>
+          <div className="data-table-scroll" tabIndex={0} role="region" aria-label="Mastery transition data">
+            <table className="data-table"><caption className="sr-only">Mastery transitions for {selectedProgram.name}</caption>
+              <thead><tr><th scope="col">Transition date</th><th scope="col">Targets mastered</th><th scope="col">Newly mastered targets</th></tr></thead>
+              <tbody>{masteryData.map(row => <tr key={row.date}><td>{formatChartDate(row.date)}, {row.date.slice(0, 4)}</td><td>{row.cumulativeCount}</td><td>{row.newlyMastered.join(', ')}</td></tr>)}</tbody>
+            </table>
           </div>
-        ) : masteryData.length === 0 ? (
-          <div className="py-12 text-center text-slate-400">
-            <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-            <p className="text-sm font-semibold text-slate-600">No data available.</p>
-            <p className="text-xs text-slate-400 mt-1">
-              Targets in "{selectedProgram?.name}" have not yet entered Maintenance, Generalization, or Completed states.
-            </p>
-          </div>
-        ) : (
-          <div className="w-full overflow-x-auto">
-            <div className="min-w-[650px]">
-              <svg
-                ref={svgRef}
-                viewBox={`0 0 ${width} ${height}`}
-                className="w-full h-auto bg-slate-50/50 rounded-lg border border-slate-100"
-              >
-                {/* Horizontal Gridlines & Y-Axis Labels */}
-                {[0, Math.round(maxVal / 2), maxVal].map((val, idx) => {
-                  const y = padding.top + graphHeight - (val / maxVal) * graphHeight;
-                  return (
-                    <g key={idx}>
-                      <line
-                        x1={padding.left}
-                        y1={y}
-                        x2={width - padding.right}
-                        y2={y}
-                        stroke="#E2E8F0"
-                        strokeDasharray="4 4"
-                      />
-                      <text
-                        x={padding.left - 10}
-                        y={y + 4}
-                        textAnchor="end"
-                        fontSize="11"
-                        fill="#64748B"
-                        fontFamily="sans-serif"
-                      >
-                        {val}
-                      </text>
-                    </g>
-                  );
-                })}
-
-                {/* Y-Axis Title */}
-                <text
-                  x={-(padding.top + graphHeight / 2)}
-                  y="16"
-                  transform="rotate(-90)"
-                  textAnchor="middle"
-                  fontSize="11"
-                  fontWeight="bold"
-                  fill="#475569"
-                  fontFamily="sans-serif"
-                >
-                  Cumulative Mastered Targets
-                </text>
-
-                {/* Shaded Area Under Line */}
-                {points.length > 0 && (
-                  <path
-                    d={`${pathD} L ${points[points.length - 1].x} ${padding.top + graphHeight} L ${points[0].x} ${padding.top + graphHeight} Z`}
-                    fill="url(#masteryGradient)"
-                  />
-                )}
-
-                <defs>
-                  <linearGradient id="masteryGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-
-                {/* Connecting Trend Line */}
-                <path
-                  d={pathD}
-                  fill="none"
-                  stroke="#2563EB"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-
-                {/* Data Points (Section 5.3 & 5.4) */}
-                {points.map((p, idx) => (
-                  <g key={idx} className="cursor-pointer group">
-                    <circle
-                      cx={p.x}
-                      cy={p.y}
-                      r="5.5"
-                      fill="#FFFFFF"
-                      stroke="#2563EB"
-                      strokeWidth="2.5"
-                      className="transition-transform group-hover:scale-125"
-                    />
-
-                    {/* Value Badge above node */}
-                    <text
-                      x={p.x}
-                      y={p.y - 10}
-                      textAnchor="middle"
-                      fontSize="10"
-                      fontWeight="bold"
-                      fill="#1E40AF"
-                      fontFamily="sans-serif"
-                    >
-                      {p.cumulativeCount}
-                    </text>
-
-                    {/* X-Axis Date Label */}
-                    <text
-                      x={p.x}
-                      y={height - padding.bottom + 18}
-                      textAnchor="middle"
-                      fontSize="10"
-                      fill="#64748B"
-                      fontFamily="sans-serif"
-                    >
-                      {p.date.substring(5)}
-                    </text>
-
-                    {/* Tooltip */}
-                    <title>
-                      {`Date: ${p.date}\nCumulative Mastered: ${p.cumulativeCount}\nNewly Mastered: ${(p.newlyMastered || []).join(', ')}`}
-                    </title>
-                  </g>
-                ))}
-
-                {/* X-Axis Title */}
-                <text
-                  x={padding.left + graphWidth / 2}
-                  y={height - 6}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fontWeight="bold"
-                  fill="#475569"
-                  fontFamily="sans-serif"
-                >
-                  Dates of Target Mastery Transitions
-                </text>
-              </svg>
-            </div>
-          </div>
-        )}
-      </div>
-
-    </div>
-  );
+        </details>
+      </>}
+  </section>;
 }

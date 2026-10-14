@@ -1,4 +1,4 @@
-import JSZip from 'jszip';
+import { csvRow } from './csvUtils';
 
 // Helper to trigger browser file download
 export function downloadFile(content, fileName, mimeType = 'text/plain') {
@@ -13,63 +13,47 @@ export function downloadFile(content, fileName, mimeType = 'text/plain') {
   URL.revokeObjectURL(url);
 }
 
-// Convert SVG DOM Element to downloadable SVG file
-export function exportSvgElement(svgElement, fileName = 'chart.svg') {
-  if (!svgElement) return;
-  const serializer = new XMLSerializer();
-  let source = serializer.serializeToString(svgElement);
-
-  // Add namespaces if missing
-  if (!source.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)) {
-    source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
-  }
-
-  // Prepend XML declaration
-  source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
-  downloadFile(source, fileName, 'image/svg+xml;charset=utf-8');
+// Export explicit SVG geometry/colors so downloads do not depend on page CSS.
+function serializeChart(svgElement) {
+  if (!svgElement) throw new Error('No chart is available to export');
+  const clone = svgElement.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  const { width, height } = svgElement.viewBox.baseVal;
+  clone.setAttribute('width', String(width));
+  clone.setAttribute('height', String(height));
+  return new XMLSerializer().serializeToString(clone);
 }
 
-// Convert SVG Element to high-res PNG download
-export function exportPngFromSvg(svgElement, fileName = 'chart.png', backgroundColor = '#ffffff') {
-  if (!svgElement) return;
+export function exportSvgElement(svgElement, fileName = 'chart.svg') {
+  const source = serializeChart(svgElement);
+  downloadFile('<?xml version="1.0" standalone="no"?>\r\n' + source, fileName, 'image/svg+xml;charset=utf-8');
+}
 
-  const serializer = new XMLSerializer();
-  const svgString = serializer.serializeToString(svgElement);
-  const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-  const URL = window.URL || window.webkitURL || window;
-  const blobURL = URL.createObjectURL(svgBlob);
-
-  const image = new Image();
-  image.onload = () => {
+export async function exportPngFromSvg(svgElement, fileName = 'chart.png', backgroundColor = '#ffffff') {
+  const source = serializeChart(svgElement);
+  await document.fonts.ready;
+  const blobURL = URL.createObjectURL(new Blob([source], { type: 'image/svg+xml;charset=utf-8' }));
+  try {
+    const image = new Image();
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error('Could not render this chart'));
+      image.src = blobURL;
+    });
     const canvas = document.createElement('canvas');
-    const scale = 2; // high-dpi crisp rendering
-    const rect = svgElement.getBoundingClientRect();
-    canvas.width = (rect.width || 800) * scale;
-    canvas.height = (rect.height || 450) * scale;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    canvas.toBlob((blob) => {
-      if (blob) {
-        const downloadUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(downloadUrl);
-      }
-    }, 'image/png');
-
+    const { width, height } = svgElement.viewBox.baseVal;
+    canvas.width = Math.round(width * 2);
+    canvas.height = Math.round(height * 2);
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Image export is unavailable in this browser');
+    context.fillStyle = backgroundColor;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not create the PNG')), 'image/png'));
+    downloadFile(blob, fileName, 'image/png');
+  } finally {
     URL.revokeObjectURL(blobURL);
-  };
-  image.src = blobURL;
+  }
 }
 
 // Export CSV for Overall Targets Mastered
@@ -78,10 +62,10 @@ export function exportMasteryCsv(data, programName = 'Program') {
   const rows = data.map(d => [
     d.date,
     d.cumulativeCount,
-    `"${(d.newlyMastered || []).join('; ')}"`
+    (d.newlyMastered || []).join('; ')
   ]);
 
-  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const csvContent = [headers.join(','), ...rows.map(csvRow)].join('\n');
   const safeName = programName.replace(/[^a-zA-Z0-9_-]/g, '_');
   downloadFile(csvContent, `Mastery_${safeName}_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
 }
@@ -107,10 +91,10 @@ export function exportRawTrialDataCsv(records, clientName = 'Client') {
   ];
 
   const rows = records.map(r => [
-    `"${r.timestamp || ''}"`,
+    r.timestamp || '',
     r.sessionNumber || 1,
-    `"${r.targetName || r.targetId || ''}"`,
-    `"${r.therapistName || ''}"`,
+    r.targetName || r.targetId || '',
+    r.therapistName || '',
     r.value !== null && r.value !== undefined ? r.value : '',
     r.correctCount !== null && r.correctCount !== undefined ? r.correctCount : '',
     r.totalTrials !== null && r.totalTrials !== undefined ? r.totalTrials : '',
@@ -120,11 +104,11 @@ export function exportRawTrialDataCsv(records, clientName = 'Client') {
     r.durationSeconds !== null && r.durationSeconds !== undefined ? r.durationSeconds : '',
     r.occurrenceCount !== null && r.occurrenceCount !== undefined ? r.occurrenceCount : '',
     r.lessonDurationMinutes || '',
-    `"${(r.qualitativeEntry || '').replace(/"/g, '""')}"`,
-    `"${r.missingDataMode || 'Tracked'}"`
+    r.qualitativeEntry || '',
+    r.missingDataMode || 'Tracked'
   ]);
 
-  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const csvContent = [headers.join(','), ...rows.map(csvRow)].join('\n');
   const safeName = clientName.replace(/[^a-zA-Z0-9_-]/g, '_');
   downloadFile(csvContent, `Raw_Trials_${safeName}_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
 }
@@ -144,24 +128,25 @@ export function exportAbcDataCsv(entries, clientName = 'Client') {
   ];
 
   const rows = entries.map(e => [
-    `"${e.timestamp || ''}"`,
-    `"${e.therapist || ''}"`,
-    `"${(e.antecedents || []).join('; ')}"`,
-    `"${(e.behaviors || []).join('; ')}"`,
-    `"${(e.consequences || []).join('; ')}"`,
-    `"${e.location || ''}"`,
-    `"${(e.notes || '').replace(/"/g, '""')}"`,
-    e.intensity || 1,
-    e.durationMinutes || 5
+    e.timestamp || '',
+    e.therapist || '',
+    (e.antecedents || []).join('; '),
+    (e.behaviors || []).join('; '),
+    (e.consequences || []).join('; '),
+    e.location || '',
+    e.notes || '',
+    e.intensity ?? '',
+    e.durationMinutes ?? ''
   ]);
 
-  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const csvContent = [headers.join(','), ...rows.map(csvRow)].join('\n');
   const safeName = clientName.replace(/[^a-zA-Z0-9_-]/g, '_');
   downloadFile(csvContent, `ABC_Data_${safeName}_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
 }
 
 // Future Scope #1: Multi-Selection Raw Data Export with Structured Zip Output
 export async function exportStructuredZip({ clientName, programs, allRawRecords }) {
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   const dateStr = new Date().toISOString().split('T')[0];
   const safeClient = clientName.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -173,12 +158,12 @@ export async function exportStructuredZip({ clientName, programs, allRawRecords 
     program.targets.forEach(tgt => {
       const records = allRawRecords.filter(r => r.targetId === tgt.id);
       const safeTarget = tgt.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-      
+
       const headers = ['Timestamp', 'Session', 'Therapist', 'Value', 'CorrectCount', 'TotalTrials', 'OccurredIntervals', 'TotalIntervals', 'DurationSeconds', 'OccurrenceCount', 'LessonDurationMinutes', 'Notes', 'MissingDataMode'];
       const rows = records.map(r => [
-        `"${r.timestamp}"`,
+        r.timestamp || '',
         r.sessionNumber || 1,
-        `"${r.therapistName}"`,
+        r.therapistName || '',
         r.value ?? '',
         r.correctCount ?? '',
         r.totalTrials ?? '',
@@ -187,11 +172,11 @@ export async function exportStructuredZip({ clientName, programs, allRawRecords 
         r.durationSeconds ?? '',
         r.occurrenceCount ?? '',
         r.lessonDurationMinutes ?? '',
-        `"${(r.qualitativeEntry || '').replace(/"/g, '""')}"`,
-        `"${r.missingDataMode || 'Tracked'}"`
+        r.qualitativeEntry || '',
+        r.missingDataMode || 'Tracked'
       ]);
 
-      const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const csv = [headers.join(','), ...rows.map(csvRow)].join('\n');
       folder.file(`${safeTarget}_${tgt.type}.csv`, csv);
     });
   });

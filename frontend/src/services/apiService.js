@@ -36,8 +36,10 @@ function getStored(key, fallback) {
 function setStored(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch (e) {
     console.error('LocalStorage write failed:', e);
+    return false;
   }
 }
 
@@ -57,16 +59,46 @@ class AnalyticsService {
       this.abcEntries = getStored(STORAGE_KEYS.ABC_ENTRIES, cloneSeed(INITIAL_ABC_ENTRIES));
     }
     this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
+    this.publishSnapshot();
+  }
+
+  getSnapshot = () => this.snapshot;
+
+  subscribe = (listener) => {
+    if (typeof window === 'undefined') return () => {};
+    window.addEventListener('welina-data-change', listener);
+    return () => window.removeEventListener('welina-data-change', listener);
+  };
+
+  publishSnapshot() {
+    this.snapshot = {
+      clients: [...this.clients], programs: [...this.programs], sessions: [...this.sessions],
+      abcEntries: [...this.abcEntries], phaseLines: [...this.phaseLines], phaseRanges: [...this.phaseRanges],
+      graphNotes: [...this.graphNotes], storageError: Boolean(this.storageError)
+    };
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new Event('welina-data-change'));
+    }
   }
 
   saveAll() {
-    setStored(STORAGE_KEYS.CLIENTS, this.clients);
-    setStored(STORAGE_KEYS.PROGRAMS, this.programs);
-    setStored(STORAGE_KEYS.SESSIONS, this.sessions);
-    setStored(STORAGE_KEYS.PHASE_LINES, this.phaseLines);
-    setStored(STORAGE_KEYS.PHASE_RANGES, this.phaseRanges);
-    setStored(STORAGE_KEYS.GRAPH_NOTES, this.graphNotes);
-    setStored(STORAGE_KEYS.ABC_ENTRIES, this.abcEntries);
+    // Try every key: do not silently claim persistence when storage is full/blocked.
+    const writes = [
+      [STORAGE_KEYS.CLIENTS, this.clients],
+      [STORAGE_KEYS.PROGRAMS, this.programs],
+      [STORAGE_KEYS.SESSIONS, this.sessions],
+      [STORAGE_KEYS.PHASE_LINES, this.phaseLines],
+      [STORAGE_KEYS.PHASE_RANGES, this.phaseRanges],
+      [STORAGE_KEYS.GRAPH_NOTES, this.graphNotes],
+      [STORAGE_KEYS.ABC_ENTRIES, this.abcEntries],
+      [STORAGE_KEYS.SEED_VERSION, SEED_VERSION]
+    ].map(([key, value]) => setStored(key, value));
+    this.storageError = writes.some(saved => !saved);
+    this.publishSnapshot();
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('welina-storage-status', { detail: { saved: !this.storageError } }));
+    }
+    return !this.storageError;
   }
 
   resetToDefault() {
@@ -80,7 +112,6 @@ class AnalyticsService {
     this.abcEntries = cloneSeed(INITIAL_ABC_ENTRIES);
     this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
     this.saveAll();
-    setStored(STORAGE_KEYS.SEED_VERSION, SEED_VERSION);
   }
 
   getClients() {
@@ -148,12 +179,7 @@ class AnalyticsService {
     clientId,
     targetIds = [],
     durationFilter = '1 month',
-    aggregation = 'Per Day',
-    splitByTherapist = false,
-    durationView = 'Total Duration',
-    rateView = 'Rate per Day',
-    zeroOutBehavior = true,
-    showEmptyDates = true
+    zeroOutBehavior = true
   }) {
     if (!clientId || targetIds.length === 0) {
       return { series: [], dates: [], rawRecords: [] };
@@ -291,15 +317,13 @@ class AnalyticsService {
   }
 
   // Update target phase + optional phase line prompt
-  updateTargetPhase({ targetId, newPhase, addPhaseLine, phaseLineLabel }) {
+  updateTargetPhase({ targetId, newPhase, addPhaseLine, phaseLineLabel, phaseDate }) {
     let target = null;
-    let program = null;
 
     for (const p of this.programs) {
       const t = p.targets.find(x => x.id === targetId);
       if (t) {
         target = t;
-        program = p;
         break;
       }
     }
@@ -307,7 +331,7 @@ class AnalyticsService {
     if (!target) return null;
 
     target.phase = newPhase;
-    target.phaseEnteredDate = new Date().toISOString().split('T')[0];
+    target.phaseEnteredDate = phaseDate || new Date().toISOString().split('T')[0];
 
     if (addPhaseLine) {
       this.addPhaseLine({
@@ -315,7 +339,7 @@ class AnalyticsService {
         date: target.phaseEnteredDate,
         label: phaseLineLabel || newPhase,
         style: 'Solid',
-        color: '#2563EB',
+        color: '#34634c',
         isAutomated: false,
         source: 'Manual'
       });

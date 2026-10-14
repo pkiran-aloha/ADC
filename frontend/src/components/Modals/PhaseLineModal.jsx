@@ -1,113 +1,32 @@
-import React, { useState } from 'react';
-import { X, BookmarkPlus } from 'lucide-react';
+import { useState } from 'react';
+import { BookmarkPlus } from '../ui/Icons';
+import Dialog from '../ui/Dialog';
+import { Field, FormFeedback } from '../ui/Field';
+import { useFormValidation } from '../../utils/useFormValidation';
+import { validateAnnotation } from '../../utils/formValidation';
+import { SEED_AS_OF_DATE } from '../../data/mockData';
 
-export default function PhaseLineModal({ isOpen, onClose, onSave, defaultTargetId }) {
-  const [date, setDate] = useState('2026-10-01');
-  const [label, setLabel] = useState('Intervention Phase 2');
-  const [style, setStyle] = useState('Solid'); // Solid vs Dotted
-  const [color, setColor] = useState('#2563EB');
-
-  if (!isOpen) return null;
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave({
-      targetId: defaultTargetId,
-      date,
-      label,
-      style,
-      color,
-      isAutomated: false,
-      source: 'Manual'
-    });
+export default function PhaseLineModal({ isOpen, onClose, onSave, target, initialData }) {
+  const [date, setDate] = useState(initialData?.date || SEED_AS_OF_DATE);
+  const [label, setLabel] = useState(initialData?.label || '');
+  const [style, setStyle] = useState(initialData?.style || 'Solid');
+  const [color, setColor] = useState(initialData?.color?.slice(0, 7) || '#34634c');
+  const { errors, formRef, validate } = useFormValidation();
+  function submit(event) {
+    event.preventDefault();
+    if (!validate(validateAnnotation({ date, label, color }, 'line'))) return;
+    onSave({ ...initialData, targetId: target.id, date, label: label.trim(), style, color, isAutomated: false, source: 'Manual' });
     onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
-        
-        {/* Modal Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-          <div className="flex items-center space-x-2">
-            <BookmarkPlus className="w-5 h-5 text-blue-600" />
-            <h3 className="text-sm font-bold text-slate-800">Add Phase Change Line</h3>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Modal Form (Section 10.4 & 11) */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">Date</label>
-            <input
-              type="date"
-              required
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-            />
-          </div>
-
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">Phase Label</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Baseline, Intervention Start, Maintenance"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Line Style</label>
-              <select
-                value={style}
-                onChange={(e) => setStyle(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-              >
-                <option value="Solid">Solid Line (Visual Break)</option>
-                <option value="Dotted">Dotted Line (Continuous)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Line Color</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="color"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  className="w-9 h-9 rounded-md border border-slate-300 cursor-pointer p-0.5"
-                />
-                <span className="font-mono text-slate-600 text-xs">{color}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 flex justify-end space-x-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-xs transition-colors"
-            >
-              + Add Phase Change Line
-            </button>
-          </div>
-        </form>
-
-      </div>
-    </div>
-  );
+  }
+  return <Dialog isOpen={isOpen} onClose={onClose} title={initialData ? 'Edit phase line' : 'Add phase line'} icon={BookmarkPlus}
+    description={`Mark a phase transition for ${target?.name || 'this target'}.`}>
+    <form ref={formRef} noValidate onSubmit={submit} className="form-layout">
+      <FormFeedback errors={errors} />
+      <Field id="line-date" label="Transition date" error={errors.date}><input type="date" required value={date} onChange={event => setDate(event.target.value)} data-autofocus /></Field>
+      <Field id="line-label" label="Phase label" error={errors.label} hint="Use a short label that will fit on the chart."><input type="text" required maxLength={80} placeholder="For example, maintenance starts" value={label} onChange={event => setLabel(event.target.value)} /></Field>
+      <Field id="line-style" label="Line style" hint="Solid lines also break the data series at the transition."><select value={style} onChange={event => setStyle(event.target.value)}><option value="Solid">Solid · visual break</option><option value="Dotted">Dotted · continuous series</option></select></Field>
+      <Field id="line-color" label="Line color" error={errors.color}><input type="color" value={color} onChange={event => setColor(event.target.value)} /></Field>
+      <div className="form-actions"><button type="button" className="button button--secondary" onClick={onClose}>Cancel</button><button type="submit" className="button button--primary">Save phase line</button></div>
+    </form>
+  </Dialog>;
 }
