@@ -1,301 +1,229 @@
-import React, { useState, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import OverallMasterySection from './components/OverallMasterySection';
-import ClientSpecificSection from './components/ClientSpecificSection';
-import AbcDataSection from './components/AbcDataSection';
 import PhaseLineModal from './components/Modals/PhaseLineModal';
 import PhaseRangeModal from './components/Modals/PhaseRangeModal';
 import GraphNoteModal from './components/Modals/GraphNoteModal';
 import RecordTrialModal from './components/Modals/RecordTrialModal';
+import Dialog from './components/ui/Dialog';
+import { AnalyticsSkeleton } from './components/ui/EmptyState';
+import { useFeedback } from './utils/useFeedback';
+import { User, Calendar, ChartLineUp, Target, Notebook, CheckCircle2, ArrowRight, ArrowCounterClockwise, AlertTriangle } from './components/ui/Icons';
 import { apiService } from './services/apiService';
-import { User, Sparkles } from 'lucide-react';
+import { SEED_AS_OF_DATE } from './data/mockData';
+
+const ClientSpecificSection = lazy(() => import('./components/ClientSpecificSection'));
+const AbcDataSection = lazy(() => import('./components/AbcDataSection'));
+const initials = name => name.split(' ').map(part => part[0]).slice(0, 2).join('');
+const snapshotDate = new Date(`${SEED_AS_OF_DATE}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 export default function App() {
-  const [clients, setClients] = useState([]);
-  const [selectedClientId, setSelectedClientId] = useState('cli-liam'); // Default to Liam for immediate preview
-  const [programs, setPrograms] = useState([]);
-  const [selectedMasteryProgId, setSelectedMasteryProgId] = useState('');
-  const [masteryData, setMasteryData] = useState([]);
-  const [sessions, setSessions] = useState([]);
-  const [abcEntries, setAbcEntries] = useState([]);
-  const [annotations, setAnnotations] = useState({ phaseLines: [], phaseRanges: [], graphNotes: [] });
+  const [selectedClientId, setSelectedClientId] = useState('cli-liam');
+  const data = useSyncExternalStore(apiService.subscribe, apiService.getSnapshot);
+  const [masterySelections, setMasterySelections] = useState({});
+  const [recordOpen, setRecordOpen] = useState(false);
+  const [recordTargetId, setRecordTargetId] = useState('');
+  const [resetOpen, setResetOpen] = useState(false);
+  const [annotationEditor, setAnnotationEditor] = useState(null);
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('overview');
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('welina_navigation_collapsed') === 'true'; } catch { return false; }
+  });
+  const storageError = data.storageError;
+  const notify = useFeedback();
 
-  // Modals state
-  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
-  const [isPhaseLineModalOpen, setIsPhaseLineModalOpen] = useState(false);
-  const [isPhaseRangeModalOpen, setIsPhaseRangeModalOpen] = useState(false);
-  const [isGraphNoteModalOpen, setIsGraphNoteModalOpen] = useState(false);
+  // Subscribe to the existing browser-local service; changes produce stable snapshots.
+  const clients = data.clients;
+  const programs = useMemo(() => data.programs.filter(program => program.clientId === selectedClientId), [data.programs, selectedClientId]);
+  const sessions = data.sessions;
+  const abcEntries = useMemo(() => data.abcEntries.filter(entry => entry.clientId === selectedClientId), [data.abcEntries, selectedClientId]);
+  const annotations = useMemo(() => ({ phaseLines: data.phaseLines, phaseRanges: data.phaseRanges, graphNotes: data.graphNotes }), [data.phaseLines, data.phaseRanges, data.graphNotes]);
+  const currentClient = clients.find(client => client.id === selectedClientId);
+  const skillPrograms = programs.filter(program => program.category === 'SkillAcquisition');
+  const chosenMasteryId = masterySelections[selectedClientId];
+  const selectedMasteryProgId = chosenMasteryId === '' ? '' : skillPrograms.some(program => program.id === chosenMasteryId) ? chosenMasteryId : skillPrograms[0]?.id || '';
+  const masteryData = apiService.getCumulativeMastery(selectedClientId, selectedMasteryProgId);
+  const clientSessions = sessions.filter(session => session.clientId === selectedClientId);
+  const skillTargets = skillPrograms.flatMap(program => program.targets);
+  const masteredCount = skillTargets.filter(target => ['Maintenance', 'Generalization', 'Completed'].includes(target.phase)).length;
 
-  // Load clients on mount
   useEffect(() => {
-    loadClients();
-  }, []);
-
-  // When selectedClientId changes, load client-specific data
-  useEffect(() => {
-    if (selectedClientId) {
-      loadClientData(selectedClientId);
-    } else {
-      setPrograms([]);
-      setMasteryData([]);
-      setSessions([]);
-      setAbcEntries([]);
-      setAnnotations({ phaseLines: [], phaseRanges: [], graphNotes: [] });
+    // Measure all sections together: intersection callbacks only include changed
+    // entries and can otherwise leave the previous panel marked as current.
+    let frame = null;
+    function updateActiveSection() {
+      frame = null;
+      const threshold = (document.querySelector('.app-header')?.getBoundingClientRect().height || 0) + 40;
+      let current = 'overview';
+      for (const id of ['overview', 'target-analysis', 'abc-observations']) {
+        const section = document.getElementById(id);
+        if (section && section.getBoundingClientRect().top <= threshold) current = id;
+      }
+      setActiveSection(current);
     }
+    function schedule() { if (frame === null) frame = requestAnimationFrame(updateActiveSection); }
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    const mutation = new MutationObserver(schedule);
+    mutation.observe(document.getElementById('main-content'), { childList: true, subtree: true });
+    schedule();
+    return () => {
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      mutation.disconnect();
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
   }, [selectedClientId]);
 
-  // When mastery program changes
-  useEffect(() => {
-    if (selectedClientId && selectedMasteryProgId) {
-      const data = apiService.getCumulativeMastery(selectedClientId, selectedMasteryProgId);
-      setMasteryData(data);
-    } else {
-      setMasteryData([]);
-    }
-  }, [selectedClientId, selectedMasteryProgId]);
-
-  const loadClients = () => {
-    const list = apiService.getClients();
-    setClients(list);
-  };
-
-  const loadClientData = (clientId) => {
-    const progs = apiService.getPrograms(clientId);
-    setPrograms(progs);
-
-    // Pick first skill program for Overall Targets Mastered
-    const firstSkill = progs.find(p => p.category === 'SkillAcquisition');
-    if (firstSkill) {
-      setSelectedMasteryProgId(firstSkill.id);
-      const mData = apiService.getCumulativeMastery(clientId, firstSkill.id);
-      setMasteryData(mData);
-    } else {
-      setSelectedMasteryProgId('');
-      setMasteryData([]);
-    }
-
-    // Load sessions
-    setSessions(apiService.sessions);
-
-    // Load ABC data
-    const abc = apiService.getAbcData(clientId, 'All');
-    setAbcEntries(abc);
-
-    // Load annotations
-    setAnnotations({
-      phaseLines: apiService.phaseLines,
-      phaseRanges: apiService.phaseRanges,
-      graphNotes: apiService.graphNotes
+  function refreshAll() { apiService.publishSnapshot(); }
+  function saved(message) {
+    notify(apiService.storageError ? 'Updated for this session only. Your browser couldn’t save changes.' : message, apiService.storageError ? 'error' : 'success');
+  }
+  function toggleNavigation() {
+    setCollapsed(value => {
+      try { localStorage.setItem('welina_navigation_collapsed', String(!value)); } catch { /* Navigation still works without persistence. */ }
+      return !value;
     });
-  };
-
-  const refreshAll = () => {
-    if (selectedClientId) {
-      loadClientData(selectedClientId);
+  }
+  function navigate(id) {
+    setActiveSection(id);
+    if (navigationOpen) {
+      setNavigationOpen(false);
+      requestAnimationFrame(() => document.getElementById(id)?.focus({ preventScroll: true }));
     }
+  }
+  function openAnnotation(kind, target, initialData = null) {
+    if (!target) return;
+    setAnnotationEditor({ kind, target, initialData });
+  }
+  function saveAnnotation(kind, data) {
+    const operations = {
+      line: [() => apiService.addPhaseLine(data), () => apiService.updatePhaseLine(data.id, data), 'Phase line saved.'],
+      range: [() => apiService.addPhaseRange(data), () => apiService.updatePhaseRange(data.id, data), 'Phase range saved.'],
+      note: [() => apiService.addGraphNote(data), () => apiService.updateGraphNote(data.id, data), 'Graph note saved.']
+    };
+    const [add, update, message] = operations[kind];
+    if (data.id) update(); else add();
+    saved(message);
+  }
+  function resetData() {
+    apiService.resetToDefault();
+    saved('Demo data restored. Your navigation preferences haven’t changed.');
+    setResetOpen(false);
+  }
+  function openRecorder(target = null) {
+    setRecordTargetId(target?.id || '');
+    setRecordOpen(true);
+  }
+  function recordTrial(data) {
+    const lastSession = Math.max(0, ...apiService.sessions.filter(session => session.clientId === selectedClientId && session.targetId === data.targetId).map(session => session.sessionNumber || 0));
+    apiService.recordTrial({ ...data, sessionNumber: lastSession + 1 });
+    saved('Observation saved to this browser.');
+  }
+
+  const sidebarProps = {
+    activeSection, hasClient: Boolean(selectedClientId), onNavigate: navigate,
+    onResetData: () => { setNavigationOpen(false); setResetOpen(true); }
   };
 
-  const handleResetData = () => {
-    if (confirm('Reset all demo analytics data to initial state?')) {
-      apiService.resetToDefault();
-      loadClients();
-      if (selectedClientId) loadClientData(selectedClientId);
-    }
-  };
-
-  // Annotation handlers
-  const handleSavePhaseLine = (line) => {
-    apiService.addPhaseLine(line);
-    refreshAll();
-  };
-
-  const handleDeletePhaseLine = (id) => {
-    apiService.deletePhaseLine(id);
-    refreshAll();
-  };
-
-  const handleSavePhaseRange = (range) => {
-    apiService.addPhaseRange(range);
-    refreshAll();
-  };
-
-  const handleDeletePhaseRange = (id) => {
-    apiService.deletePhaseRange(id);
-    refreshAll();
-  };
-
-  const handleSaveGraphNote = (note) => {
-    apiService.addGraphNote(note);
-    refreshAll();
-  };
-
-  const handleDeleteGraphNote = (id) => {
-    apiService.deleteGraphNote(id);
-    refreshAll();
-  };
-
-  const handleRecordTrial = (data) => {
-    apiService.recordTrial(data);
-    refreshAll();
-  };
-
-  const handleUpdatePhase = (payload) => {
-    apiService.updateTargetPhase(payload);
-    refreshAll();
-  };
-
-  const currentClient = clients.find(c => c.id === selectedClientId);
-
-  return (
-    <div className="min-h-screen bg-slate-100 flex flex-col antialiased">
-      
-      {/* Top Application Header */}
-      <Header
-        clients={clients}
-        selectedClientId={selectedClientId}
-        onSelectClient={setSelectedClientId}
-        onOpenRecordModal={() => setIsRecordModalOpen(true)}
-        onResetData={handleResetData}
-      />
-
-      <div className="flex-1 flex max-w-full overflow-hidden">
-        
-        {/* Left Welina Navigation Sidebar */}
-        <Sidebar activeNav="analytics" />
-
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto space-y-6">
-
-            {/* Architecture & Live Integration Banner */}
-            <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-xl p-4 sm:p-5 text-white shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2">
-                  <span className="bg-blue-500/30 text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-400/40 uppercase tracking-wide">
-                    ASP.NET Core Web API + React
-                  </span>
-                  <span className="bg-emerald-500/30 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-400/40 uppercase tracking-wide">
-                    GitHub Pages Hosted
-                  </span>
-                </div>
-                <h1 className="text-lg font-bold tracking-tight">
-                  Welina Applied Behavior Analysis (ABA) Analytics Module
-                </h1>
-                <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                  Fictional demo data as of October 14, 2026: Skill Acquisition, unitary Behavior Reduction, and ABC recording across three clients. Explore measurement tools, target settings, and contextual behavior trends.
-                </p>
+  return <div className="app-shell">
+    <a className="skip-link" href="#main-content">Skip to analytics</a>
+    <Header clients={clients} selectedClientId={selectedClientId} onSelectClient={setSelectedClientId}
+      onOpenRecordModal={() => openRecorder()} onResetData={() => setResetOpen(true)}
+      onOpenNavigation={() => setNavigationOpen(true)} navigationOpen={navigationOpen} />
+    <div className={`shell-layout${collapsed ? ' shell-layout--collapsed' : ''}`}>
+      <Sidebar {...sidebarProps} collapsed={collapsed} onToggle={toggleNavigation} />
+      <main className="app-main" id="main-content" tabIndex={-1}>
+        <div className="workspace-content">
+          {storageError && <div className="storage-warning" role="alert">
+            <AlertTriangle size={21} /><div><strong>Changes aren’t being saved.</strong>
+              <p>Your browser’s storage is unavailable or full. You can explore this session, but changes may disappear when you reload. Download records before leaving.</p></div>
+            <button type="button" className="button button--secondary" onClick={() => apiService.saveAll()}>Retry</button>
+          </div>}
+          <section id="overview" aria-labelledby="overview-title" tabIndex={-1}>
+            <div className="page-heading">
+              <div><p className="eyebrow">Reporting &amp; analytics</p>
+                <h1 id="overview-title">Progress overview</h1>
+                <p className="page-description">Review skill acquisition, behavior patterns, and the context behind each observation.</p>
               </div>
-
-              <div className="flex items-center space-x-2 shrink-0">
-                <button
-                  onClick={() => setIsRecordModalOpen(true)}
-                  disabled={!selectedClientId}
-                  className="px-3.5 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center space-x-1.5 transition-colors"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Simulate Session Notes</span>
-                </button>
-              </div>
+              <div className="snapshot"><Calendar size={18} /><div><span className="snapshot-label">Fictional demo · snapshot</span><strong>{snapshotDate}</strong></div></div>
             </div>
-
-            {/* Section 4.1: Initial Landing State Prompt when No Client is Selected */}
-            {!selectedClientId ? (
-              <div className="bg-white rounded-2xl border-2 border-dashed border-slate-300 p-12 text-center my-8 shadow-xs">
-                <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-4 text-blue-600">
-                  <User className="w-8 h-8" />
+            {!currentClient ? <div className="getting-started">
+              <div className="empty-state-icon ml-0"><User size={26} /></div>
+              <h2>Start with a client.</h2>
+              <p>Choose a fictional client to explore their programs and observations. Each workspace keeps its records separate.</p>
+              <div className="client-choices">{clients.map(client => <button key={client.id} type="button" className="client-choice" onClick={() => setSelectedClientId(client.id)}>
+                <span className="client-avatar" aria-hidden="true">{initials(client.name)}</span>
+                <div><strong>{client.name}</strong><small>{client.code} · {client.location}</small></div><ArrowRight size={20} />
+              </button>)}</div>
+            </div> : <>
+              <div className="client-summary">
+                <div className="client-avatar" aria-hidden="true">{initials(currentClient.name)}</div>
+                <div className="client-identity"><h2>{currentClient.name}</h2>
+                  <p><span className="client-code">{currentClient.code}</span><span className="client-diagnosis">{currentClient.primaryDiagnosis}</span></p>
                 </div>
-                <h3 className="text-lg font-bold text-slate-800">
-                  Please select a client at the top to view data.
-                </h3>
-                <p className="text-sm text-slate-500 max-w-md mx-auto mt-2">
-                  When no client is selected, analytics sections remain inactive to prevent cross-client data mixing. Choose a client from the dropdown above to load therapy records.
-                </p>
-                <div className="mt-6 flex justify-center space-x-3">
-                  {clients.map(c => (
-                    <button
-                      key={c.id}
-                      onClick={() => setSelectedClientId(c.id)}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 transition-colors"
-                    >
-                      Select {c.name}
-                    </button>
-                  ))}
-                </div>
+                <div className="client-supervisor"><span>Supervising clinician</span><strong>{currentClient.supervisingBcba}</strong></div>
+                <button type="button" className="button button--tertiary" onClick={() => document.getElementById('client-selector').focus()}><span>Change client</span><ArrowRight size={17} /></button>
               </div>
-            ) : (
-              <>
-                {/* Section A: Overall Targets Mastered (Section 5) */}
-                <OverallMasterySection
-                  programs={programs}
-                  selectedProgramId={selectedMasteryProgId}
-                  onSelectProgram={setSelectedMasteryProgId}
-                  masteryData={masteryData}
-                  isDisabled={!selectedClientId}
-                />
-
-                {/* Section B: Client-Specific Program and Target Data (Sections 6 - 21) */}
-                <ClientSpecificSection
-                  client={currentClient}
-                  programs={programs}
-                  sessions={sessions}
-                  annotations={annotations}
-                  onAddPhaseLineClick={() => setIsPhaseLineModalOpen(true)}
-                  onAddPhaseRangeClick={() => setIsPhaseRangeModalOpen(true)}
-                  onAddGraphNoteClick={() => setIsGraphNoteModalOpen(true)}
-                  onDeletePhaseLine={handleDeletePhaseLine}
-                  onDeletePhaseRange={handleDeletePhaseRange}
-                  onDeleteGraphNote={handleDeleteGraphNote}
-                  onRefresh={refreshAll}
-                  isDisabled={!selectedClientId}
-                />
-
-                {/* Section C: ABC Data Recording (Section 24) */}
-                <AbcDataSection
-                  client={currentClient}
-                  abcEntries={abcEntries}
-                  abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
-                  isDisabled={!selectedClientId}
-                  onRefresh={refreshAll}
-                />
-              </>
-            )}
-
-          </div>
-        </main>
-      </div>
-
-      {/* Modals */}
-      <PhaseLineModal
-        isOpen={isPhaseLineModalOpen}
-        onClose={() => setIsPhaseLineModalOpen(false)}
-        onSave={handleSavePhaseLine}
-        defaultTargetId={programs[0]?.targets[0]?.id || ''}
-      />
-
-      <PhaseRangeModal
-        isOpen={isPhaseRangeModalOpen}
-        onClose={() => setIsPhaseRangeModalOpen(false)}
-        onSave={handleSavePhaseRange}
-        defaultTargetId={programs[0]?.targets[0]?.id || ''}
-      />
-
-      <GraphNoteModal
-        isOpen={isGraphNoteModalOpen}
-        onClose={() => setIsGraphNoteModalOpen(false)}
-        onSave={handleSaveGraphNote}
-        defaultTargetId={programs[0]?.targets[0]?.id || ''}
-      />
-
-      <RecordTrialModal
-        isOpen={isRecordModalOpen}
-        onClose={() => setIsRecordModalOpen(false)}
-        programs={programs}
-        selectedClientId={selectedClientId}
-        onRecordTrial={handleRecordTrial}
-        onUpdatePhase={handleUpdatePhase}
-      />
-
+              <dl className="metrics-strip" aria-label={`${currentClient.name}'s demo data summary`}>
+                {[
+                  { label: 'Programs', value: programs.length, note: `${skillPrograms.length} skill · ${programs.length - skillPrograms.length} behavior`, icon: Target },
+                  { label: 'Targets mastered', value: `${masteredCount} / ${skillTargets.length}`, note: 'Across skill programs', icon: CheckCircle2 },
+                  { label: 'Session observations', value: clientSessions.length, note: 'All measurement types', icon: ChartLineUp },
+                  { label: 'ABC observations', value: abcEntries.length, note: 'Antecedent to consequence', icon: Notebook }
+                ].map(metric => <div className="metric" key={metric.label}><dt><metric.icon size={15} />{metric.label}</dt><dd className="metric-number">{metric.value}</dd><dd className="metric-note">{metric.note}</dd></div>)}
+              </dl>
+              <OverallMasterySection programs={programs} selectedProgramId={selectedMasteryProgId}
+                onSelectProgram={id => setMasterySelections(value => ({ ...value, [selectedClientId]: id }))} masteryData={masteryData} />
+            </>}
+          </section>
+          {currentClient && <>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <ClientSpecificSection key={selectedClientId} client={currentClient} programs={programs} sessions={sessions} annotations={annotations}
+                onAddPhaseLineClick={target => openAnnotation('line', target)}
+                onAddPhaseRangeClick={target => openAnnotation('range', target)}
+                onAddGraphNoteClick={target => openAnnotation('note', target)}
+                onEditAnnotation={(kind, record, target) => openAnnotation(kind, target, record)}
+                onDeletePhaseLine={id => { apiService.deletePhaseLine(id); saved('Phase line removed.'); }}
+                onDeletePhaseRange={id => { apiService.deletePhaseRange(id); saved('Phase range removed.'); }}
+                onDeleteGraphNote={id => { apiService.deleteGraphNote(id); saved('Graph note removed.'); }}
+                onRefresh={() => { refreshAll(); notify('Target analysis refreshed from this browser.'); }}
+                onRecordClick={openRecorder} />
+            </Suspense>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <AbcDataSection key={selectedClientId} client={currentClient} abcEntries={abcEntries}
+                abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
+                onRefresh={() => { refreshAll(); notify('ABC observations refreshed from this browser.'); }} />
+            </Suspense>
+          </>}
+          <footer className="workspace-footer">
+            <p>Fictional records. Stored on this device. Not for clinical decisions.</p>
+            <nav aria-label="Demo information"><a href={`${import.meta.env.BASE_URL}privacy.html`}>Privacy</a><a href={`${import.meta.env.BASE_URL}terms.html`}>Terms of use</a></nav>
+          </footer>
+        </div>
+      </main>
     </div>
-  );
+
+    <Dialog isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} title="Workspace" presentation="navigation">
+      <Sidebar {...sidebarProps} drawer />
+    </Dialog>
+    <Dialog isOpen={resetOpen} onClose={() => setResetOpen(false)} title="Restore demo data?" icon={ArrowCounterClockwise}
+      description="This replaces recorded observations, target-phase changes, and annotations for all three fictional clients with the original demo records." presentation="confirmation">
+      <p className="field-hint">This affects only this browser. Export any records you want to keep before resetting.</p>
+      <div className="form-actions"><button type="button" className="button button--secondary" onClick={() => setResetOpen(false)} data-autofocus>Keep my changes</button><button type="button" className="button button--danger" onClick={resetData}>Restore demo data</button></div>
+    </Dialog>
+    <PhaseLineModal key={`line-${annotationEditor?.initialData?.id || annotationEditor?.target.id || 'closed'}`}
+      isOpen={annotationEditor?.kind === 'line'} onClose={() => setAnnotationEditor(null)} onSave={data => saveAnnotation('line', data)}
+      target={annotationEditor?.target} initialData={annotationEditor?.initialData} />
+    <PhaseRangeModal key={`range-${annotationEditor?.initialData?.id || annotationEditor?.target.id || 'closed'}`}
+      isOpen={annotationEditor?.kind === 'range'} onClose={() => setAnnotationEditor(null)} onSave={data => saveAnnotation('range', data)}
+      target={annotationEditor?.target} initialData={annotationEditor?.initialData} />
+    <GraphNoteModal key={`note-${annotationEditor?.initialData?.id || annotationEditor?.target.id || 'closed'}`}
+      isOpen={annotationEditor?.kind === 'note'} onClose={() => setAnnotationEditor(null)} onSave={data => saveAnnotation('note', data)}
+      target={annotationEditor?.target} initialData={annotationEditor?.initialData} />
+    {recordOpen && <RecordTrialModal isOpen onClose={() => setRecordOpen(false)} programs={programs} selectedClientId={selectedClientId} initialTargetId={recordTargetId}
+      onRecordTrial={recordTrial} onUpdatePhase={payload => { apiService.updateTargetPhase(payload); refreshAll(); }} />}
+  </div>;
 }

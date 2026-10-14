@@ -1,54 +1,15 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  Filter, 
-  Download, 
-  RotateCw, 
-  HelpCircle, 
-  Eye, 
-  EyeOff, 
-  TrendingUp, 
-  Activity, 
-  Settings2, 
-  FileText, 
-  Layers, 
-  Plus, 
-  Trash2, 
-  Edit3, 
-  ChevronDown, 
-  Calendar, 
-  UserCheck, 
-  CheckSquare, 
-  Square,
-  FileSpreadsheet,
-  FileCode,
-  Image as ImageIcon,
-  Archive
-} from 'lucide-react';
-import { 
-  exportSvgElement, 
-  exportPngFromSvg, 
-  exportRawTrialDataCsv,
-  exportStructuredZip 
-} from '../utils/exportUtils';
+import React, { useState, useMemo, useRef } from 'react';
+import { RotateCw, TrendingUp, Plus, Trash2, Edit3, CheckSquare, Square, UserCheck, ChevronLeft, ChevronRight } from './ui/Icons';
+import { exportSvgElement, exportPngFromSvg, exportRawTrialDataCsv, exportStructuredZip } from '../utils/exportUtils';
 import ProgramDetails from './ProgramDetails';
-import { SEED_AS_OF_DATE } from '../data/mockData';
-
-function getMinDate(durationFilter) {
-  const now = new Date(`${SEED_AS_OF_DATE}T23:59:59`);
-  const minDate = new Date(now);
-  switch (durationFilter) {
-    case '3 days': minDate.setDate(now.getDate() - 3); break;
-    case '5 days': minDate.setDate(now.getDate() - 5); break;
-    case '7 days': minDate.setDate(now.getDate() - 7); break;
-    case '2 weeks': minDate.setDate(now.getDate() - 14); break;
-    case '1 month': minDate.setMonth(now.getMonth() - 1); break;
-    case '3 months': minDate.setMonth(now.getMonth() - 3); break;
-    case '6 months': minDate.setMonth(now.getMonth() - 6); break;
-    case '1 year': minDate.setFullYear(now.getFullYear() - 1); break;
-    case '2 years': minDate.setFullYear(now.getFullYear() - 2); break;
-  }
-  return minDate;
-}
+import SectionHeader from './ui/SectionHeader';
+import ExportMenu from './ui/ExportMenu';
+import Popover from './ui/Popover';
+import SegmentedControl from './ui/SegmentedControl';
+import EmptyState from './ui/EmptyState';
+import { MEASUREMENT_LABELS } from '../utils/formValidation';
+import { seriesColor, formatChartDate, chartMarkerInk, CHART_GRID, CHART_MUTED, CHART_INK } from '../utils/chartTheme';
+import { getMinDate, processAggregation, getObservationKey, sortObservationKeys, chartStatistics } from '../utils/analyticsMetrics';
 
 export default function ClientSpecificSection({
   client,
@@ -62,18 +23,19 @@ export default function ClientSpecificSection({
   onDeletePhaseRange,
   onDeleteGraphNote,
   onRefresh,
-  isDisabled = false
+  onEditAnnotation,
+  onRecordClick
 }) {
   // Program / Behavior selection (Section 6.1 & 6.2)
   const [activeCategoryTab, setActiveCategoryTab] = useState('SkillAcquisition'); // 'SkillAcquisition' or 'Behavior'
-  const [selectedProgramId, setSelectedProgramId] = useState('');
-  const [selectedBehaviorIds, setSelectedBehaviorIds] = useState([]); // multi-selection support (Section 19)
+  const [selectedProgramId, setSelectedProgramId] = useState(() => programs.find(program => program.category === 'SkillAcquisition')?.id || '');
+  const [selectedBehaviorIds, setSelectedBehaviorIds] = useState(() => { const first = programs.find(program => program.category === 'BehaviorReduction')?.targets[0]?.id; return first ? [first] : []; }); // multi-selection support (Section 19)
 
   // Target Type Tab state (Section 7 & 9.4)
-  const [activeTargetType, setActiveTargetType] = useState('');
+  const [requestedTargetType, setActiveTargetType] = useState('');
 
   // Target Visibility Control (Section 12.1)
-  const [visibleTargetIds, setVisibleTargetIds] = useState(new Set());
+  const [hiddenTargetIds, setHiddenTargetIds] = useState(new Set());
 
   // Duration filter (Section 7.3)
   const [durationFilter, setDurationFilter] = useState('1 month');
@@ -93,7 +55,7 @@ export default function ClientSpecificSection({
 
   // Split Data by Therapist (Section 17)
   const [splitByTherapist, setSplitByTherapist] = useState(false);
-  const [visibleTherapists, setVisibleTherapists] = useState(new Set());
+  const [hiddenTherapists, setHiddenTherapists] = useState(new Set());
 
   // Overlays: Average Line & Trend Line (Section 13 & 14)
   const [showAverageLine, setShowAverageLine] = useState(false);
@@ -101,9 +63,12 @@ export default function ClientSpecificSection({
   const [useRegressionTrend, setUseRegressionTrend] = useState(true);
 
   // Chart customization (Section 10.1, 10.2, 10.3)
-  const [chartTitle, setChartTitle] = useState('');
+  const [customTitles, setCustomTitles] = useState({});
+  const [draftTitle, setDraftTitle] = useState('');
+  const [titleError, setTitleError] = useState('');
+  const titleButtonRef = useRef(null);
+  const [annotationTargetId, setAnnotationTargetId] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [yAxisTitle, setYAxisTitle] = useState('');
   const [showGridlines, setShowGridlines] = useState(true);
   const [colorMode, setColorMode] = useState('System'); // 'System' vs 'BlackAndWhite'
 
@@ -111,18 +76,13 @@ export default function ClientSpecificSection({
   const [behaviorZeroOut, setBehaviorZeroOut] = useState(true);
   const [showEmptyDates, setShowEmptyDates] = useState(true);
 
-  // Anecdotal filters (Section 5.2)
-  const [anecdotalTargetFilter, setAnecdotalTargetFilter] = useState('All');
-
   // Export menus & SVG ref
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const svgRef = useRef(null);
 
   // Filter programs by category
   const skillPrograms = useMemo(() => programs.filter(p => p.category === 'SkillAcquisition'), [programs]);
   const behaviorPrograms = useMemo(() => programs.filter(p => p.category === 'BehaviorReduction'), [programs]);
-  
+
   // All behavior targets across behavior programs
   const allBehaviors = useMemo(() => {
     const list = [];
@@ -131,21 +91,6 @@ export default function ClientSpecificSection({
     });
     return list;
   }, [behaviorPrograms]);
-
-  // Keep selections valid when the client changes (all three have different programs).
-  useEffect(() => {
-    if (!skillPrograms.some(p => p.id === selectedProgramId)) {
-      setSelectedProgramId(skillPrograms[0]?.id || '');
-    }
-  }, [skillPrograms, selectedProgramId]);
-
-  useEffect(() => {
-    setSelectedBehaviorIds(ids => {
-      const valid = ids.filter(id => allBehaviors.some(b => b.id === id));
-      if (valid.length === ids.length && ids.length) return ids;
-      return valid.length ? valid : (allBehaviors[0] ? [allBehaviors[0].id] : []);
-    });
-  }, [allBehaviors]);
 
   // Currently selected program object
   const currentSelectedProgram = useMemo(() => {
@@ -169,16 +114,12 @@ export default function ClientSpecificSection({
     : behaviorPrograms.filter(p => p.targets.some(t => selectedBehaviorIds.includes(t.id))),
   [activeCategoryTab, currentSelectedProgram, behaviorPrograms, selectedBehaviorIds]);
 
-  // Sync visible targets whenever activeTargets change
-  useEffect(() => {
-    const ids = new Set(activeTargets.map(t => t.id));
-    setVisibleTargetIds(ids);
-  }, [activeTargets]);
+  const visibleTargetIds = useMemo(() => new Set(activeTargets.filter(target => !hiddenTargetIds.has(target.id)).map(target => target.id)), [activeTargets, hiddenTargetIds]);
 
   // Determine available target types for the selection (Section 7 & 9.4)
   const availableTargetTypes = useMemo(() => {
     if (activeTargets.length === 0) return [];
-    
+
     // A pending target (or one with only DataNotTracked records) has no data tab.
     const typesWithData = new Set();
     activeTargets.forEach(tgt => {
@@ -191,41 +132,27 @@ export default function ClientSpecificSection({
     return standardOrder.filter(type => typesWithData.has(type));
   }, [activeTargets, sessions, client]);
 
-  // Set first available target type tab by default (Section 9.4)
-  useEffect(() => {
-    if (availableTargetTypes.length > 0) {
-      if (!availableTargetTypes.includes(activeTargetType)) {
-        setActiveTargetType(availableTargetTypes[0]);
-      }
-    } else {
-      setActiveTargetType('');
-    }
-  }, [availableTargetTypes]);
+  const activeTargetType = availableTargetTypes.includes(requestedTargetType) ? requestedTargetType : availableTargetTypes[0] || '';
 
-  // Default Chart Title logic (Section 20.1 & 20.2)
-  useEffect(() => {
-    if (!isEditingTitle) {
-      if (activeCategoryTab === 'SkillAcquisition') {
-        setChartTitle(currentSelectedProgram ? currentSelectedProgram.name : 'Program Analytics');
-      } else {
-        if (selectedBehaviorIds.length > 1) {
-          setChartTitle('Multiple Behaviors');
-        } else if (selectedBehaviorIds.length === 1) {
-          const beh = allBehaviors.find(b => b.id === selectedBehaviorIds[0]);
-          setChartTitle(beh ? beh.name : 'Behavior Analytics');
-        } else {
-          setChartTitle('Behavior Analytics');
-        }
-      }
-    }
-  }, [activeCategoryTab, currentSelectedProgram, selectedBehaviorIds, allBehaviors, isEditingTitle]);
+  const titleContext = `${client?.id}-${activeCategoryTab}-${selectedProgramId}-${selectedBehaviorIds.join(',')}`;
+  const defaultTitle = activeCategoryTab === 'SkillAcquisition' ? (currentSelectedProgram?.name || 'Program observations')
+    : selectedBehaviorIds.length > 1 ? 'Behavior comparison' : allBehaviors.find(behavior => behavior.id === selectedBehaviorIds[0])?.name || 'Behavior observations';
+  const chartTitle = customTitles[titleContext] || defaultTitle;
 
-  // Reset average & trend lines when target context switches (Section 13.5 & 14.3)
-  useEffect(() => {
+  function resetView(resetTargets = true) {
     setShowAverageLine(false);
     setShowTrendLine(false);
     setSplitByTherapist(false);
-  }, [selectedProgramId, selectedBehaviorIds, activeTargetType]);
+    setSessionPage(1);
+    setIsEditingTitle(false);
+    setTitleError('');
+    setHiddenTherapists(new Set());
+    if (resetTargets) {
+      setHiddenTargetIds(new Set());
+      setActiveTargetType('');
+      setAnnotationTargetId('');
+    }
+  }
 
   // Targets in the currently selected target type tab
   const tabTargets = useMemo(() => {
@@ -256,47 +183,41 @@ export default function ClientSpecificSection({
   // Extract all unique therapists for the selected targets
   const allTherapistsForTarget = useMemo(() => {
     const set = new Set();
-    filteredSessions.forEach(s => {
+    filteredSessions.filter(session => tabTargets.some(target => target.id === session.targetId)).forEach(s => {
       if (s.therapistName) set.add(s.therapistName);
     });
     return Array.from(set);
-  }, [filteredSessions]);
+  }, [filteredSessions, tabTargets]);
 
-  // Initialize visible therapists
-  useEffect(() => {
-    setVisibleTherapists(new Set(allTherapistsForTarget));
-  }, [allTherapistsForTarget]);
+  const visibleTherapists = useMemo(() => new Set(allTherapistsForTarget.filter(name => !hiddenTherapists.has(name))), [allTherapistsForTarget, hiddenTherapists]);
 
   // Process data points for Graph based on Aggregation and Target Type
   const chartSeriesData = useMemo(() => {
     if (tabTargets.length === 0 || filteredSessions.length === 0) return [];
 
-    const therapistPalette = ['#2563EB', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4'];
 
     // If Split by Therapist is enabled (Section 17) - only applies when single target is selected
     if (splitByTherapist && tabTargets.length === 1) {
       const tgt = tabTargets[0];
       return allTherapistsForTarget
         .filter(th => visibleTherapists.has(th))
-        .map((therapist, tIdx) => {
+        .map(therapist => {
           const thSessions = filteredSessions.filter(s => s.targetId === tgt.id && s.therapistName === therapist);
           const points = processAggregation(thSessions, aggregation, activeTargetType, durationView, rateView, frequencyView);
           return {
             id: `th-${therapist}`,
             name: therapist,
-            color: colorMode === 'BlackAndWhite' ? '#333333' : therapistPalette[tIdx % therapistPalette.length],
+            color: seriesColor(allTherapistsForTarget.indexOf(therapist), colorMode === 'BlackAndWhite'),
             points
           };
         });
     }
 
     // Default: one series per target
-    return tabTargets.map((tgt, idx) => {
+    return tabTargets.map(tgt => {
       const tgtSessions = filteredSessions.filter(s => s.targetId === tgt.id);
       const points = processAggregation(tgtSessions, aggregation, activeTargetType, durationView, rateView, frequencyView);
-      const defaultColor = colorMode === 'BlackAndWhite' 
-        ? '#1E293B' 
-        : (tgt.color || '#3B82F6');
+      const defaultColor = seriesColor(activeTargets.findIndex(target => target.id === tgt.id), colorMode === 'BlackAndWhite');
 
       return {
         id: tgt.id,
@@ -306,64 +227,32 @@ export default function ClientSpecificSection({
       };
     });
   }, [
-    tabTargets, 
-    filteredSessions, 
-    splitByTherapist, 
-    allTherapistsForTarget, 
-    visibleTherapists, 
-    aggregation, 
-    activeTargetType, 
-    durationView, 
-    rateView, 
-    frequencyView, 
-    colorMode
+    tabTargets,
+    filteredSessions,
+    splitByTherapist,
+    allTherapistsForTarget,
+    visibleTherapists,
+    aggregation,
+    activeTargetType,
+    durationView,
+    rateView,
+    frequencyView,
+    colorMode,
+    activeTargets
   ]);
 
-  // Calculate Overall Average & Trend Line parameters
-  const { averageValue, trendlinePoints, regressionParams } = useMemo(() => {
-    const allNumeric = [];
-    chartSeriesData.forEach(series => {
-      series.points.forEach(p => {
-        if (p.val !== null && p.val !== undefined && !isNaN(p.val)) {
-          allNumeric.push(p);
-        }
-      });
-    });
-
-    if (allNumeric.length === 0) {
-      return { averageValue: null, trendlinePoints: null, regressionParams: null };
-    }
-
-    const avg = allNumeric.reduce((acc, curr) => acc + curr.val, 0) / allNumeric.length;
-
-    // Trendline calculation (Section 14 & Future Scope)
-    let trend = null;
-    let regression = null;
-    if (allNumeric.length >= 2) {
-      const first = allNumeric[0];
-      const last = allNumeric[allNumeric.length - 1];
-      trend = { start: first, end: last };
-
-      // Linear regression y = mx + c
-      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-      const n = allNumeric.length;
-      allNumeric.forEach((p, idx) => {
-        sumX += idx;
-        sumY += p.val;
-        sumXY += idx * p.val;
-        sumX2 += idx * idx;
-      });
-      const slope = (n * sumXY - sumX * sumY) / Math.max(1, (n * sumX2 - sumX * sumX));
-      const intercept = (sumY - slope * sumX) / n;
-      regression = { slope: slope.toFixed(2), intercept: intercept.toFixed(2) };
-    }
-
-    return {
-      averageValue: Math.round(avg * 100) / 100,
-      trendlinePoints: trend,
-      regressionParams: regression
-    };
-  }, [chartSeriesData]);
+  const contextualXKeys = showEmptyDates && activeCategoryTab === 'Behavior'
+    ? sessions.filter(session => session.clientId === client?.id && tabTargets.some(target => target.id === session.targetId) &&
+      new Date(session.timestamp) >= getMinDate(durationFilter)).map(session => getObservationKey(session, aggregation))
+    : [];
+  const allChartKeys = sortObservationKeys(new Set([...contextualXKeys, ...chartSeriesData.flatMap(series => series.points.map(point => point.xKey))]), aggregation);
+  const totalPages = Math.max(1, Math.ceil(allChartKeys.length / 12));
+  const currentPage = Math.min(sessionPage, totalPages);
+  const pageKeys = aggregation === 'Per Session' ? allChartKeys.slice((currentPage - 1) * 12, currentPage * 12) : allChartKeys;
+  const displaySeriesData = aggregation === 'Per Session'
+    ? chartSeriesData.map(series => ({ ...series, points: series.points.filter(point => pageKeys.includes(point.xKey)) })) : chartSeriesData;
+  const { averageValue, trendlinePoints, regressionPoints, regressionParams } = chartStatistics(displaySeriesData, aggregation, pageKeys);
+  const annotationTarget = tabTargets.find(target => target.id === annotationTargetId) || tabTargets[0];
 
   // Target-specific annotations (Section 10 & 11)
   // Hide when multiple behaviors are selected per Section 19.2
@@ -371,634 +260,166 @@ export default function ClientSpecificSection({
     if (activeCategoryTab === 'Behavior' && selectedBehaviorIds.length > 1) {
       return { phaseLines: [], phaseRanges: [], graphNotes: [] };
     }
-    const currentTargetId = tabTargets[0]?.id;
+    const currentTargetId = annotationTarget?.id;
+    if (!currentTargetId) return { phaseLines: [], phaseRanges: [], graphNotes: [] };
     return {
       phaseLines: (annotations.phaseLines || []).filter(p => !currentTargetId || p.targetId === currentTargetId),
       phaseRanges: (annotations.phaseRanges || []).filter(p => !currentTargetId || p.targetId === currentTargetId),
       graphNotes: (annotations.graphNotes || []).filter(p => !currentTargetId || p.targetId === currentTargetId)
     };
-  }, [annotations, tabTargets, activeCategoryTab, selectedBehaviorIds]);
-
-  const handleRefreshClick = () => {
-    setIsRefreshing(true);
-    if (onRefresh) onRefresh();
-    setTimeout(() => setIsRefreshing(false), 500);
-  };
+  }, [annotations, annotationTarget, activeCategoryTab, selectedBehaviorIds]);
 
   const handleExport = (type) => {
-    setShowExportMenu(false);
     if (type === 'svg') {
-      exportSvgElement(svgRef.current, `${chartTitle.replace(/\s+/g, '_')}.svg`);
+      return exportSvgElement(svgRef.current, `${chartTitle.replace(/\s+/g, '_')}.svg`);
     } else if (type === 'png') {
-      exportPngFromSvg(svgRef.current, `${chartTitle.replace(/\s+/g, '_')}.png`);
+      return exportPngFromSvg(svgRef.current, `${chartTitle.replace(/\s+/g, '_')}.png`);
     } else if (type === 'raw-csv') {
       // Unlike the graph, the raw export includes DataNotTracked and zero-out dates.
       const ids = new Set(tabTargets.map(t => t.id));
       const raw = sessions.filter(s => s.clientId === client?.id && ids.has(s.targetId) &&
         new Date(s.timestamp) >= getMinDate(durationFilter));
-      exportRawTrialDataCsv(raw, client?.name);
+      return exportRawTrialDataCsv(raw.map(record => ({ ...record, targetName: tabTargets.find(target => target.id === record.targetId)?.name || record.targetId })), client?.name);
     } else if (type === 'zip') {
-      exportStructuredZip({ clientName: client?.name || 'Client', programs, allRawRecords: sessions });
+      return exportStructuredZip({ clientName: client?.name || 'Client', programs, allRawRecords: sessions });
     }
   };
 
-  // Helper function to format duration values as MM min SS sec
-  const formatDurationVal = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')} min ${secs.toString().padStart(2, '0')} sec`;
-  };
+  const hasChart = activeTargetType !== 'Anecdotal' && displaySeriesData.some(series => series.points.length);
+  const chartDataRows = displaySeriesData.flatMap(series => series.points.map(point => ({ ...point, series: series.name })));
+  function saveTitle(event) {
+    event.preventDefault();
+    if (!draftTitle.trim()) { setTitleError('Enter a chart title before saving.'); return; }
+    setCustomTitles(previous => ({ ...previous, [titleContext]: draftTitle.trim() }));
+    setIsEditingTitle(false);
+    setTitleError('');
+    requestAnimationFrame(() => titleButtonRef.current?.focus());
+  }
 
-  return (
-    <div className={`bg-white rounded-xl border border-slate-200 shadow-xs mt-6 transition-opacity ${isDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
-      
-      {/* 1. Header Toolbar */}
-      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2">
-            <h2 className="text-base font-bold text-slate-900">
-              Section B: Client-Specific Program and Target Data
-            </h2>
-            <div className="relative group">
-              <HelpCircle className="w-4 h-4 text-slate-400 hover:text-slate-600 cursor-pointer" />
-              <div className="absolute left-0 top-6 hidden group-hover:block w-80 p-2.5 bg-slate-900 text-slate-100 text-xs rounded-lg shadow-lg z-20">
-                Granular target-level analysis for Skill Acquisition and Behavior Reduction targets. Dynamic tabs adapt strictly to recorded target data.
-              </div>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Target performance, phase change markers, rate views, and therapist breakdowns
-          </p>
-        </div>
+  return <section id="target-analysis" className="panel" aria-labelledby="target-analysis-title" tabIndex={-1}>
+    <SectionHeader id="target-analysis-title" title="Target analysis" description="Compare observations across programs and measurement tools."
+      help="Choose a program or behavior, then select a measurement type. Only tools with recorded observations appear. Measured zeros count; unobserved records never become zeros."
+      actions={<>
+        <ExportMenu label="Export targets" onExport={handleExport} formats={[
+          { id: 'svg', label: 'Vector chart · SVG', disabled: !hasChart },
+          { id: 'png', label: 'Chart image · PNG', disabled: !hasChart },
+          { id: 'raw-csv', label: 'Raw observations · CSV', disabled: !tabTargets.length },
+          { id: 'zip', label: 'All client targets · ZIP' }
+        ]} />
+        <button type="button" className="icon-button icon-button--bordered" onClick={onRefresh} aria-label="Refresh target analysis"><RotateCw size={19} /></button>
+      </>} />
 
-        {/* Program / Behavior Selection Controls (Section 6.1 & 6.2) */}
-        <div className="flex flex-wrap items-center gap-2">
-          
-          {/* Category Tabs: Skill Acquisition vs Behavior */}
-          <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold">
-            <button
-              onClick={() => setActiveCategoryTab('SkillAcquisition')}
-              className={`px-3 py-1 rounded-md transition-colors ${
-                activeCategoryTab === 'SkillAcquisition' 
-                  ? 'bg-white text-blue-600 shadow-xs' 
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Skill Acquisition
-            </button>
-            <button
-              onClick={() => setActiveCategoryTab('Behavior')}
-              className={`px-3 py-1 rounded-md transition-colors ${
-                activeCategoryTab === 'Behavior' 
-                  ? 'bg-white text-red-600 shadow-xs' 
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Behavior ({allBehaviors.length})
-            </button>
-          </div>
-
-          {/* Program Dropdown (for Skill Acquisition) */}
-          {activeCategoryTab === 'SkillAcquisition' ? (
-            <select
-              value={selectedProgramId}
-              onChange={(e) => setSelectedProgramId(e.target.value)}
-              className="text-xs font-medium bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-            >
-              <option value="">-- Select Program --</option>
-              {skillPrograms.map(p => (
-                <option key={p.id} value={p.id}>{p.name} · {p.status}</option>
-              ))}
-            </select>
-          ) : (
-            /* Multi-Behavior Selection Dropdown (Section 19) */
-            <div className="relative group">
-              <button
-                type="button"
-                className="text-xs font-medium bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 flex items-center space-x-1"
-              >
-                <span>Selected Behaviors ({selectedBehaviorIds.length})</span>
-                <ChevronDown className="w-3 h-3 text-slate-500" />
-              </button>
-              <div className="absolute right-0 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl p-2 z-30 hidden group-hover:block space-y-1">
-                <div className="text-[10px] uppercase font-bold text-slate-400 px-2 py-0.5">
-                  Select Multiple Behaviors (Section 19)
-                </div>
-                {allBehaviors.map(b => {
-                  const isChecked = selectedBehaviorIds.includes(b.id);
-                  return (
-                    <label key={b.id} className="flex items-center space-x-2 px-2 py-1 hover:bg-slate-50 rounded cursor-pointer text-xs">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          if (isChecked) {
-                            setSelectedBehaviorIds(selectedBehaviorIds.filter(id => id !== b.id));
-                          } else {
-                            setSelectedBehaviorIds([...selectedBehaviorIds, b.id]);
-                          }
-                        }}
-                        className="rounded border-slate-300 text-blue-600"
-                      />
-                      <span className="font-medium text-slate-700">{b.name} · {b.type === 'IntervalData' ? 'Interval Data' : b.type}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Duration Filter Dropdown (Section 7.3) */}
-          <select
-            value={durationFilter}
-            onChange={(e) => setDurationFilter(e.target.value)}
-            className="text-xs font-medium bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-          >
-            <option value="3 days">3 days</option>
-            <option value="5 days">5 days</option>
-            <option value="7 days">7 days</option>
-            <option value="2 weeks">2 weeks</option>
-            <option value="1 month">1 month</option>
-            <option value="3 months">3 months</option>
-            <option value="6 months">6 months</option>
-            <option value="1 year">1 year</option>
-            <option value="2 years">2 years</option>
-          </select>
-
-          {/* Export Controls (Section 7.4, 21 & Future Scope #1) */}
-          <div className="relative">
-            <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors flex items-center space-x-1"
-              title="Export Options"
-            >
-              <Download className="w-4 h-4" />
-              <ChevronDown className="w-3 h-3" />
-            </button>
-
-            {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-xl py-1 z-30 text-xs">
-                <div className="px-3 py-1 font-bold text-slate-400 uppercase text-[10px]">
-                  Visual Exports
-                </div>
-                <button
-                  onClick={() => handleExport('svg')}
-                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center space-x-2 text-slate-700"
-                >
-                  <FileCode className="w-3.5 h-3.5 text-blue-500" />
-                  <span>Download SVG</span>
-                </button>
-                <button
-                  onClick={() => handleExport('png')}
-                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center space-x-2 text-slate-700"
-                >
-                  <ImageIcon className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Download PNG (High-Res)</span>
-                </button>
-                <div className="border-t border-slate-100 my-1"></div>
-                <div className="px-3 py-1 font-bold text-slate-400 uppercase text-[10px]">
-                  Raw Data Exports
-                </div>
-                <button
-                  onClick={() => handleExport('raw-csv')}
-                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center space-x-2 text-slate-700"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Export Raw Data (CSV)</span>
-                </button>
-                <button
-                  onClick={() => handleExport('zip')}
-                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center space-x-2 text-slate-700 font-medium"
-                >
-                  <Archive className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Multi-Target Structured Zip</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Refresh Button (Section 7.5) */}
-          <button
-            onClick={handleRefreshClick}
-            className={`p-1.5 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors ${
-              isRefreshing ? 'animate-spin text-blue-600' : ''
-            }`}
-            title="Refresh current graph data"
-          >
-            <RotateCw className="w-4 h-4" />
-          </button>
-
-        </div>
-      </div>
-
-      <ProgramDetails programs={detailPrograms} />
-
-      {/* 2. Target Type Tabs (Section 7 & 9.4) */}
-      <div className="px-5 pt-3 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between overflow-x-auto">
-        <div className="flex space-x-1 shrink-0">
-          {availableTargetTypes.map(tType => {
-            const labelMap = {
-              TrialByTrial: 'Trial by Trial',
-              Duration: 'Duration',
-              Frequency: 'Frequency',
-              IntervalData: 'Interval Data',
-              Anecdotal: 'Anecdotal Data',
-              FluencyRate: 'Fluency / Rate'
-            };
-            const isActive = activeTargetType === tType;
-            return (
-              <button
-                key={tType}
-                onClick={() => setActiveTargetType(tType)}
-                className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${
-                  isActive
-                    ? 'border-blue-600 text-blue-600 bg-white shadow-2xs font-bold'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/50'
-                }`}
-              >
-                {labelMap[tType] || tType}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* View Modifiers: Aggregation, Duration Views, Fluency Views, Therapist Split */}
-        <div className="flex items-center space-x-2 pb-2 shrink-0 text-xs">
-          
-          {/* Aggregated Data Selector (Section 18.1) */}
-          {activeTargetType !== 'Anecdotal' && (
-            <div className="flex items-center space-x-1">
-              <span className="text-[11px] font-semibold text-slate-500">Group:</span>
-              <select
-                value={aggregation}
-                onChange={(e) => setAggregation(e.target.value)}
-                className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-700 font-medium"
-              >
-                <option value="Per Day">Per Day</option>
-                <option value="Per Session">Per Session</option>
-                <option value="Weekly">Weekly</option>
-                <option value="Monthly">Monthly</option>
-              </select>
-            </div>
-          )}
-
-          {/* Duration Specific View (Section 15) */}
-          {activeTargetType === 'Duration' && (
-            <select
-              value={durationView}
-              onChange={(e) => setDurationView(e.target.value)}
-              className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-700 font-medium"
-            >
-              <option value="Total Duration">Total Duration</option>
-              <option value="Total Count">Total Count</option>
-              <option value="Average Duration">Average Duration</option>
-            </select>
-          )}
-
-          {/* Fluency / Rate View (Section 6) */}
-          {activeTargetType === 'FluencyRate' && (
-            <select
-              value={rateView}
-              onChange={(e) => setRateView(e.target.value)}
-              className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-700 font-medium"
-            >
-              <option value="Rate per Day">Rate per Day</option>
-              <option value="Rate per Minute">Rate per Minute</option>
-              <option value="Rate per Hour">Rate per Hour</option>
-            </select>
-          )}
-
-          {/* Split Data by Therapist Toggle (Section 17) */}
-          {activeTargetType !== 'Anecdotal' && tabTargets.length === 1 && (
-            <label className="flex items-center space-x-1.5 cursor-pointer bg-white px-2 py-1 rounded border border-slate-300 select-none">
-              <input
-                type="checkbox"
-                checked={splitByTherapist}
-                onChange={(e) => setSplitByTherapist(e.target.checked)}
-                className="rounded text-blue-600 border-slate-300"
-              />
-              <span className="text-[11px] font-semibold text-slate-700">Split by Therapist</span>
-            </label>
-          )}
-
-        </div>
-      </div>
-
-      {/* 3. Graph Action Bar: Overlays, Titles, Annotations */}
-      {activeTargetType !== 'Anecdotal' && (
-        <div className="px-5 py-2.5 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-          
-          {/* Chart Title Customization (Section 10.1 & 20) */}
-          <div className="flex items-center space-x-2">
-            {isEditingTitle ? (
-              <div className="flex items-center space-x-1">
-                <input
-                  type="text"
-                  value={chartTitle}
-                  onChange={(e) => setChartTitle(e.target.value)}
-                  className="bg-white border border-blue-400 rounded px-2 py-0.5 text-xs font-bold text-slate-900"
-                />
-                <button
-                  onClick={() => setIsEditingTitle(false)}
-                  className="px-2 py-0.5 bg-blue-600 text-white rounded text-[11px] font-semibold"
-                >
-                  Update
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-1.5 group cursor-pointer" onClick={() => setIsEditingTitle(true)}>
-                <span className="font-bold text-slate-800 text-sm">{chartTitle}</span>
-                <Edit3 className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
-              </div>
-            )}
-            {activeCategoryTab === 'Behavior' && selectedBehaviorIds.length > 1 && (
-              <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-semibold">
-                Multi-Behavior Comparative View
-              </span>
-            )}
-          </div>
-
-          {/* Overlays: Average Line, Trend Line, Gridlines, Annotations */}
-          <div className="flex flex-wrap items-center gap-2">
-            
-            {/* Average Line Toggle (Section 13) */}
-            <label className={`flex items-center space-x-1 px-2 py-1 rounded border transition-colors cursor-pointer select-none ${
-              showAverageLine ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-bold' : 'bg-white border-slate-200 text-slate-600'
-            }`}>
-              <input
-                type="checkbox"
-                checked={showAverageLine}
-                onChange={(e) => setShowAverageLine(e.target.checked)}
-                className="hidden"
-              />
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>Average Line {averageValue !== null && showAverageLine ? `(${averageValue})` : ''}</span>
-            </label>
-
-            {/* Trend Line Toggle (Section 14) */}
-            <label className={`flex items-center space-x-1 px-2 py-1 rounded border transition-colors cursor-pointer select-none ${
-              showTrendLine ? 'bg-indigo-50 border-indigo-300 text-indigo-800 font-bold' : 'bg-white border-slate-200 text-slate-600'
-            }`}>
-              <input
-                type="checkbox"
-                checked={showTrendLine}
-                onChange={(e) => setShowTrendLine(e.target.checked)}
-                className="hidden"
-              />
-              <TrendingUp className="w-3 h-3 text-indigo-600" />
-              <span>Trend Line {regressionParams && showTrendLine ? `(y=${regressionParams.slope}x+${regressionParams.intercept})` : ''}</span>
-            </label>
-
-            {/* Gridline Toggle (Section 10.2) */}
-            <button
-              onClick={() => setShowGridlines(!showGridlines)}
-              className={`px-2 py-1 rounded border transition-colors ${
-                showGridlines ? 'bg-slate-200 text-slate-800' : 'bg-white border-slate-200 text-slate-500'
-              }`}
-              title="Toggle Gridlines"
-            >
-              Gridlines
-            </button>
-
-            {/* Color Mode Toggle (Section 10.3) */}
-            <button
-              onClick={() => setColorMode(colorMode === 'System' ? 'BlackAndWhite' : 'System')}
-              className="px-2 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:text-slate-900"
-              title="Toggle Color Mode (System vs Black & White)"
-            >
-              {colorMode === 'System' ? 'Color' : 'B&W'}
-            </button>
-
-            {/* Annotation Add Buttons (Section 10.4, 10.6, 10.8) */}
-            {activeCategoryTab !== 'Behavior' || selectedBehaviorIds.length <= 1 ? (
-              <div className="flex items-center space-x-1 border-l border-slate-200 pl-2">
-                <button
-                  onClick={onAddPhaseLineClick}
-                  className="flex items-center space-x-1 px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded border border-blue-200 font-semibold"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Phase Line</span>
-                </button>
-                <button
-                  onClick={onAddPhaseRangeClick}
-                  className="flex items-center space-x-1 px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded border border-indigo-200 font-semibold"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Phase Range</span>
-                </button>
-                <button
-                  onClick={onAddGraphNoteClick}
-                  className="flex items-center space-x-1 px-2 py-1 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded border border-amber-200 font-semibold"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Note</span>
-                </button>
-              </div>
-            ) : null}
-
-          </div>
-
-        </div>
-      )}
-
-      {/* 4. Chart Visualization Area */}
-      <div className="p-4 sm:p-5">
-        {activeTargets.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
-            <p className="text-sm font-semibold text-slate-600">Please select at least one program to view the data.</p>
-            <p className="text-xs text-slate-400 mt-1">Select from the dropdown above to load associated target graphs.</p>
-          </div>
-        ) : availableTargetTypes.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
-            <p className="text-sm font-semibold text-slate-600">No recorded data available for this selection.</p>
-            <p className="text-xs text-slate-400 mt-1">Record a session trial to visualize graphs.</p>
-          </div>
-        ) : activeTargetType === 'Anecdotal' ? (
-          /* Anecdotal Data Qualitative Table View (Section 5) */
-          <AnecdotalTableView
-            client={client}
-            targets={activeTargets.filter(t => t.type === 'Anecdotal')}
-            sessions={filteredSessions.filter(s => s.qualitativeEntry)}
-            durationFilter={durationFilter}
-            onFilterChange={setDurationFilter}
-          />
-        ) : (
-          /* Quantitative SVG Chart (Trial by trial, Duration, Frequency, Interval, Fluency) */
-          <QuantitativeSvgChart
-            ref={svgRef}
-            seriesData={chartSeriesData}
-            targetType={activeTargetType}
-            durationView={durationView}
-            rateView={rateView}
-            showAverageLine={showAverageLine}
-            averageValue={averageValue}
-            showTrendLine={showTrendLine}
-            trendlinePoints={trendlinePoints}
-            regressionParams={regressionParams}
-            showGridlines={showGridlines}
-            colorMode={colorMode}
-            annotations={activeAnnotations}
-            aggregation={aggregation}
-            formatDurationVal={formatDurationVal}
-          />
-        )}
-      </div>
-
-      {/* 5. Chart Footer Section (Section 12: Target Legend & Annotation Summary) */}
-      <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50/60 rounded-b-xl text-xs space-y-4">
-        
-        {/* Target Legend with Checkboxes (Section 12.1) */}
-        <div>
-          <span className="font-bold text-slate-700 block mb-2 uppercase text-[10px] tracking-wider">
-            Target Visibility Control (Legend):
-          </span>
-          <div className="flex flex-wrap gap-2.5">
-            {activeTargets.map(tgt => {
-              const isChecked = visibleTargetIds.has(tgt.id);
-              return (
-                <button
-                  key={tgt.id}
-                  onClick={() => {
-                    const next = new Set(visibleTargetIds);
-                    if (isChecked) next.delete(tgt.id);
-                    else next.add(tgt.id);
-                    setVisibleTargetIds(next);
-                  }}
-                  className={`flex items-center space-x-2 px-2.5 py-1 rounded-md border text-xs transition-colors ${
-                    isChecked ? 'bg-white border-slate-300 font-semibold shadow-2xs' : 'bg-slate-100 border-slate-200 text-slate-400 opacity-60'
-                  }`}
-                >
-                  <span
-                    className="w-3 h-3 rounded-xs shrink-0"
-                    style={{ backgroundColor: colorMode === 'BlackAndWhite' ? '#333333' : (tgt.color || '#3B82F6') }}
-                  ></span>
-                  <span>{tgt.name}</span>
-                  {isChecked ? <CheckSquare className="w-3.5 h-3.5 text-blue-600" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Therapist Legend when Split by Therapist is active (Section 17.4) */}
-        {splitByTherapist && tabTargets.length === 1 && (
-          <div>
-            <span className="font-bold text-slate-700 block mb-2 uppercase text-[10px] tracking-wider">
-              Therapist Contributors (Split View):
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {allTherapistsForTarget.map(th => {
-                const isChecked = visibleTherapists.has(th);
-                return (
-                  <button
-                    key={th}
-                    onClick={() => {
-                      const next = new Set(visibleTherapists);
-                      if (isChecked) next.delete(th);
-                      else next.add(th);
-                      setVisibleTherapists(next);
-                    }}
-                    className={`flex items-center space-x-2 px-2.5 py-1 rounded border text-xs ${
-                      isChecked ? 'bg-white border-slate-300 font-semibold' : 'bg-slate-100 border-slate-200 text-slate-400 opacity-60'
-                    }`}
-                  >
-                    <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                    <span>{th}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Consolidated Annotation Summary (Section 12.3 & 12.4) */}
-        {(activeAnnotations.phaseLines.length > 0 || activeAnnotations.phaseRanges.length > 0 || activeAnnotations.graphNotes.length > 0) && (
-          <div className="pt-3 border-t border-slate-200/80">
-            <span className="font-bold text-slate-700 block mb-2 uppercase text-[10px] tracking-wider">
-              Added Annotations & Milestones (Edit / Remove):
-            </span>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              
-              {/* Phase Change Lines */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200">
-                <span className="font-bold text-slate-800 text-[11px] block mb-1">
-                  Phase Change Lines ({activeAnnotations.phaseLines.length})
-                </span>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                  {activeAnnotations.phaseLines.map(line => (
-                    <div key={line.id} className="flex items-center justify-between text-[11px] p-1.5 bg-slate-50 rounded border border-slate-100">
-                      <div>
-                        <span className="font-semibold text-slate-800 block">{line.label}</span>
-                        <span className="text-[10px] text-slate-500">{line.date} • {line.style}</span>
-                      </div>
-                      <button
-                        onClick={() => onDeletePhaseLine(line.id)}
-                        className="text-slate-400 hover:text-red-600 p-1"
-                        title="Delete Phase Line"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Phase Ranges */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200">
-                <span className="font-bold text-slate-800 text-[11px] block mb-1">
-                  Phase Ranges ({activeAnnotations.phaseRanges.length})
-                </span>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                  {activeAnnotations.phaseRanges.map(range => (
-                    <div key={range.id} className="flex items-center justify-between text-[11px] p-1.5 bg-slate-50 rounded border border-slate-100">
-                      <div>
-                        <span className="font-semibold text-slate-800 block">{range.label}</span>
-                        <span className="text-[10px] text-slate-500">{range.startDate} to {range.endDate}</span>
-                      </div>
-                      <button
-                        onClick={() => onDeletePhaseRange(range.id)}
-                        className="text-slate-400 hover:text-red-600 p-1"
-                        title="Delete Phase Range"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Graph Notes */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200">
-                <span className="font-bold text-slate-800 text-[11px] block mb-1">
-                  Graph Notes ({activeAnnotations.graphNotes.length})
-                </span>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                  {activeAnnotations.graphNotes.map(note => (
-                    <div key={note.id} className="flex items-center justify-between text-[11px] p-1.5 bg-slate-50 rounded border border-slate-100">
-                      <div>
-                        <span className="text-slate-700 block line-clamp-1 font-medium">{note.noteText}</span>
-                        <span className="text-[10px] text-slate-400">{note.date} • {note.staffName}</span>
-                      </div>
-                      <button
-                        onClick={() => onDeleteGraphNote(note.id)}
-                        className="text-slate-400 hover:text-red-600 p-1"
-                        title="Delete Note"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-          </div>
-        )}
-
-      </div>
-
+    <div className="analysis-filters">
+      <SegmentedControl label="Program category" value={activeCategoryTab} onChange={value => { setActiveCategoryTab(value); resetView(); }}
+        options={[{ value: 'SkillAcquisition', label: 'Skill acquisition' }, { value: 'Behavior', label: `Behavior reduction (${allBehaviors.length})` }]} />
+      {activeCategoryTab === 'SkillAcquisition' ? <div className="control-field program-field">
+        <label htmlFor="target-program">Program</label><select id="target-program" value={selectedProgramId} onChange={event => { setSelectedProgramId(event.target.value); resetView(); }}>
+          <option value="">Choose a program</option>{skillPrograms.map(program => <option key={program.id} value={program.id}>{program.name} · {program.status}</option>)}
+        </select>
+      </div> : <div className="control-field program-field">
+        <span className="control-label">Compare behaviors</span>
+        <Popover label={`Choose behaviors (${selectedBehaviorIds.length})`}>
+          <p className="popover-label">Select one or more behaviors</p>
+          {allBehaviors.map(behavior => <label key={behavior.id} className="popover-option">
+            <input type="checkbox" checked={selectedBehaviorIds.includes(behavior.id)} onChange={event => { setSelectedBehaviorIds(previous => event.target.checked ? [...previous, behavior.id] : previous.filter(id => id !== behavior.id)); resetView(); }} />
+            <span>{behavior.name}<small className="block text-slate-500">{MEASUREMENT_LABELS[behavior.type]}</small></span>
+          </label>)}
+        </Popover>
+      </div>}
+      <div className="control-field"><label htmlFor="target-date-range">Date range</label><select id="target-date-range" value={durationFilter} onChange={event => setDurationFilter(event.target.value)}>
+        {['3 days','5 days','7 days','2 weeks','1 month','3 months','6 months','1 year','2 years'].map(value => <option key={value} value={value}>{value}</option>)}
+      </select></div>
     </div>
-  );
+    <ProgramDetails programs={detailPrograms} />
+    {availableTargetTypes.length > 0 && <div className="measurement-toolbar">
+      <div className="measurement-tabs" role="group" aria-label="Measurement type">
+        {availableTargetTypes.map(type => <button type="button" key={type} aria-pressed={activeTargetType === type} onClick={() => { setActiveTargetType(type); resetView(false); }}>{MEASUREMENT_LABELS[type]}</button>)}
+      </div>
+      <div className="view-controls">
+        {activeTargetType !== 'Anecdotal' && <><label htmlFor="target-grouping">Group by</label><select id="target-grouping" value={aggregation} onChange={event => { setAggregation(event.target.value); setSessionPage(1); }}>
+          {['Per Day','Per Session','Weekly','Monthly'].map(value => <option key={value} value={value}>{value === 'Per Day' ? 'Day' : value === 'Per Session' ? 'Session' : value}</option>)}
+        </select></>}
+        {activeTargetType === 'Duration' && <select aria-label="Duration measure" value={durationView} onChange={event => setDurationView(event.target.value)}>
+          <option value="Total Duration">Total duration</option><option value="Total Count">Occurrence count</option><option value="Average Duration">Average duration</option>
+        </select>}
+        {activeTargetType === 'FluencyRate' && <select aria-label="Fluency rate measure" value={rateView} onChange={event => setRateView(event.target.value)}>
+          <option value="Rate per Day">{aggregation === 'Per Day' ? 'Occurrences per day' : 'Occurrence count'}</option><option value="Rate per Minute">Rate per minute</option><option value="Rate per Hour">Rate per hour</option>
+        </select>}
+        {activeTargetType === 'Frequency' && <select aria-label="Frequency measure" value={frequencyView} onChange={event => setFrequencyView(event.target.value)}>
+          <option value="Raw Frequency">Occurrence count</option><option value="Rate per Minute">Rate per minute</option><option value="Rate per Hour">Rate per hour</option>
+        </select>}
+        {activeTargetType !== 'Anecdotal' && tabTargets.length === 1 && <label className="toggle-control"><input type="checkbox" checked={splitByTherapist} onChange={event => setSplitByTherapist(event.target.checked)} />Split by clinician</label>}
+      </div>
+    </div>}
+
+    {activeTargetType && activeTargetType !== 'Anecdotal' && <div className="chart-toolbar">
+      {isEditingTitle ? <form className="chart-title-editor" onSubmit={saveTitle} noValidate>
+        <label className="sr-only" htmlFor="chart-title">Chart title</label><input id="chart-title" type="text" value={draftTitle} maxLength={80} aria-invalid={titleError ? true : undefined} aria-describedby={titleError ? 'chart-title-error' : undefined}
+          onChange={event => setDraftTitle(event.target.value)} autoFocus onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setIsEditingTitle(false); requestAnimationFrame(() => titleButtonRef.current?.focus()); } }} />
+        <button type="submit" className="button button--primary">Save</button><button type="button" className="button button--tertiary" onClick={() => setIsEditingTitle(false)}>Cancel</button>
+        {titleError && <p className="field-error" id="chart-title-error" role="alert">{titleError}</p>}
+      </form> : <button type="button" ref={titleButtonRef} className="chart-title-button" aria-label={`Edit chart title: ${chartTitle}`} onClick={() => { setDraftTitle(chartTitle); setTitleError(''); setIsEditingTitle(true); }}><span>{chartTitle}</span><Edit3 size={16} /></button>}
+      <div className="chart-options">
+        <label className="toggle-control"><input type="checkbox" checked={showAverageLine} disabled={averageValue === null} onChange={event => setShowAverageLine(event.target.checked)} />Average</label>
+        <label className="toggle-control"><input type="checkbox" checked={showTrendLine} disabled={!trendlinePoints} onChange={event => setShowTrendLine(event.target.checked)} /><TrendingUp size={15} />Trend</label>
+        {showTrendLine && <select aria-label="Trend calculation" className="toggle-control" value={useRegressionTrend ? 'regression' : 'directional'} onChange={event => setUseRegressionTrend(event.target.value === 'regression')}><option value="regression">Linear regression</option><option value="directional">First-to-last direction</option></select>}
+        <button type="button" className="toggle-control" aria-pressed={showGridlines} onClick={() => setShowGridlines(value => !value)}>Gridlines</button>
+        <button type="button" className="toggle-control" aria-pressed={colorMode === 'BlackAndWhite'} onClick={() => setColorMode(value => value === 'System' ? 'BlackAndWhite' : 'System')}>Monochrome</button>
+        {activeCategoryTab === 'Behavior' && <><label className="toggle-control"><input type="checkbox" checked={behaviorZeroOut} onChange={event => setBehaviorZeroOut(event.target.checked)} />Include measured zeros</label><label className="toggle-control"><input type="checkbox" checked={showEmptyDates} onChange={event => setShowEmptyDates(event.target.checked)} />Show missing dates</label></>}
+        {(activeCategoryTab !== 'Behavior' || selectedBehaviorIds.length <= 1) && <div className="annotation-actions">
+          {tabTargets.length > 1 && <select aria-label="Annotation target" className="toggle-control max-w-60" value={annotationTarget?.id || ''} onChange={event => setAnnotationTargetId(event.target.value)}>{tabTargets.map(target => <option key={target.id} value={target.id}>{target.name}</option>)}</select>}
+          <button type="button" disabled={!annotationTarget} onClick={() => onAddPhaseLineClick(annotationTarget)}><Plus size={14} />Phase line</button>
+          <button type="button" disabled={!annotationTarget} onClick={() => onAddPhaseRangeClick(annotationTarget)}><Plus size={14} />Phase range</button>
+          <button type="button" disabled={!annotationTarget} onClick={() => onAddGraphNoteClick(annotationTarget)}><Plus size={14} />Note</button>
+        </div>}
+      </div>
+    </div>}
+
+    <div className="panel-body">
+      {activeTargets.length === 0 ? <EmptyState title={activeCategoryTab === 'Behavior' ? 'Choose a behavior to compare.' : 'Choose a program to begin.'} description="The controls above keep this view focused on one client’s records." />
+        : availableTargetTypes.length === 0 ? <EmptyState title="No observations for this program yet." description="Record a fictional observation to begin its timeline. Program definitions are still available above." action={{ label: 'Record an observation', onClick: () => onRecordClick(activeTargets[0]) }} />
+        : activeTargetType === 'Anecdotal' ? <AnecdotalTableView key={selectedProgramId} targets={activeTargets.filter(target => target.type === 'Anecdotal' && visibleTargetIds.has(target.id))}
+          sessions={filteredSessions.filter(session => session.qualitativeEntry && visibleTargetIds.has(session.targetId))} />
+        : <>
+          <QuantitativeSvgChart ref={svgRef} seriesData={displaySeriesData} targetType={activeTargetType} durationView={durationView} rateView={rateView} frequencyView={frequencyView}
+            showAverageLine={showAverageLine} averageValue={averageValue} showTrendLine={showTrendLine} trendlinePoints={useRegressionTrend ? regressionPoints : trendlinePoints}
+            regressionParams={useRegressionTrend ? regressionParams : null} showGridlines={showGridlines} annotations={activeAnnotations} aggregation={aggregation} extraXKeys={pageKeys}
+            hasVisibleSeries={tabTargets.length > 0 && (!splitByTherapist || !allTherapistsForTarget.length || visibleTherapists.size > 0)}
+            onChangeDateRange={() => document.getElementById('target-date-range')?.focus()} />
+          {hasChart && <div className="chart-caption"><span>{showTrendLine && useRegressionTrend && regressionParams ? `Regression: y = ${regressionParams.slope}x + ${regressionParams.intercept}. x is the ordered observation group.` : `${MEASUREMENT_LABELS[activeTargetType]} · ${chartDataRows.length} plotted observations`}</span><span className="scroll-hint">Scroll to see the full chart →</span></div>}
+          {aggregation === 'Per Session' && totalPages > 1 && <div className="pagination" aria-label="Session chart pagination"><span>Page {currentPage} of {totalPages}</span><button type="button" className="icon-button icon-button--bordered" aria-label="Previous session page" disabled={currentPage <= 1} onClick={() => setSessionPage(currentPage - 1)}><ChevronLeft size={18} /></button><button type="button" className="icon-button icon-button--bordered" aria-label="Next session page" disabled={currentPage >= totalPages} onClick={() => setSessionPage(currentPage + 1)}><ChevronRight size={18} /></button></div>}
+          {chartDataRows.length > 0 && <details className="chart-data"><summary>View plotted data table ({chartDataRows.length})</summary><div className="data-table-scroll" tabIndex={0} role="region" aria-label="Plotted target observations">
+            <table className="data-table"><caption className="sr-only">Values plotted for {chartTitle}. Filters and grouping match the chart.</caption><thead><tr><th scope="col">{aggregation === 'Per Session' ? 'Session' : 'Date group'}</th><th scope="col">Target / clinician</th><th scope="col">Measurement</th><th scope="col">Recording clinician</th></tr></thead>
+              <tbody>{chartDataRows.map((row, index) => <tr key={`${row.series}-${row.xKey}-${index}`}><td>{formatChartDate(row.xKey, aggregation)}</td><td>{row.series}</td><td>{row.displayVal}</td><td>{row.therapist}</td></tr>)}</tbody>
+            </table></div></details>}
+        </>}
+    </div>
+
+    {activeTargets.length > 0 && activeTargetType && <footer className="chart-footer">
+      <span className="legend-title">Visible targets · select to show or hide</span>
+      <div className="target-legend">{activeTargets.filter(target => target.type === activeTargetType).map(target => <button type="button" key={target.id} className="legend-button" aria-pressed={visibleTargetIds.has(target.id)} onClick={() => setHiddenTargetIds(previous => { const next = new Set(previous); if (next.has(target.id)) next.delete(target.id); else next.add(target.id); return next; })}>
+        <Swatch color={seriesColor(activeTargets.findIndex(item => item.id === target.id), colorMode === 'BlackAndWhite')} /><span>{target.name}</span>{visibleTargetIds.has(target.id) ? <CheckSquare size={17} /> : <Square size={17} />}
+      </button>)}</div>
+      {splitByTherapist && tabTargets.length === 1 && <div className="mt-4"><span className="legend-title">Visible clinicians</span><div className="target-legend">{allTherapistsForTarget.map((name, index) => <button type="button" key={name} className="legend-button" aria-pressed={visibleTherapists.has(name)} onClick={() => setHiddenTherapists(previous => { const next = new Set(previous); if (next.has(name)) next.delete(name); else next.add(name); return next; })}><Swatch color={seriesColor(index, colorMode === 'BlackAndWhite')} /><UserCheck size={17} />{name}</button>)}</div></div>}
+      {annotationTarget && (activeCategoryTab !== 'Behavior' || selectedBehaviorIds.length <= 1) && <div className="annotations-list">
+        <span className="legend-title">Annotations · {annotationTarget.name}</span>
+        <div className="annotations-grid">{[
+          ['line', 'Phase lines', activeAnnotations.phaseLines, onDeletePhaseLine],
+          ['range', 'Phase ranges', activeAnnotations.phaseRanges, onDeletePhaseRange],
+          ['note', 'Graph notes', activeAnnotations.graphNotes, onDeleteGraphNote]
+        ].map(([kind, title, records, remove]) => <div className="annotation-group" key={kind}><h3>{title} ({records.length})</h3>
+          {!records.length && <p className="annotation-empty">None added for this target.</p>}
+          {records.map(record => <div className="annotation-item" key={record.id}><div>
+            <p>{record.label || record.noteText}</p><small>{kind === 'range' ? `${record.startDate} – ${record.endDate}` : record.date}{record.staffName ? ` · ${record.staffName}` : ''}</small>
+          </div><button type="button" className="icon-button" aria-label={`Edit ${record.label || 'graph note'}`} onClick={() => onEditAnnotation(kind, record, annotationTarget)}><Edit3 size={16} /></button><button type="button" className="icon-button delete-button" aria-label={`Delete ${record.label || 'graph note'}`} onClick={() => remove(record.id)}><Trash2 size={16} /></button></div>)}
+        </div>)}</div>
+      </div>}
+    </footer>}
+  </section>;
+}
+
+function Swatch({ color }) {
+  return <span className="legend-swatch" aria-hidden="true"><svg viewBox="0 0 12 12"><rect width="12" height="12" rx="2" fill={color} /></svg></span>;
 }
 
 // ----------------------------------------------------
@@ -1009,46 +430,36 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
   targetType,
   durationView,
   rateView,
+  frequencyView,
   showAverageLine,
   averageValue,
   showTrendLine,
   trendlinePoints,
   regressionParams,
   showGridlines,
-  colorMode,
   annotations,
   aggregation,
-  formatDurationVal
+  extraXKeys = [],
+  hasVisibleSeries = true,
+  onChangeDateRange
 }, ref) {
 
-  // If no targets visible, render blank state (Section 12.2)
-  if (seriesData.length === 0) {
-    return (
-      <div className="h-64 flex items-center justify-center text-slate-400 text-xs italic bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
-        All targets deselected. Check targets in legend below to plot.
-      </div>
-    );
-  }
+  if (!hasVisibleSeries) return <EmptyState title="No series are visible." description="Show a target or clinician in the legend below to bring the chart back." />;
 
   // Dimensions
   const width = 850;
-  const height = 340;
-  const padding = { top: 35, right: 35, bottom: 45, left: 65 };
+  const height = 355;
+  const padding = { top: 35, right: 35, bottom: 60, left: 65 };
   const graphWidth = width - padding.left - padding.right;
   const graphHeight = height - padding.top - padding.bottom;
 
   // Collect all unique X categories (dates or sessions)
   const allXKeysSet = new Set();
   seriesData.forEach(s => s.points.forEach(p => allXKeysSet.add(p.xKey)));
-  const sortedXKeys = Array.from(allXKeysSet).sort();
+  extraXKeys.forEach(key => allXKeysSet.add(key));
+  const sortedXKeys = sortObservationKeys(allXKeysSet, aggregation);
 
-  if (sortedXKeys.length === 0) {
-    return (
-      <div className="h-64 flex items-center justify-center text-slate-400 text-xs bg-slate-50/50 rounded-lg">
-        No recorded trials found for this target type within the selected filter.
-      </div>
-    );
-  }
+  if (!sortedXKeys.length || !seriesData.some(series => series.points.length)) return <EmptyState title="No measured observations in this range." description="Try a longer date range. Unobserved records aren’t plotted as zeros." action={{ label: 'Change date range', onClick: onChangeDateRange }} />;
 
   // Calculate Y Max
   let maxY = 10;
@@ -1071,32 +482,57 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
     return padding.left + (sortedXKeys.length > 1 ? (idx / (sortedXKeys.length - 1)) * graphWidth : graphWidth / 2);
   };
 
-  const getY = (val) => {
-    return padding.top + graphHeight - (Math.min(val, maxY) / maxY) * graphHeight;
+  const getAnnotationX = (date, clamp = false) => {
+    if (aggregation === 'Per Session') {
+      const point = seriesData.flatMap(series => series.points).find(item => item.date === date);
+      return point ? getX(point.xKey) : null;
+    }
+    const key = getObservationKey({ timestamp: `${date}T12:00:00` }, aggregation);
+    if (sortedXKeys.includes(key)) return getX(key);
+    if (key < sortedXKeys[0]) return clamp ? padding.left : null;
+    if (key > sortedXKeys.at(-1)) return clamp ? width - padding.right : null;
+    const next = sortedXKeys.findIndex(item => item > key);
+    if (next < 1) return null;
+    const toTime = value => new Date(`${value.length === 7 ? `${value}-01` : value}T12:00:00Z`).getTime();
+    const fraction = (toTime(key) - toTime(sortedXKeys[next - 1])) / (toTime(sortedXKeys[next]) - toTime(sortedXKeys[next - 1]));
+    return getX(sortedXKeys[next - 1]) + fraction * (getX(sortedXKeys[next]) - getX(sortedXKeys[next - 1]));
   };
 
-  // Y-axis label by target type
+  const getY = (val) => {
+    return padding.top + graphHeight - (Math.max(0, Math.min(val, maxY)) / maxY) * graphHeight;
+  };
+
+  // Keep units explicit without changing the underlying seconds/counts/rates.
+  const durationInMinutes = targetType === 'Duration' && durationView !== 'Total Count' && maxY >= 120;
+  const rateLabel = view => view === 'Rate per Minute' ? 'Occurrences per minute' : 'Occurrences per hour';
+  const averageLabel = targetType === 'Duration' && durationView !== 'Total Count'
+    ? `${durationInMinutes ? Math.round(averageValue / 6) / 10 : averageValue}${durationInMinutes ? 'm' : 's'}` : averageValue;
   const getYAxisLabel = () => {
-    if (targetType === 'TrialByTrial') return '% Correct Responses';
-    if (targetType === 'IntervalData') return '% Intervals Scored';
-    if (targetType === 'Duration') return durationView;
-    if (targetType === 'FluencyRate') return rateView;
-    if (targetType === 'Frequency') return 'Occurrences (Count)';
+    if (targetType === 'TrialByTrial') return 'Correct responses (%)';
+    if (targetType === 'IntervalData') return 'Intervals scored (%)';
+    if (targetType === 'Duration') return durationView === 'Total Count' ? 'Occurrence count'
+      : `${durationView === 'Total Duration' ? 'Total duration' : 'Average duration'} (${durationInMinutes ? 'minutes' : 'seconds'})`;
+    if (targetType === 'FluencyRate') return rateView === 'Rate per Day'
+      ? (aggregation === 'Per Day' ? 'Occurrences per day' : 'Occurrence count') : rateLabel(rateView);
+    if (targetType === 'Frequency') return frequencyView === 'Raw Frequency' ? 'Occurrence count' : rateLabel(frequencyView);
     return 'Value';
   };
 
   return (
-    <div className="w-full overflow-x-auto">
-      <div className="min-w-[700px]">
+    <div className="chart-scroll" tabIndex={0} role="region" aria-label="Target analysis chart. Scroll horizontally for the full timeline.">
+      <div className="chart-inner chart-inner--quantitative">
         <svg
           ref={ref}
           viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto bg-slate-50/40 rounded-lg border border-slate-100"
+          className="chart-svg" role="img" aria-label={`${getYAxisLabel()} across ${sortedXKeys.length} observation groups. Read the plotted data table below for exact values.`}
         >
+          <title>Target observations</title><desc>One labeled series per target or clinician. The data table below provides all plotted measurements.</desc>
           {/* Phase Ranges (Shaded vertical bands - Section 10.8) */}
           {(annotations?.phaseRanges || []).map((range, idx) => {
-            const startX = getX(range.startDate);
-            const endX = getX(range.endDate);
+            if (aggregation !== 'Per Session' && (getObservationKey({ timestamp: range.endDate }, aggregation) < sortedXKeys[0] || getObservationKey({ timestamp: range.startDate }, aggregation) > sortedXKeys.at(-1))) return null;
+            const startX = getAnnotationX(range.startDate, true);
+            const endX = getAnnotationX(range.endDate, true);
+            if (startX == null || endX == null) return null;
             const bandWidth = Math.max(12, Math.abs(endX - startX));
             return (
               <g key={range.id || idx}>
@@ -1105,16 +541,16 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
                   y={padding.top}
                   width={bandWidth}
                   height={graphHeight}
-                  fill={range.color || 'rgba(147, 197, 253, 0.25)'}
+                  fill={range.color || '#71957f33'}
                 />
                 <text
                   x={Math.min(startX, endX) + bandWidth / 2}
                   y={padding.top + 14}
                   textAnchor="middle"
-                  fontSize="10"
-                  fontWeight="bold"
-                  fill="#1E40AF"
-                  fontFamily="sans-serif"
+                  fontSize="13"
+                  fontWeight="500"
+                  fill={CHART_INK}
+                  fontFamily="Geist, sans-serif"
                 >
                   {range.label}
                 </text>
@@ -1133,7 +569,7 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
                     y1={y}
                     x2={width - padding.right}
                     y2={y}
-                    stroke="#E2E8F0"
+                    stroke={CHART_GRID}
                     strokeDasharray="3 3"
                   />
                 )}
@@ -1141,11 +577,11 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
                   x={padding.left - 8}
                   y={y + 3.5}
                   textAnchor="end"
-                  fontSize="10"
-                  fill="#64748B"
-                  fontFamily="sans-serif"
+                  fontSize="13"
+                  fill={CHART_MUTED}
+                  fontFamily="Geist, sans-serif"
                 >
-                  {targetType === 'Duration' && durationView === 'Total Duration' ? `${Math.round(val / 60)}m` : val}
+                  {durationInMinutes ? Math.round(val / 6) / 10 : val}
                 </text>
               </g>
             );
@@ -1157,10 +593,10 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
             y="18"
             transform="rotate(-90)"
             textAnchor="middle"
-            fontSize="11"
-            fontWeight="bold"
-            fill="#475569"
-            fontFamily="sans-serif"
+            fontSize="13"
+            fontWeight="500"
+            fill={CHART_INK}
+            fontFamily="Geist, sans-serif"
           >
             {getYAxisLabel()}
           </text>
@@ -1173,7 +609,7 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
                 y1={getY(averageValue)}
                 x2={width - padding.right}
                 y2={getY(averageValue)}
-                stroke="#10B981"
+                stroke="#34634c"
                 strokeWidth="2"
                 strokeDasharray="5 3"
               />
@@ -1181,20 +617,20 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
                 x={width - padding.right - 100}
                 y={getY(averageValue) - 18}
                 width="95"
-                height="16"
+                height="20"
                 rx="3"
-                fill="#10B981"
+                fill="#34634c"
               />
               <text
                 x={width - padding.right - 52}
                 y={getY(averageValue) - 6}
                 textAnchor="middle"
-                fontSize="9"
-                fontWeight="bold"
+                fontSize="11"
+                fontWeight="500"
                 fill="#FFFFFF"
-                fontFamily="sans-serif"
+                fontFamily="Geist, sans-serif"
               >
-                Avg: {averageValue}
+                Avg: {averageLabel}
               </text>
               <title>Average value: {averageValue}</title>
             </g>
@@ -1208,17 +644,18 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
                 y1={getY(trendlinePoints.start.val)}
                 x2={getX(trendlinePoints.end.xKey)}
                 y2={getY(trendlinePoints.end.val)}
-                stroke="#6366F1"
+                stroke="#697b96"
                 strokeWidth="2"
                 strokeDasharray="6 4"
               />
-              <title>Trend Line (Directional Path)</title>
+              <title>{regressionParams ? `Linear regression: y = ${regressionParams.slope}x + ${regressionParams.intercept}` : 'Direction from first to last observation'}</title>
             </g>
           )}
 
           {/* Phase Change Lines (Section 10.4 & 11) */}
           {(annotations?.phaseLines || []).map((line, idx) => {
-            const lx = getX(line.date);
+            const lx = getAnnotationX(line.date);
+            if (lx == null) return null;
             return (
               <g key={line.id || idx}>
                 <line
@@ -1226,28 +663,28 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
                   y1={padding.top}
                   x2={lx}
                   y2={padding.top + graphHeight}
-                  stroke={line.color || '#2563EB'}
+                  stroke={line.color || '#34634c'}
                   strokeWidth="2.5"
                   strokeDasharray={line.style === 'Dotted' ? '4 3' : undefined}
                 />
                 <rect
-                  x={lx - 4}
+                  x={Math.min(lx - 4, width - padding.right - 150)}
                   y={padding.top + 2}
-                  width="110"
-                  height="16"
+                  width="150"
+                  height="20"
                   rx="3"
-                  fill="#1E293B"
+                  fill="#294f3d"
                   opacity="0.85"
                 />
                 <text
-                  x={lx + 2}
-                  y={padding.top + 13}
-                  fontSize="9"
-                  fontWeight="bold"
+                  x={Math.min(lx + 2, width - padding.right - 144)}
+                  y={padding.top + 16}
+                  fontSize="11"
+                  fontWeight="500"
                   fill="#FFFFFF"
-                  fontFamily="sans-serif"
+                  fontFamily="Geist, sans-serif"
                 >
-                  {line.label}
+                  {line.label.length > 22 ? `${line.label.slice(0, 21)}…` : line.label}
                 </text>
               </g>
             );
@@ -1302,7 +739,7 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
                   const px = getX(p.xKey);
                   const py = getY(p.val);
                   return (
-                    <g key={idx} className="cursor-pointer group">
+                    <g key={idx} className="chart-point">
                       <rect
                         x={px - 4.5}
                         y={py - 4.5}
@@ -1311,7 +748,7 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
                         fill="#FFFFFF"
                         stroke={series.color}
                         strokeWidth="2"
-                        className="transition-transform group-hover:scale-150"
+
                       />
 
                       {/* Tooltip text showing fractional badge e.g. 100% (5/5) */}
@@ -1327,24 +764,26 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
 
           {/* Graph Notes Annotations (Section 10.6) */}
           {(annotations?.graphNotes || []).map((note, idx) => {
-            const nx = getX(note.date);
+            const nx = getAnnotationX(note.date);
+            if (nx == null) return null;
             return (
-              <g key={note.id || idx} className="cursor-pointer group">
+              <g key={note.id || idx} className="chart-point">
                 <circle
                   cx={nx}
-                  cy={height - padding.bottom + 8}
-                  r="6"
-                  fill={note.color || '#F59E0B'}
+                  cy={height - padding.bottom + 12}
+                  r="8"
+                  fill={note.color || '#34634c'}
                   stroke="#FFFFFF"
                   strokeWidth="1.5"
                 />
                 <text
                   x={nx}
-                  y={height - padding.bottom + 11.5}
+                  y={height - padding.bottom + 15.5}
                   textAnchor="middle"
-                  fontSize="8"
-                  fontWeight="bold"
-                  fill="#FFFFFF"
+                  fontSize="10"
+                  fontWeight="600"
+                  fontFamily="Geist, sans-serif"
+                  fill={chartMarkerInk(note.color || '#34634c')}
                 >
                   N
                 </text>
@@ -1362,13 +801,13 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
               <text
                 key={idx}
                 x={px}
-                y={height - padding.bottom + 18}
+                y={height - padding.bottom + 36}
                 textAnchor="middle"
-                fontSize="9.5"
-                fill="#64748B"
-                fontFamily="sans-serif"
+                fontSize="12"
+                fill={CHART_MUTED}
+                fontFamily="Geist, sans-serif"
               >
-                {aggregation === 'Per Session' ? `S${xKey}` : xKey.substring(5)}
+                {formatChartDate(xKey, aggregation)}
               </text>
             );
           })}
@@ -1378,12 +817,12 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
             x={padding.left + graphWidth / 2}
             y={height - 8}
             textAnchor="middle"
-            fontSize="11"
-            fontWeight="bold"
-            fill="#475569"
-            fontFamily="sans-serif"
+            fontSize="13"
+            fontWeight="500"
+            fill={CHART_INK}
+            fontFamily="Geist, sans-serif"
           >
-            {aggregation === 'Per Session' ? 'Session Timeline' : 'Observation Date'}
+            {aggregation === 'Per Session' ? 'Session timeline' : 'Observation date'}
           </text>
         </svg>
       </div>
@@ -1394,249 +833,26 @@ const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
 // ----------------------------------------------------
 // Subcomponent: Anecdotal Qualitative Table (Section 5)
 // ----------------------------------------------------
-function AnecdotalTableView({ targets, sessions, durationFilter, onFilterChange }) {
+function AnecdotalTableView({ targets = [], sessions = [] }) {
   const [selectedTargetId, setSelectedTargetId] = useState('All');
-
-  // Filter entries
-  const visibleEntries = useMemo(() => {
-    let list = sessions;
-    if (selectedTargetId !== 'All') {
-      list = list.filter(s => s.targetId === selectedTargetId);
-    }
-    return list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  }, [sessions, selectedTargetId]);
-
-  return (
-    <div className="space-y-4">
-      {/* Header Row: All Targets (XX) and Filters (Section 5.2 & 5.3) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-        <div className="flex items-center space-x-2">
-          <span className="font-bold text-slate-800 text-sm">
-            All Targets ({visibleEntries.length})
-          </span>
-          <span className="text-xs text-slate-500">Qualitative narrative entries</span>
-        </div>
-
-        <div className="flex items-center space-x-3 text-xs">
-          <div className="flex items-center space-x-1.5">
-            <span className="font-semibold text-slate-600">Target Filter:</span>
-            <select
-              value={selectedTargetId}
-              onChange={(e) => setSelectedTargetId(e.target.value)}
-              className="bg-white border border-slate-300 rounded px-2.5 py-1 text-slate-800"
-            >
-              <option value="All">All Targets</option>
-              {targets.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {visibleEntries.length === 0 ? (
-        <div className="py-12 text-center text-slate-400">
-          <p className="text-sm font-semibold text-slate-600">No anecdotal data available for the selected filters.</p>
-        </div>
-      ) : (
-        /* Table Groups by Target Name (Section 5.1 & 5.4) */
-        targets
-          .filter(t => selectedTargetId === 'All' || t.id === selectedTargetId)
-          .map(tgt => {
-            const targetEntries = visibleEntries.filter(e => e.targetId === tgt.id);
-            if (targetEntries.length === 0) return null;
-
-            return (
-              <div key={tgt.id} className="border border-slate-200 rounded-lg overflow-hidden shadow-2xs">
-                {/* Target Name Header Block */}
-                <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200">
-                  <span className="font-bold text-slate-900 text-xs block">{tgt.name}</span>
-                  <span className="text-[11px] text-slate-500 italic">{tgt.description}</span>
-                </div>
-
-                {/* Structured Columns */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
-                      <tr>
-                        <th className="py-2 px-4 w-44">Date & Timestamp</th>
-                        <th className="py-2 px-4 w-44">Staff Name</th>
-                        <th className="py-2 px-4">Entry</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {targetEntries.map(row => (
-                        <tr key={row.id} className="hover:bg-slate-50/60">
-                          <td className="py-2.5 px-4 font-mono text-slate-600">{row.timestamp.replace('T', ' ').slice(0, 16)}</td>
-                          <td className="py-2.5 px-4 font-medium text-slate-800">{row.therapistName}</td>
-                          <td className="py-2.5 px-4 text-slate-700 leading-relaxed font-normal">{row.qualitativeEntry}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })
-      )}
+  const filter = targets.some(target => target.id === selectedTargetId) ? selectedTargetId : 'All';
+  const visibleEntries = [...sessions].filter(session => filter === 'All' || session.targetId === filter).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  if (!targets.length) return <EmptyState title="All narrative targets are hidden." description="Show an anecdotal target in the legend below to read its observations." />;
+  return <div>
+    <div className="view-controls justify-between mb-5"><div><h3 className="font-medium text-base">Observation notes</h3><p className="field-hint">{visibleEntries.length} narrative observations · most recent first</p></div>
+      <div className="control-field"><label htmlFor="anecdotal-target">Target</label><select id="anecdotal-target" value={filter} onChange={event => setSelectedTargetId(event.target.value)}><option value="All">All narrative targets</option>{targets.map(target => <option key={target.id} value={target.id}>{target.name}</option>)}</select></div>
     </div>
-  );
-}
-
-// ----------------------------------------------------
-// Aggregation & Metric Calculation Helpers
-// ----------------------------------------------------
-function processAggregation(sessions, aggregation, targetType, durationView, rateView, frequencyView) {
-  if (sessions.length === 0) return [];
-
-  if (aggregation === 'Per Session') {
-    // Group by Session Number (Section 18.2)
-    const map = new Map();
-    sessions.forEach(s => {
-      const sNum = s.sessionNumber || 1;
-      if (!map.has(sNum)) map.set(sNum, []);
-      map.get(sNum).push(s);
-    });
-
-    return Array.from(map.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([sNum, sList]) => {
-        return calculateMetricPoint(sNum.toString(), sList, targetType, durationView, rateView, frequencyView);
-      });
-  }
-
-  if (aggregation === 'Weekly') {
-    // Group Monday to Sunday (Section 18.3)
-    const map = new Map();
-    sessions.forEach(s => {
-      const dt = new Date(s.timestamp);
-      const mon = getMonday(dt);
-      const sun = new Date(mon);
-      sun.setDate(mon.getDate() + 6);
-      const key = `${mon.toISOString().substring(5, 10)} to ${sun.toISOString().substring(5, 10)}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(s);
-    });
-
-    return Array.from(map.entries()).map(([wKey, sList]) => {
-      return calculateMetricPoint(wKey, sList, targetType, durationView, rateView, frequencyView);
-    });
-  }
-
-  if (aggregation === 'Monthly') {
-    // Group Calendar Month (Section 18.4)
-    const map = new Map();
-    sessions.forEach(s => {
-      const key = s.timestamp.substring(0, 7); // YYYY-MM
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(s);
-    });
-
-    return Array.from(map.entries()).map(([mKey, sList]) => {
-      return calculateMetricPoint(mKey, sList, targetType, durationView, rateView, frequencyView);
-    });
-  }
-
-  // Default: Per Day (Section 18.1.1)
-  const map = new Map();
-  sessions.forEach(s => {
-    const dKey = s.timestamp.substring(0, 10);
-    if (!map.has(dKey)) map.set(dKey, []);
-    map.get(dKey).push(s);
-  });
-
-  return Array.from(map.entries()).map(([dKey, sList]) => {
-    return calculateMetricPoint(dKey, sList, targetType, durationView, rateView, frequencyView);
-  });
-}
-
-function calculateMetricPoint(xKey, sList, targetType, durationView, rateView, frequencyView) {
-  const therapists = Array.from(new Set(sList.map(s => s.therapistName))).join(', ');
-
-  // 1. Trial by Trial (% accuracy + fraction badge)
-  if (targetType === 'TrialByTrial') {
-    const totalTrials = sList.reduce((acc, s) => acc + (s.totalTrials || 1), 0);
-    const correctCount = sList.reduce((acc, s) => acc + (s.correctCount || 0), 0);
-    const pct = totalTrials > 0 ? Math.round((correctCount / totalTrials) * 100) : 0;
-    return {
-      xKey,
-      val: pct,
-      displayVal: `${pct}% (${correctCount}/${totalTrials})`,
-      therapist: therapists
-    };
-  }
-
-  // 2. Duration (Total Duration, Total Count, Average Duration - Section 15)
-  if (targetType === 'Duration') {
-    const totalSecs = sList.reduce((acc, s) => acc + (s.durationSeconds || s.value || 0), 0);
-    const count = sList.reduce((acc, s) => acc + (s.occurrenceCount ?? (s.durationSeconds > 0 ? 1 : 0)), 0);
-
-    if (durationView === 'Total Count') {
-      return { xKey, val: count, displayVal: `${count} occurrences`, therapist: therapists };
-    } else if (durationView === 'Average Duration') {
-      const avgSecs = count > 0 ? Math.round(totalSecs / count) : 0;
-      const mins = Math.floor(avgSecs / 60);
-      const secs = avgSecs % 60;
-      return {
-        xKey,
-        val: avgSecs,
-        displayVal: `${mins.toString().padStart(2, '0')} min ${secs.toString().padStart(2, '0')} sec`,
-        therapist: therapists
-      };
-    } else {
-      const mins = Math.floor(totalSecs / 60);
-      const secs = totalSecs % 60;
-      return {
-        xKey,
-        val: totalSecs,
-        displayVal: `${mins.toString().padStart(2, '0')} min ${secs.toString().padStart(2, '0')} sec`,
-        therapist: therapists
-      };
-    }
-  }
-
-  // 3. Fluency / Rate (Rate per Day, Rate per Minute, Rate per Hour - Section 6)
-  if (targetType === 'FluencyRate') {
-    const totalOccurrences = sList.reduce((acc, s) => acc + (s.occurrenceCount || s.value || 0), 0);
-    const totalMins = sList.reduce((acc, s) => acc + (s.lessonDurationMinutes || 7), 0);
-
-    if (rateView === 'Rate per Minute') {
-      const val = totalMins > 0 ? Math.round((totalOccurrences / totalMins) * 100) / 100 : 0;
-      return { xKey, val, displayVal: `${val} (${totalOccurrences} in ${totalMins} min)`, therapist: therapists };
-    } else if (rateView === 'Rate per Hour') {
-      const val = totalMins > 0 ? Math.round(((60 / totalMins) * totalOccurrences) * 100) / 100 : 0;
-      return { xKey, val, displayVal: `${val} (${totalOccurrences} in ${totalMins} min)`, therapist: therapists };
-    } else {
-      return { xKey, val: totalOccurrences, displayVal: `${totalOccurrences} occurrences`, therapist: therapists };
-    }
-  }
-
-  // 4. Frequency
-  if (targetType === 'Frequency') {
-    const totalCount = sList.reduce((acc, s) => acc + (s.occurrenceCount ?? s.value ?? 0), 0);
-    return { xKey, val: totalCount, displayVal: `${totalCount} occurrences`, therapist: therapists };
-  }
-
-  // 5. Interval Data (% intervals scored + count); BR intervals are occurrences.
-  if (targetType === 'IntervalData') {
-    const total = sList.reduce((acc, s) => acc + (s.totalIntervals ?? s.totalTrials ?? 0), 0);
-    const occurred = sList.reduce((acc, s) => acc + (s.occurredIntervals ?? s.correctCount ?? 0), 0);
-    const pct = total > 0 ? Math.round((occurred / total) * 100) : 0;
-    return {
-      xKey,
-      val: pct,
-      displayVal: `${pct}% (${occurred}/${total} intervals)`,
-      therapist: therapists
-    };
-  }
-
-  const rawVal = sList.reduce((acc, s) => acc + (s.value || 0), 0);
-  return { xKey, val: rawVal, displayVal: rawVal.toString(), therapist: therapists };
-}
-
-function getMonday(d) {
-  d = new Date(d);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff));
+    {!visibleEntries.length ? <EmptyState title="No notes in this date range." description="Try a longer range using the date filter above." /> : targets.filter(target => filter === 'All' || target.id === filter).map(target => {
+      const entries = visibleEntries.filter(entry => entry.targetId === target.id);
+      if (!entries.length) return null;
+      return <section key={target.id} className="mb-5" aria-label={`${target.name} observation notes`}>
+        <h4 className="font-medium text-slate-800 mb-2">{target.name}</h4>
+        <div className="data-table-scroll" tabIndex={0} role="region" aria-label={`${target.name} narrative observations`}>
+          <table className="data-table"><caption className="sr-only">Narrative observations for {target.name}</caption><thead><tr><th scope="col">Date &amp; time</th><th scope="col">Recording clinician</th><th scope="col">Observation</th></tr></thead><tbody>
+            {entries.map(row => <tr key={row.id}><td className="whitespace-nowrap">{row.timestamp.replace('T', ' ').slice(0, 16)}</td><td>{row.therapistName}</td><td><p>{row.qualitativeEntry}</p></td></tr>)}
+          </tbody></table>
+        </div>
+      </section>;
+    })}
+  </div>;
 }
