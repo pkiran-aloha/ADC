@@ -58,6 +58,112 @@ export const PromptLevelChart = forwardRef(function PromptLevelChart({ keys, row
   </div>;
 });
 
+// Trial-by-trial display: one row per session, one cell per trial, coloured by the
+// prompt level recorded for that trial (TCO G.7/G.8 prompt fading).
+export const TrialStripChart = forwardRef(function TrialStripChart({ keys, rowsByKey, template, aggregation, selectedKey, onSelect, targetName }, ref) {
+  const order = promptOrder(template);
+  const levels = new Map(order.map(item => [item.code, item.level]));
+  const groups = keys.map(key => ({ key, sequence: (rowsByKey.get(key) || []).map(row => row.trialSequence || '').join('') })).filter(group => group.sequence.length);
+  if (!groups.length) return <EmptyState title="No trial-by-trial records in this range." description="Trial codes are recorded with each trial. Try a longer date range." />;
+  const shown = groups.slice(-14);
+  const width = 850;
+  const left = 104;
+  const right = 96;
+  const top = 40;
+  const rowHeight = 24;
+  const height = top + shown.length * rowHeight + 44;
+  const maxTrials = Math.max(...shown.map(group => group.sequence.length));
+  const cell = Math.max(5, Math.min(18, (width - left - right) / maxTrials));
+  return <div className="chart-scroll" tabIndex={0} role="region" aria-label="Trial-by-trial display. Scroll horizontally for the full timeline.">
+    <div className="chart-inner chart-inner--quantitative">
+      <svg ref={ref} viewBox={`0 0 ${width} ${height}`} className="chart-svg" role="img"
+        aria-label={`Trial-by-trial prompt codes for ${targetName} across ${shown.length} sessions. Each cell is one trial.`}>
+        <title>Trial-by-trial display</title>
+        <desc>One row per session. Each cell is a single trial, coloured by the prompt level recorded for it. The right column shows the share of independent trials.</desc>
+        {shown.map((group, index) => {
+          const y = top + index * rowHeight;
+          const independent = [...group.sequence].filter(code => code === 'I').length;
+          const share = Math.round((100 * independent) / group.sequence.length);
+          return <g key={group.key} className="chart-point" onClick={() => onSelect?.(group.key)}>
+            {group.key === selectedKey && <rect x={left - 6} y={y - 3} width={width - left - right + 12} height={rowHeight - 2} fill="#34634c" opacity="0.1" rx="3" />}
+            <text x={left - 10} y={y + rowHeight / 2} textAnchor="end" fontSize="11" fill={CHART_MUTED} fontFamily={FONT}>{formatChartDate(group.key, aggregation)}</text>
+            {[...group.sequence].map((code, position) => <rect key={position} x={left + position * cell} y={y} width={Math.max(3, cell - 2)} height={rowHeight - 8}
+              rx="1.5" fill={PROMPT_COLORS[code] || '#c9d1c4'}>
+              <title>{`${formatChartDate(group.key, aggregation)} · trial ${position + 1}: ${levels.get(code) || code}`}</title>
+            </rect>)}
+            <text x={width - right + 8} y={y + rowHeight / 2} fontSize="11" fill={CHART_MUTED} fontFamily={FONT}>{share}% independent</text>
+          </g>;
+        })}
+        <text x={left + (width - left - right) / 2} y={height - 10} textAnchor="middle" fontSize="13" fontWeight="500" fill={CHART_INK} fontFamily={FONT}>
+          Trials in order, most recent {shown.length} {aggregation === 'Per Session' ? 'sessions' : 'days'}
+        </text>
+      </svg>
+      <ul className="prompt-legend prompt-legend--chart">
+        {order.map(item => <li key={item.code}><i style={{ background: PROMPT_COLORS[item.code] }} />{item.level}</li>)}
+      </ul>
+    </div>
+  </div>;
+});
+
+// Duration composition: each session's total time split into the episodes recorded for it.
+export const EpisodeStripChart = forwardRef(function EpisodeStripChart({ keys, rowsByKey, aggregation, selectedKey, onSelect, targetName }, ref) {
+  const groups = keys.map(key => {
+    const rows = rowsByKey.get(key) || [];
+    const episodes = rows.flatMap(row => row.episodeDurations || []);
+    const total = episodes.length ? episodes.reduce((sum, value) => sum + value, 0)
+      : rows.reduce((sum, row) => sum + (row.durationSeconds ?? row.value ?? 0), 0);
+    return { key, episodes, total };
+  }).filter(group => group.total > 0);
+  if (!groups.length) return <EmptyState title="No duration episodes in this range." description="Try a longer date range or another duration measure." />;
+  const shown = groups.slice(-14);
+  const width = 850;
+  const left = 104;
+  const right = 128;
+  const top = 40;
+  const rowHeight = 26;
+  const height = top + shown.length * rowHeight + 44;
+  const peak = Math.max(...shown.map(group => group.total));
+  const scale = (width - left - right) / peak;
+  return <div className="chart-scroll" tabIndex={0} role="region" aria-label="Duration episode chart. Scroll horizontally for the full timeline.">
+    <div className="chart-inner chart-inner--quantitative">
+      <svg ref={ref} viewBox={`0 0 ${width} ${height}`} className="chart-svg" role="img"
+        aria-label={`Duration of ${targetName} split into recorded episodes across ${shown.length} sessions.`}>
+        <title>Duration episodes</title>
+        <desc>One row per session. Each bar is that session's total duration, split into the episodes recorded within it; the right column lists the episode count and total.</desc>
+        {shown.map((group, index) => {
+          const y = top + index * rowHeight;
+          let offset = 0;
+          return <g key={group.key} className="chart-point" onClick={() => onSelect?.(group.key)}>
+            {group.key === selectedKey && <rect x={left - 6} y={y - 3} width={width - left - right + 12} height={rowHeight - 2} fill="#34634c" opacity="0.1" rx="3" />}
+            <text x={left - 10} y={y + rowHeight / 2} textAnchor="end" fontSize="11" fill={CHART_MUTED} fontFamily={FONT}>{formatChartDate(group.key, aggregation)}</text>
+            {group.episodes.length ? group.episodes.map((seconds, position) => {
+              const segment = seconds * scale;
+              const x = left + offset;
+              offset += segment;
+              return <rect key={position} x={x} y={y} width={Math.max(1, segment - 1.5)} height={rowHeight - 10} rx="1.5"
+                fill={position % 2 ? '#527d82' : '#346b52'} opacity="0.9">
+                <title>{`${formatChartDate(group.key, aggregation)} · episode ${position + 1}: ${seconds}s`}</title>
+              </rect>;
+            }) : <rect x={left} y={y} width={Math.max(1, group.total * scale)} height={rowHeight - 10} rx="1.5" fill="#346b52" opacity="0.9">
+              <title>{`${formatChartDate(group.key, aggregation)} · ${group.total}s recorded`}</title>
+            </rect>}
+            <text x={width - right + 8} y={y + rowHeight / 2} fontSize="11" fill={CHART_MUTED} fontFamily={FONT}>
+              {group.episodes.length ? `${group.episodes.length} episode${group.episodes.length === 1 ? '' : 's'} · ` : ''}{Math.floor(group.total / 60)}m {Math.round(group.total % 60)}s
+            </text>
+          </g>;
+        })}
+        <text x={left + (width - left - right) / 2} y={height - 10} textAnchor="middle" fontSize="13" fontWeight="500" fill={CHART_INK} fontFamily={FONT}>
+          Recorded duration per session, most recent {shown.length} {aggregation === 'Per Session' ? 'sessions' : 'days'}
+        </text>
+      </svg>
+      <ul className="prompt-legend prompt-legend--chart">
+        <li><i style={{ background: '#346b52' }} />Episode duration</li>
+        <li><i style={{ background: '#527d82' }} />Alternating episodes for legibility</li>
+      </ul>
+    </div>
+  </div>;
+});
+
 // Daily per-minute semi-logarithmic chart in the spirit of the Standard Celeration Chart:
 // corrects as dots, errors as x, record floor at 1 / counting time, celeration lines.
 export const CelerationChart = forwardRef(function CelerationChart({ rows, phaseLines = [], targetName, aim }, ref) {

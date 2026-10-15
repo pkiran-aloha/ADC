@@ -46,6 +46,25 @@ export function firstConditionLabel(target) {
   return target?.phaseHistory?.[0]?.phase || 'Start';
 }
 
+// Labelled conditions across a visible date range for the chart's condition bar:
+// each span runs from the previous phase change to the next one, so the label sits
+// above the data it describes instead of overlapping the observations.
+export function conditionSpans(target, phaseLines = [], startDate, endDate) {
+  if (!startDate || !endDate || endDate < startDate) return [];
+  const boundaries = conditionBoundaries(target, phaseLines).filter(boundary => boundary.date > startDate && boundary.date <= endDate);
+  const spans = [];
+  let start = startDate;
+  // Label the first span with the phase actually running when the window opens.
+  let label = phaseOnDate(target, startDate) || firstConditionLabel(target);
+  for (const boundary of boundaries) {
+    spans.push({ label, kind: boundary.kind, startDate: start, endDate: boundary.date, changedOn: boundary.date });
+    start = boundary.date;
+    label = boundary.label;
+  }
+  spans.push({ label, kind: 'current', startDate: start, endDate });
+  return spans.filter(span => span.endDate >= span.startDate);
+}
+
 export const isBehaviorTarget = target => Boolean(target?.functionHypothesis) || target?.category === 'BehaviorReduction';
 
 // Expected direction of therapeutic change for the measured target.

@@ -46,6 +46,7 @@ async function download(page, trigger, option) {
 async function record(page, target) {
   await page.getByRole('button', { name: 'Record observation', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Record observation', exact: true });
+  await dialog.getByRole('button', { name: 'Single target', exact: true }).click();
   await dialog.getByLabel('Program & target').selectOption(target.id);
   return dialog;
 }
@@ -212,17 +213,17 @@ test('recording validation stays inline and focuses the first invalid input', as
   await open(page);
   const target = programs.flatMap(program => program.targets).find(item => item.type === 'TrialByTrial');
   const dialog = await record(page, target);
-  await dialog.getByRole('button', { name: 'Save observation' }).click();
+  await dialog.getByRole('button', { name: /^Save 1 observation$/ }).click();
   await expect(dialog.getByText('Review the marked fields before saving.')).toBeVisible();
   await expect(dialog.getByLabel('Correct trials')).toHaveAttribute('aria-invalid', 'true');
   await expect(dialog.getByLabel('Correct trials')).toBeFocused();
   await dialog.getByLabel('Correct trials').fill('12');
   await dialog.getByLabel('Total trials').fill('10');
-  await dialog.getByRole('button', { name: 'Save observation' }).click();
+  await dialog.getByRole('button', { name: /^Save 1 observation$/ }).click();
   await expect(dialog.getByText('Correct trials cannot exceed total trials.')).toBeVisible();
   await accessible(page);
   await dialog.getByLabel('Correct trials').fill('7');
-  await dialog.getByRole('button', { name: 'Save observation' }).click();
+  await dialog.getByRole('button', { name: /^Save 1 observation$/ }).click();
   await expect(dialog).toHaveCount(0);
   const row = await page.evaluate(() => JSON.parse(localStorage.getItem('welina_sessions')).at(-1));
   expect(row.value).toBe(70);
@@ -239,15 +240,15 @@ for (const type of ['Duration', 'Frequency', 'IntervalData', 'FluencyRate', 'Ane
     const dialog = await record(page, target);
     if (type === 'Duration') await dialog.getByLabel('Recorded duration (seconds)').fill('137');
     if (['Frequency', 'FluencyRate'].includes(type)) {
-      await dialog.getByRole('spinbutton', { name: 'Occurrences', exact: true }).fill('7');
+      await dialog.getByRole('spinbutton', { name: /^Occurrences/ }).fill('7');
       await dialog.getByLabel('Observation minutes').fill('8.5');
     }
     if (type === 'IntervalData') {
       await dialog.getByLabel('Intervals scored').fill('3');
       await dialog.getByLabel('Total intervals').fill(String(target.intervalSettings?.numberOfIntervals || 12));
     }
-    if (type === 'Anecdotal') await dialog.getByRole('textbox', { name: 'Observation', exact: true }).fill('Used a model prompt, then requested a break independently.');
-    await dialog.getByRole('button', { name: 'Save observation' }).click();
+    if (type === 'Anecdotal') await dialog.getByRole('textbox', { name: /^Observation/ }).fill('Used a model prompt, then requested a break independently.');
+    await dialog.getByRole('button', { name: /^Save 1 observation$/ }).click();
     await expect(dialog).toHaveCount(0);
     const row = await page.evaluate(() => JSON.parse(localStorage.getItem('welina_sessions')).at(-1));
     expect(row.targetId).toBe(target.id);
@@ -258,18 +259,158 @@ for (const type of ['Duration', 'Frequency', 'IntervalData', 'FluencyRate', 'Ane
   });
 }
 
+test('a whole program is recorded in one pass, with per-target phase changes', async ({ page }) => {
+  await open(page);
+  const program = programs.find(item => item.category === 'SkillAcquisition' && item.targets.filter(target => target.type === 'TrialByTrial').length >= 2);
+  const trials = program.targets.filter(target => target.type === 'TrialByTrial');
+  const skipped = program.targets.find(target => target.type !== 'TrialByTrial');
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem('welina_sessions')).length);
+  await page.getByRole('button', { name: 'Record observation', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Record observation', exact: true });
+  await dialog.getByLabel('Program', { exact: true }).selectOption(program.id);
+  await expect(dialog.getByText(`${trials.length} of ${program.targets.length} targets selected`)).toBeVisible();
+  // Untick a target that was not worked on: it must not be written.
+  if (skipped) await dialog.locator('.record-target').filter({ hasText: skipped.name }).getByRole('checkbox').uncheck();
+  for (const target of trials) {
+    const row = dialog.locator('.record-target').filter({ hasText: target.name });
+    await row.getByLabel('Correct trials').fill('8');
+    await row.getByLabel('Total trials').fill('10');
+    await expect(row).toContainText('80% accuracy');
+  }
+  await dialog.locator('.record-target').filter({ hasText: trials[0].name }).getByLabel('Phase change').selectOption('Maintenance');
+  await dialog.getByLabel('Session date & time').fill('2026-10-13T09:30');
+  await dialog.getByRole('button', { name: new RegExp(`^Save ${trials.length} observations$`) }).click();
+  await expect(dialog).toHaveCount(0);
+  const added = await page.evaluate(count => JSON.parse(localStorage.getItem('welina_sessions')).slice(count), before);
+  expect(added).toHaveLength(trials.length);
+  for (const target of trials) {
+    const row = added.find(item => item.targetId === target.id);
+    expect(row.value).toBe(80);
+    expect(row.timestamp).toBe('2026-10-13T09:30:00');
+    expect(row.therapistName).toBeTruthy();
+  }
+  expect(added.some(row => skipped && row.targetId === skipped.id)).toBe(false);
+  // Session numbers advance per target, and the phase change wrote its own line.
+  const line = await page.evaluate(() => JSON.parse(localStorage.getItem('welina_phase_lines')).at(-1));
+  expect(line.targetId).toBe(trials[0].id);
+  expect(line.date).toBe('2026-10-13');
+  expect(line.label).toBe('Maintenance starts');
+});
+
+test('save and next session keeps the sheet open for the following appointment', async ({ page }) => {
+  await open(page);
+  const target = programs.flatMap(program => program.targets).find(item => item.type === 'TrialByTrial');
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem('welina_sessions')).length);
+  const dialog = await record(page, target);
+  await dialog.getByLabel('Correct trials').fill('9');
+  await dialog.getByLabel('Total trials').fill('10');
+  await dialog.getByRole('button', { name: 'Save & next session' }).click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(/Saved 1 observation/)).toBeVisible();
+  await expect(dialog.getByLabel('Session date & time')).toHaveValue('2026-10-15T10:00');
+  await expect(dialog.getByLabel('Total trials')).toHaveValue('10');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('welina_sessions')).length)).toBe(before + 1);
+  await accessible(page);
+  await page.keyboard.press('Escape');
+});
+
+test('copy last session and shared minutes fill a whole program in two clicks', async ({ page }) => {
+  await open(page);
+  const program = programs.find(item => item.targets.some(target => ['Frequency', 'FluencyRate'].includes(target.type)));
+  await page.getByRole('button', { name: 'Record observation', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Record observation', exact: true });
+  await dialog.getByLabel('Program', { exact: true }).selectOption(program.id);
+  await dialog.getByLabel('Session length (minutes)').fill('12');
+  await dialog.getByRole('button', { name: 'Apply minutes to all rows' }).click();
+  for (const row of await dialog.locator('.record-target').all()) {
+    const minutes = row.getByLabel('Observation minutes');
+    if (await minutes.count()) await expect(minutes).toHaveValue('12');
+  }
+  await dialog.getByRole('button', { name: 'Copy last session' }).click();
+  const first = dialog.locator('.record-target').filter({ hasText: program.targets[0].name });
+  await expect(first.locator('input[type="number"]').first()).not.toHaveValue('');
+  await accessible(page);
+  await page.keyboard.press('Escape');
+});
+
+test('the vertical axis can be fixed by the clinician and recovers from a bad range', async ({ page }) => {
+  await open(page);
+  const chart = page.locator('#target-analysis svg.chart-svg');
+  await expect(chart).toContainText('100');
+  await page.getByRole('button', { name: /^Y axis/ }).click();
+  const popup = page.getByRole('group', { name: /^Y axis/ });
+  await popup.getByLabel('Minimum').fill('40');
+  await popup.getByLabel('Maximum').fill('120');
+  await expect(chart).toContainText('120');
+  await expect(page.getByRole('button', { name: /^Y axis/ })).toContainText('40–120');
+  // A reversed range is reported instead of silently rescaling the chart.
+  await popup.getByLabel('Maximum').fill('20');
+  await expect(popup.getByText(/greater than/)).toBeVisible();
+  await expect(chart).toContainText('120');
+  await popup.getByRole('button', { name: 'Use automatic scale' }).click();
+  await expect(page.getByRole('button', { name: /^Y axis/ })).toContainText('automatic');
+  await expect(chart).toContainText('100');
+  await accessible(page);
+});
+
+test('every measurement type can be drawn as bars, points or a cumulative record', async ({ page }) => {
+  await open(page);
+  const chart = page.locator('#target-analysis svg.chart-svg');
+  await expect(chart.locator('path[stroke-width="2.2"]').first()).toBeVisible();
+  await page.getByLabel('Plot', { exact: true }).selectOption('bars');
+  await expect(chart.locator('rect[rx="2"]').first()).toBeVisible();
+  await page.getByLabel('Plot', { exact: true }).selectOption('points');
+  await expect(chart.locator('circle[r="4.6"]').first()).toBeVisible();
+  // Percentages have no meaningful cumulative record, so that option stays unavailable.
+  await expect(page.getByLabel('Plot', { exact: true }).locator('option[value="cumulative"]')).toBeDisabled();
+  const program = programs.find(item => item.targets.some(target => target.type === 'Frequency'));
+  await page.locator('#target-program').selectOption(program.id);
+  await page.getByRole('button', { name: 'Frequency', exact: true }).click();
+  await page.getByLabel('Plot', { exact: true }).selectOption('cumulative');
+  await expect(chart).toContainText('Cumulative Occurrence count');
+  await accessible(page);
+});
+
+test('phase labels sit in their own strip, clear of every plotted point', async ({ page }) => {
+  await open(page);
+  const chart = page.locator('#target-analysis svg.chart-svg');
+  const strip = chart.locator('.condition-bar');
+  await expect(strip).toBeVisible();
+  const labels = await strip.locator('text').allTextContents();
+  expect(labels.join(' ')).toMatch(/Baseline|Acquisition|Maintenance/);
+  const stripBox = await strip.boundingBox();
+  const pointBox = await chart.locator('rect[width="9"]').first().boundingBox();
+  expect(stripBox.y + stripBox.height).toBeLessThan(pointBox.y);
+  await page.getByRole('button', { name: 'Phase labels', exact: true }).click();
+  await expect(strip).toHaveCount(0);
+  expect(await chart.locator('line[stroke-opacity="0.4"]').count()).toBeGreaterThan(0);
+  await accessible(page);
+});
+
+test('value labels print each plotted measurement when the timeline is short', async ({ page }) => {
+  await open(page);
+  await page.getByLabel('Group by').selectOption('Weekly');
+  const chart = page.locator('#target-analysis svg.chart-svg');
+  await page.getByRole('button', { name: 'Values', exact: true }).click();
+  const label = chart.locator('text[font-size="10"][paint-order="stroke"]').first();
+  await expect(label).toBeVisible();
+  expect(await label.textContent()).toMatch(/\d/);
+  await page.getByRole('button', { name: 'Values', exact: true }).click();
+  await expect(chart.locator('text[font-size="10"][paint-order="stroke"]')).toHaveCount(0);
+});
+
 test('behavior zero and untracked records stay distinct in local data and CSV', async ({ page }) => {
   await open(page);
   const target = programs.find(program => program.category === 'BehaviorReduction' && program.targets[0].type === 'Frequency').targets[0];
   let dialog = await record(page, target);
-  await dialog.getByRole('spinbutton', { name: 'Occurrences', exact: true }).fill('0');
+  await dialog.getByRole('spinbutton', { name: /^Occurrences/ }).fill('0');
   await dialog.getByLabel('Observation minutes').fill('11.5');
-  await dialog.getByRole('button', { name: 'Save observation' }).click();
+  await dialog.getByRole('button', { name: /^Save 1 observation$/ }).click();
   await expect(dialog).toHaveCount(0);
   dialog = await record(page, target);
-  await dialog.getByRole('radio', { name: /Data not tracked/ }).check();
-  await expect(dialog.getByRole('spinbutton', { name: 'Occurrences', exact: true })).toBeDisabled();
-  await dialog.getByRole('button', { name: 'Save observation' }).click();
+  await dialog.getByRole('radio', { name: /Not tracked/ }).check();
+  await expect(dialog.getByRole('spinbutton', { name: /^Occurrences/ })).toBeDisabled();
+  await dialog.getByRole('button', { name: /^Save 1 observation$/ }).click();
   const rows = await page.evaluate(() => JSON.parse(localStorage.getItem('welina_sessions')).slice(-2));
   expect(rows[0].value).toBe(0); expect(rows[0].missingDataMode).toBe('ZeroOut');
   expect(rows[1].value).toBeNull(); expect(rows[1].missingDataMode).toBe('DataNotTracked');
@@ -287,14 +428,14 @@ test('phase-change recording creates the line on the chosen target and date', as
   const target = programs.flatMap(program => program.targets).find(item => item.type === 'Duration');
   const dialog = await record(page, target);
   await dialog.getByLabel('Recorded duration (seconds)').fill('133');
-  await dialog.getByLabel('Observation date & time').fill('2026-10-12T09:43');
-  await dialog.getByLabel('Update target phase on this date').check();
-  await dialog.getByLabel('New phase').selectOption('Generalization');
-  await dialog.getByRole('button', { name: 'Save observation' }).click();
+  await dialog.getByLabel('Session date & time').fill('2026-10-12T09:43');
+  await dialog.getByLabel('Phase change').selectOption('Generalization');
+  await dialog.getByRole('button', { name: /^Save 1 observation$/ }).click();
   const data = await page.evaluate(() => ({ programs: JSON.parse(localStorage.getItem('welina_programs')), line: JSON.parse(localStorage.getItem('welina_phase_lines')).at(-1) }));
   const updated = data.programs.flatMap(program => program.targets).find(item => item.id === target.id);
   expect(updated.phase).toBe('Generalization'); expect(updated.phaseEnteredDate).toBe('2026-10-12');
   expect(data.line.targetId).toBe(target.id); expect(data.line.date).toBe('2026-10-12');
+  expect(data.line.label).toBe('Generalization starts');
 });
 
 test('annotation add/edit uses the plotted target, validates ranges, and keeps mastery selection', async ({ page }) => {
@@ -411,7 +552,7 @@ test('blocked storage stays usable and warns that records will not persist', asy
   const target = programs.flatMap(program => program.targets).find(item => item.type === 'Duration');
   const dialog = await record(page, target);
   await dialog.getByLabel('Recorded duration (seconds)').fill('119');
-  await dialog.getByRole('button', { name: 'Save observation' }).click();
+  await dialog.getByRole('button', { name: /^Save 1 observation$/ }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.metric').filter({ hasText: 'Session observations' }).locator('.metric-number')).toHaveText(String(seed.sessionData.filter(row => row.clientId === client.id).length + 1));
   await expect(page.locator('.notification-region')).toContainText('for this session only');

@@ -5,7 +5,7 @@ import OverallMasterySection from './components/OverallMasterySection';
 import PhaseLineModal from './components/Modals/PhaseLineModal';
 import PhaseRangeModal from './components/Modals/PhaseRangeModal';
 import GraphNoteModal from './components/Modals/GraphNoteModal';
-import RecordTrialModal from './components/Modals/RecordTrialModal';
+import RecordSessionModal from './components/Modals/RecordSessionModal';
 import Dialog from './components/ui/Dialog';
 import { AnalyticsSkeleton } from './components/ui/EmptyState';
 import { useFeedback } from './utils/useFeedback';
@@ -141,10 +141,13 @@ export default function App() {
     setRecordTargetId(target?.id || '');
     setRecordOpen(true);
   }
-  function recordTrial(data) {
-    const lastSession = Math.max(0, ...apiService.sessions.filter(session => session.clientId === selectedClientId && session.targetId === data.targetId).map(session => session.sessionNumber || 0));
-    apiService.recordTrial({ ...data, sessionNumber: lastSession + 1 });
-    saved('Observation saved to this browser.');
+  // The recorder saves a whole session at once: every target row, plus any phase changes.
+  // Keeping the sheet open is confirmed inside it, so the toast is only for closing saves.
+  function saveSession({ points, phases, keepOpen }) {
+    apiService.recordTrials(points);
+    if (phases.length) apiService.updateTargetPhases(phases);
+    if (keepOpen) return;
+    notify(apiService.storageError ? 'Updated for this session only. Your browser couldn’t save changes.' : `Saved ${points.length} observation${points.length === 1 ? '' : 's'} to this browser.`, apiService.storageError ? 'error' : 'success');
   }
 
   const sidebarProps = {
@@ -256,7 +259,7 @@ export default function App() {
     <GraphNoteModal key={`note-${annotationEditor?.initialData?.id || annotationEditor?.target.id || 'closed'}`}
       isOpen={annotationEditor?.kind === 'note'} onClose={() => setAnnotationEditor(null)} onSave={data => saveAnnotation('note', data)}
       target={annotationEditor?.target} initialData={annotationEditor?.initialData} />
-    {recordOpen && <RecordTrialModal isOpen onClose={() => setRecordOpen(false)} programs={programs} selectedClientId={selectedClientId} initialTargetId={recordTargetId}
-      onRecordTrial={recordTrial} onUpdatePhase={payload => { apiService.updateTargetPhase(payload); refreshAll(); }} />}
+    {recordOpen && <RecordSessionModal isOpen onClose={() => setRecordOpen(false)} programs={programs} selectedClientId={selectedClientId} initialTargetId={recordTargetId}
+      sessions={clientSessions} serviceSessions={serviceSessions} onSaveSession={saveSession} />}
   </div>;
 }
