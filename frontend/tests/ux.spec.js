@@ -988,7 +988,11 @@ test('view-only analytics access keeps reading and exporting but blocks every ch
   await expect(page.locator('.view-only-notice').first()).toContainText('View-only analytics access');
   await expect(page.getByRole('button', { name: 'Record observation', exact: true })).toBeDisabled();
   await expect(page.locator('#target-analysis .annotation-actions button').first()).toBeDisabled();
+  // Phones keep the data-entry actions in the drawer, so open it before checking them.
+  if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: 'Open workspace navigation' }).click();
   await expect((await visibleTrigger(page, 'Add data'))).toBeDisabled();
+  await expect((await visibleTrigger(page, 'Import'))).toBeDisabled();
+  if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: 'Close Workspace', exact: true }).click();
   // Reading, analysis and exports stay available.
   await expect(page.getByRole('heading', { name: 'Visual analysis' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Export targets', exact: true })).toBeEnabled();
