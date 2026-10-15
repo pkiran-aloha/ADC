@@ -91,10 +91,22 @@ test('rows become the same records the service stores', () => {
   assert.equal(note.qualitativeEntry, 'Used a model prompt.');
 });
 
-test('a measured zero stays a zero, not a missing record', () => {
+test('a measured zero on a reduction target is a real zero, not a missing record', () => {
   const point = buildPoint({ values: { occurrenceCount: '0', lessonDurationMinutes: '10' }, missingDataMode: 'ZeroOut' }, frequencyTarget, session);
   assert.equal(point.value, 0);
-  assert.equal(point.missingDataMode, undefined);
+  assert.equal(point.missingDataMode, 'ZeroOut');
+  assert.equal(point.occurrenceCount, 0);
+  // Acquisition targets never carry a missing-data mode: their zero is simply a score.
+  const zeroPercent = buildPoint({ values: { correctCount: '0', totalTrials: '10' }, missingDataMode: 'ZeroOut' }, trialTarget, session);
+  assert.equal(zeroPercent.value, 0);
+  assert.equal(zeroPercent.missingDataMode, undefined);
+});
+
+test('an untracked row stores no measurement at all', () => {
+  const point = buildPoint({ values: { occurrenceCount: '0', lessonDurationMinutes: '10' }, missingDataMode: 'DataNotTracked' }, frequencyTarget, session);
+  assert.equal(point.value, null);
+  assert.equal(point.missingDataMode, 'DataNotTracked');
+  assert.equal(Object.hasOwn(point, 'occurrenceCount'), false);
 });
 
 test('phase changes create a labelled phase line on the session date', () => {

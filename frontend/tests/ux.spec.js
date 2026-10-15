@@ -367,7 +367,7 @@ test('every measurement type can be drawn as bars, points or a cumulative record
   await page.locator('#target-program').selectOption(program.id);
   await page.getByRole('button', { name: 'Frequency', exact: true }).click();
   await page.getByLabel('Plot', { exact: true }).selectOption('cumulative');
-  await expect(chart).toContainText('Cumulative occurrence count');
+  await expect(chart).toContainText('Cumulative Occurrence count');
   await accessible(page);
 });
 

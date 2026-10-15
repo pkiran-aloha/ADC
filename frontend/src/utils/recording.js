@@ -136,21 +136,30 @@ export function buildPoint(row, target, session) {
   for (const field of fieldsFor(target.type)) {
     if (!field.text) numbers[field.key] = Number(row.values[field.key]);
   }
+  let point;
   switch (target.type) {
     case 'TrialByTrial':
-      return { ...base, correctCount: numbers.correctCount, totalTrials: numbers.totalTrials, value: Math.round((100 * numbers.correctCount) / numbers.totalTrials) };
+      point = { ...base, correctCount: numbers.correctCount, totalTrials: numbers.totalTrials, value: Math.round((100 * numbers.correctCount) / numbers.totalTrials) };
+      break;
     case 'IntervalData':
-      return { ...base, occurredIntervals: numbers.occurredIntervals, totalIntervals: numbers.totalIntervals, value: Math.round((100 * numbers.occurredIntervals) / numbers.totalIntervals) };
+      point = { ...base, occurredIntervals: numbers.occurredIntervals, totalIntervals: numbers.totalIntervals, value: Math.round((100 * numbers.occurredIntervals) / numbers.totalIntervals) };
+      break;
     case 'Duration':
-      return { ...base, durationSeconds: numbers.durationSeconds, occurrenceCount: numbers.durationSeconds > 0 ? 1 : 0, value: numbers.durationSeconds };
+      point = { ...base, durationSeconds: numbers.durationSeconds, occurrenceCount: numbers.durationSeconds > 0 ? 1 : 0, value: numbers.durationSeconds };
+      break;
     case 'Frequency':
     case 'FluencyRate':
-      return { ...base, occurrenceCount: numbers.occurrenceCount, lessonDurationMinutes: numbers.lessonDurationMinutes, value: numbers.occurrenceCount };
+      point = { ...base, occurrenceCount: numbers.occurrenceCount, lessonDurationMinutes: numbers.lessonDurationMinutes, value: numbers.occurrenceCount };
+      break;
     case 'Anecdotal':
-      return { ...base, qualitativeEntry: String(row.values.qualitativeEntry || '').trim() };
+      point = { ...base, qualitativeEntry: String(row.values.qualitativeEntry || '').trim() };
+      break;
     default:
-      return { ...base, value: numbers.value ?? null };
+      point = { ...base, value: numbers.value ?? null };
   }
+  // A counted zero on a reduction target is a real measurement, not a missed one.
+  if (target.category === 'BehaviorReduction' && point.value === 0) point.missingDataMode = 'ZeroOut';
+  return point;
 }
 
 // Phase line label created alongside a phase change recorded from the session sheet.
