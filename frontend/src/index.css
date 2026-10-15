@@ -746,3 +746,6 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 .legend-hatch { background: repeating-linear-gradient(45deg, #b88d47 0 2px, transparent 2px 4px) !important; border: 1px solid #b88d47; }
 .legend-line { height: 2px !important; background: #a34436 !important; border-radius: 0 !important; }
 @container (max-width: 56rem) { .quality-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 639px) {
+  .chart-scroll > svg.aux-chart:not(.scatter-svg) { min-width: 34rem; }
+}

@@ -14,7 +14,9 @@ Backend service for the **Welina Applied Behavior Analysis (ABA) Analytics & Rep
 - `GET /api/overallmastery`: Cumulative target mastery progression over time with change-date aggregation
 - `GET /api/targetanalytics/data`: Granular trial-by-trial, duration, frequency, interval, fluency/rate, therapist splits, and linear regression calculations
 - `GET /api/abcanalytics`: Structured ABC observations for a client
-- `GET /api/abcanalytics/configuration?clientId=cli-liam`: Treatment area, teaching instructions and configured textual antecedent/behavior/consequence/location lists
+- `GET /api/abcanalytics/configuration?clientId=cli-liam`: Treatment area, teaching instructions, configured antecedent (with motivating-operation categories)/behavior/consequence (with reinforcer functions)/location lists and setting events
+- `GET /api/servicesessions?clientId=cli-liam`: Appointments with setting, service code, staff, setting events, supervision overlap, procedural fidelity and IOA observer
+- `GET /api/servicesessions/staff` and `GET /api/servicesessions/standards`: Staff roles and the IOA, fidelity, supervision, stability, nonoverlap and dual-criterion standards used by the analytics
 - `GET /api/annotations/summary`: Phase change lines, graph notes, and phase ranges
 - `POST /api/annotations/phase-lines`: Create custom or automated phase change lines
 - `GET /api/export/raw`: Export trial-level non-aggregated CSV
