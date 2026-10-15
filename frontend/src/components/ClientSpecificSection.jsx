@@ -10,7 +10,7 @@ import EmptyState from './ui/EmptyState';
 import TargetChart from './analysis/TargetChart';
 import ObservationInspector from './analysis/ObservationInspector';
 import AnalysisPanel from './analysis/AnalysisPanel';
-import { PromptLevelChart, CelerationChart, TimelineBrush } from './analysis/SpecialCharts';
+import { PromptLevelChart, CelerationChart, TimelineBrush, TrialStripChart, EpisodeStripChart } from './analysis/SpecialCharts';
 import { MEASUREMENT_LABELS } from '../utils/formValidation';
 import { seriesColor, formatChartDate } from '../utils/chartTheme';
 import { getMinDate, processAggregation, getObservationKey, sortObservationKeys, chartStatistics } from '../utils/analyticsMetrics';
@@ -22,8 +22,9 @@ import {
 import { weekdayOf } from '../utils/abcAnalytics';
 import {
   conditionBoundaries, firstConditionLabel, therapeuticDirection, goalInView, serviceIndex, rowValue,
-  projectedKeys, unitLabel
+  projectedKeys, unitLabel, conditionSpans as buildConditionSpans
 } from '../utils/targetAnalytics';
+import { validateAxisBounds, describeAxisBounds, CHART_TYPES } from '../utils/chartScale';
 import { buildInsights } from '../utils/insights';
 
 const FUNCTION_OPTIONS = [
@@ -98,6 +99,13 @@ export default function ClientSpecificSection({
   const [contextDimension, setContextDimension] = useState('clinician');
   const [highlightGroup, setHighlightGroup] = useState(null);
   const [zoom, setZoom] = useState(null);
+  // Chart presentation: plot type, the clinician's own axis range, and labels.
+  const [chartType, setChartType] = useState('line');
+  const [axisBounds, setAxisBounds] = useState({ min: null, max: null });
+  const [axisDraft, setAxisDraft] = useState({ min: '', max: '' });
+  const [axisError, setAxisError] = useState('');
+  const [showValues, setShowValues] = useState(false);
+  const [showPhaseLabels, setShowPhaseLabels] = useState(true);
 
   const svgRef = useRef(null);
   const services = useMemo(() => serviceIndex(serviceSessions), [serviceSessions]);
@@ -143,6 +151,11 @@ export default function ClientSpecificSection({
     setHighlightGroup(null);
     setZoom(null);
     setChartView('standard');
+    setChartType('line');
+    setAxisBounds({ min: null, max: null });
+    setAxisDraft({ min: '', max: '' });
+    setAxisError('');
+    setShowValues(false);
     if (resetTargets) {
       setHiddenTargetIds(new Set());
       setActiveTargetType('');
@@ -216,6 +229,21 @@ export default function ClientSpecificSection({
   const programCategory = activeCategoryTab === 'Behavior' ? 'BehaviorReduction' : 'SkillAcquisition';
   const isBehavior = programCategory === 'BehaviorReduction';
   const keyIndex = useMemo(() => new Map(pageKeys.map((key, index) => [key, index])), [pageKeys]);
+  // Date span of the visible x-axis, used to label the chart's condition bar.
+  const visibleRange = useMemo(() => {
+    if (!pageKeys.length) return null;
+    if (aggregation === 'Per Session') {
+      const rows = filteredSessions.filter(row => keyIndex.has(getObservationKey(row, aggregation)));
+      if (!rows.length) return null;
+      return { start: rows[0].timestamp.slice(0, 10), end: rows.at(-1).timestamp.slice(0, 10) };
+    }
+    if (!/^\d{4}/.test(pageKeys[0])) return null;
+    const toDate = key => (/^\d{4}-\d{2}$/.test(key) ? `${key}-01` : key);
+    return { start: toDate(pageKeys[0]), end: toDate(pageKeys.at(-1)) };
+  }, [pageKeys, aggregation, filteredSessions, keyIndex]);
+  const conditionSpans = useMemo(() => analysisTarget && visibleRange
+    ? buildConditionSpans(analysisTarget, activeAnnotations.phaseLines, visibleRange.start, visibleRange.end)
+    : [], [analysisTarget, visibleRange, activeAnnotations.phaseLines]);
   const analysisRows = useMemo(() => analysisTarget ? filteredSessions.filter(row => row.targetId === analysisTarget.id) : [], [filteredSessions, analysisTarget]);
   const rowsByGroup = useMemo(() => {
     const groups = new Map();
@@ -238,6 +266,7 @@ export default function ClientSpecificSection({
       });
   }, [analysisTarget, analysisRows, aggregation, activeTargetType, durationView, rateView, frequencyView, keyIndex, rowsByGroup, services]);
 
+  const analysisRowsByKey = useMemo(() => new Map(pageKeys.map(key => [key, rowsByGroup.get(`${analysisTarget?.id}|${key}`) || []])), [pageKeys, rowsByGroup, analysisTarget]);
   const segments = useMemo(() => analysisTarget ? segmentByBoundaries(analysisPoints, conditionBoundaries(analysisTarget, annotations.phaseLines), firstConditionLabel(analysisTarget)) : [], [analysisPoints, analysisTarget, annotations.phaseLines]);
   const comparisonOptions = segments.slice(1).map((segment, index) => ({
     id: `${segments[index].label}-${segment.label}-${segment.start}`, before: segments[index].label, after: segment.label,
@@ -374,9 +403,28 @@ export default function ClientSpecificSection({
   const hasChart = activeTargetType !== 'Anecdotal' && displaySeriesData.some(series => series.points.length);
   const chartDataRows = displaySeriesData.flatMap(series => series.points.map(point => ({ ...point, series: series.name })));
   const enabledFunctions = FUNCTION_OPTIONS.filter(option => functions.has(option.key)).length;
-  const viewOptions = activeTargetType === 'TrialByTrial' ? [{ value: 'standard', label: 'Accuracy' }, { value: 'prompts', label: 'Prompt levels' }]
-    : activeTargetType === 'FluencyRate' ? [{ value: 'standard', label: 'Timeline' }, { value: 'celeration', label: 'Celeration' }] : null;
+  // Every measurement type gets its own specialist view alongside the shared plot types.
+  const viewOptions = activeTargetType === 'TrialByTrial'
+    ? [{ value: 'standard', label: 'Accuracy' }, { value: 'prompts', label: 'Prompt levels' }, { value: 'trials', label: 'Trial strip' }]
+    : activeTargetType === 'FluencyRate' ? [{ value: 'standard', label: 'Timeline' }, { value: 'celeration', label: 'Celeration' }]
+      : activeTargetType === 'Frequency' && frequencyView !== 'Raw Frequency' ? [{ value: 'standard', label: 'Timeline' }, { value: 'celeration', label: 'Celeration' }]
+        : activeTargetType === 'Duration' && durationView === 'Total Duration' ? [{ value: 'standard', label: 'Timeline' }, { value: 'episodes', label: 'Episodes' }] : null;
   const shownChartView = viewOptions?.some(option => option.value === chartView) ? chartView : 'standard';
+  // Aim line for the celeration chart, converted to the per-minute scale it draws.
+  const celerationAim = (() => {
+    const rule = analysisTarget?.masteryRule;
+    if (!rule) return null;
+    if (activeTargetType === 'FluencyRate') return rule.measure === 'correctPerMinute' ? rule.threshold : null;
+    if (activeTargetType === 'Frequency') return rule.measure === 'ratePerHour' ? Math.round((rule.threshold / 60) * 100) / 100 : null;
+    return null;
+  })();
+  const shownChartType = CHART_TYPES.some(option => option.value === chartType) && !(chartType === 'cumulative' && percentType) ? chartType : 'line';
+  function applyAxis(draft) {
+    setAxisDraft(draft);
+    const { error, bounds } = validateAxisBounds(draft);
+    setAxisError(error);
+    if (bounds) setAxisBounds(bounds);
+  }
   const unit = unitLabel(view);
   const brushValues = allChartKeys.map(key => analysisTarget ? (chartSeriesData.find(series => series.id === analysisTarget.id) || chartSeriesData[0])?.points.find(point => point.xKey === key)?.val : null);
   function toggleFunction(key, enabled) {
@@ -444,6 +492,9 @@ export default function ClientSpecificSection({
         {activeTargetType !== 'Anecdotal' && <><label htmlFor="target-grouping">Group by</label><select id="target-grouping" value={aggregation} onChange={event => { setAggregation(event.target.value); setSessionPage(1); setSelectedKey(null); setZoom(null); }}>
           {['Per Day', 'Per Session', 'Weekly', 'Monthly'].map(value => <option key={value} value={value}>{value === 'Per Day' ? 'Day' : value === 'Per Session' ? 'Session' : value}</option>)}
         </select></>}
+        {activeTargetType !== 'Anecdotal' && <><label htmlFor="target-chart-type">Plot</label><select id="target-chart-type" value={shownChartType} onChange={event => { setChartType(event.target.value); setSelectedKey(null); }}>
+          {CHART_TYPES.map(option => <option key={option.value} value={option.value} disabled={option.value === 'cumulative' && percentType}>{option.label}{option.value === 'cumulative' && percentType ? ' · counts only' : ''}</option>)}
+        </select></>}
         {activeTargetType === 'Duration' && <select aria-label="Duration measure" value={durationView} onChange={event => setDurationView(event.target.value)}>
           <option value="Total Duration">Total duration</option><option value="Total Count">Occurrence count</option><option value="Average Duration">Average duration</option>
         </select>}
@@ -480,6 +531,20 @@ export default function ClientSpecificSection({
             </label>;
           })}
         </Popover>
+        <Popover label={`Y axis · ${describeAxisBounds(axisBounds)}`} icon={Settings2} className="axis-popover">
+          <p className="popover-label">Vertical axis range</p>
+          <div className="axis-fields">
+            <label htmlFor="axis-min">Minimum</label>
+            <input id="axis-min" type="number" step="any" inputMode="decimal" placeholder="Auto" value={axisDraft.min} onChange={event => applyAxis({ ...axisDraft, min: event.target.value })} />
+            <label htmlFor="axis-max">Maximum</label>
+            <input id="axis-max" type="number" step="any" inputMode="decimal" placeholder="Auto" value={axisDraft.max} onChange={event => applyAxis({ ...axisDraft, max: event.target.value })} />
+          </div>
+          {axisError && <p className="field-error" role="alert">{axisError}</p>}
+          <p className="field-hint">Leave a field blank to scale that end to the data. Observations outside the range stay in the data table and exports.</p>
+          <button type="button" className="button button--tertiary" onClick={() => applyAxis({ min: '', max: '' })}>Use automatic scale</button>
+        </Popover>
+        <button type="button" className="toggle-control" aria-pressed={showValues} onClick={() => setShowValues(value => !value)}>Values</button>
+        <button type="button" className="toggle-control" aria-pressed={showPhaseLabels} onClick={() => setShowPhaseLabels(value => !value)}>Phase labels</button>
         <button type="button" className="toggle-control" aria-pressed={showGridlines} onClick={() => setShowGridlines(value => !value)}>Gridlines</button>
         <button type="button" className="toggle-control" aria-pressed={colorMode === 'BlackAndWhite'} onClick={() => setColorMode(value => value === 'System' ? 'BlackAndWhite' : 'System')}>Monochrome</button>
         {activeCategoryTab === 'Behavior' && <><label className="toggle-control"><input type="checkbox" checked={behaviorZeroOut} onChange={event => setBehaviorZeroOut(event.target.checked)} />Include measured zeros</label><label className="toggle-control"><input type="checkbox" checked={showEmptyDates} onChange={event => setShowEmptyDates(event.target.checked)} />Show missing dates</label></>}
@@ -499,15 +564,20 @@ export default function ClientSpecificSection({
             sessions={filteredSessions.filter(session => session.qualitativeEntry && visibleTargetIds.has(session.targetId))} />
             : <>
               {shownChartView === 'prompts' && analysisTarget ? <PromptLevelChart ref={svgRef} keys={pageKeys} aggregation={aggregation} template={template} targetName={analysisTarget.name}
-                rowsByKey={new Map(pageKeys.map(key => [key, rowsByGroup.get(`${analysisTarget.id}|${key}`) || []]))} selectedKey={shownSelection} onSelect={setSelectedKey} />
-                : shownChartView === 'celeration' && analysisTarget ? <CelerationChart ref={svgRef} rows={analysisRows.filter(row => keyIndex.has(getObservationKey(row, aggregation)))} targetName={analysisTarget.name}
-                  phaseLines={activeAnnotations.phaseLines} aim={analysisTarget.masteryRule?.measure === 'correctPerMinute' ? analysisTarget.masteryRule.threshold : null} />
+                rowsByKey={analysisRowsByKey} selectedKey={shownSelection} onSelect={setSelectedKey} />
+                : shownChartView === 'trials' && analysisTarget ? <TrialStripChart ref={svgRef} keys={pageKeys} aggregation={aggregation} template={template} targetName={analysisTarget.name}
+                  rowsByKey={analysisRowsByKey} selectedKey={shownSelection} onSelect={setSelectedKey} />
+                  : shownChartView === 'episodes' && analysisTarget ? <EpisodeStripChart ref={svgRef} keys={pageKeys} aggregation={aggregation} targetName={analysisTarget.name}
+                    rowsByKey={analysisRowsByKey} selectedKey={shownSelection} onSelect={setSelectedKey} />
+                    : shownChartView === 'celeration' && analysisTarget ? <CelerationChart ref={svgRef} rows={analysisRows.filter(row => keyIndex.has(getObservationKey(row, aggregation)))} targetName={analysisTarget.name}
+                      phaseLines={activeAnnotations.phaseLines} aim={celerationAim} />
                   : <TargetChart ref={svgRef} seriesData={displaySeriesData} targetType={activeTargetType} durationView={durationView} rateView={rateView} frequencyView={frequencyView}
                     showAverageLine={showAverageLine} averageValue={averageValue} showTrendLine={Boolean(shownTrend)} trendlinePoints={shownTrend}
                     regressionParams={trendMethod === 'regression' ? regressionParams : null} showGridlines={showGridlines} annotations={activeAnnotations} aggregation={aggregation} extraXKeys={pageKeys}
                     hasVisibleSeries={tabTargets.length > 0 && (!splitByTherapist || !allTherapistsForTarget.length || visibleTherapists.size > 0)}
                     onChangeDateRange={() => document.getElementById('target-date-range')?.focus()}
-                    overlays={overlays} selectedKey={shownSelection} highlightKeys={highlightKeys} onSelect={key => setSelectedKey(current => current === key ? null : key)} />}
+                    overlays={overlays} selectedKey={shownSelection} highlightKeys={highlightKeys} onSelect={key => setSelectedKey(current => current === key ? null : key)}
+                    chartType={shownChartType} axisBounds={axisBounds} showValues={showValues} showPhaseLabels={showPhaseLabels} conditionSpans={conditionSpans} />}
               {hasChart && <div className="chart-caption"><span>{caption}</span><span className="scroll-hint">Scroll to see the full chart →</span></div>}
               {aggregation === 'Per Session' && totalPages > 1 && <div className="pagination" aria-label="Session chart pagination"><span>Page {currentPage} of {totalPages}</span><button type="button" className="icon-button icon-button--bordered" aria-label="Previous session page" disabled={currentPage <= 1} onClick={() => setSessionPage(currentPage - 1)}><ChevronLeft size={18} /></button><button type="button" className="icon-button icon-button--bordered" aria-label="Next session page" disabled={currentPage >= totalPages} onClick={() => setSessionPage(currentPage + 1)}><ChevronRight size={18} /></button></div>}
               {hasChart && aggregation !== 'Per Session' && <TimelineBrush keys={allChartKeys} values={brushValues} start={zoomRange.start} end={zoomRange.end} aggregation={aggregation}

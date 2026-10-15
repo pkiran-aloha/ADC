@@ -337,8 +337,29 @@ class AnalyticsService {
     }
   }
 
+  // Latest session number for a target, counting records added earlier in this batch.
+  nextSessionNumber(clientId, targetId, assigned = new Map()) {
+    const key = `${clientId}|${targetId}`;
+    if (assigned.has(key)) return assigned.get(key) + 1;
+    const last = this.sessions.reduce((max, session) => (session.clientId === clientId && session.targetId === targetId ? Math.max(max, session.sessionNumber || 0) : max), 0);
+    return last + 1;
+  }
+
   // Update target phase + optional phase line prompt
   updateTargetPhase({ targetId, newPhase, addPhaseLine, phaseLineLabel, phaseDate }) {
+    const target = this.applyTargetPhase({ targetId, newPhase, addPhaseLine, phaseLineLabel, phaseDate });
+    if (target) this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.PHASE_LINES]);
+    return target;
+  }
+
+  // Several phase changes from one session: mutate everything, then save once.
+  updateTargetPhases(changes = []) {
+    const updated = changes.map(change => this.applyTargetPhase(change)).filter(Boolean);
+    if (updated.length) this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.PHASE_LINES]);
+    return updated;
+  }
+
+  applyTargetPhase({ targetId, newPhase, addPhaseLine, phaseLineLabel, phaseDate }) {
     let target = null;
 
     for (const p of this.programs) {
@@ -358,7 +379,9 @@ class AnalyticsService {
     target.phaseHistory = [...history, { phase: newPhase, date: target.phaseEnteredDate }];
 
     if (addPhaseLine) {
-      this.addPhaseLine({
+      // Pushed directly so a batch of phase changes saves both keys once.
+      this.phaseLines.push({
+        id: `pcl-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
         targetId,
         date: target.phaseEnteredDate,
         label: phaseLineLabel || newPhase,
@@ -368,22 +391,32 @@ class AnalyticsService {
         source: 'Manual'
       });
     }
-
-    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.PHASE_LINES]);
     return target;
   }
 
   recordTrial(data) {
-    const newPoint = {
-      id: `d-${Date.now()}`,
-      timestamp: data.timestamp || new Date().toISOString().replace('T', ' ').substring(0, 16),
-      sessionNumber: data.sessionNumber || 1,
-      therapistName: data.therapistName || 'Sarah Jenkins, BCBA',
-      ...data
-    };
-    this.sessions.push(newPoint);
-    this.saveAll([STORAGE_KEYS.SESSIONS]);
+    const [newPoint] = this.recordTrials([data]);
     return newPoint;
+  }
+
+  // One session can update several targets at once: number per target, save once.
+  recordTrials(points = []) {
+    const assigned = new Map();
+    const created = points.map(data => {
+      const sessionNumber = data.sessionNumber || this.nextSessionNumber(data.clientId, data.targetId, assigned);
+      assigned.set(`${data.clientId}|${data.targetId}`, sessionNumber);
+      const newPoint = {
+        therapistName: 'Sarah Jenkins, BCBA',
+        ...data,
+        id: `d-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+        timestamp: data.timestamp || new Date().toISOString().replace('T', ' ').substring(0, 16),
+        sessionNumber
+      };
+      this.sessions.push(newPoint);
+      return newPoint;
+    });
+    if (created.length) this.saveAll([STORAGE_KEYS.SESSIONS]);
+    return created;
   }
 }
 

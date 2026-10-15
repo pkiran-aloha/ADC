@@ -299,7 +299,8 @@
 .storage-warning button { margin-left: auto; flex-shrink: 0; }
 .dialog { padding: 0; color: var(--ink); background: #fff; border: 0; max-height: calc(100dvh - 2rem); max-width: calc(100vw - 2rem); border-radius: 1rem; box-shadow: 0 20px 90px rgb(24 40 29 / 22%); }
 .dialog::backdrop { background: rgb(24 40 29 / 35%); backdrop-filter: blur(3px); }
-.dialog[open] { animation: dialog-enter 220ms ease-out; }
+.dialog[open] { display: flex; flex-direction: column; animation: dialog-enter 220ms ease-out; }
+.dialog-header { flex: 0 0 auto; }
 .dialog--sheet { width: 32rem; max-height: 100dvh; height: 100dvh; max-width: min(32rem, 100%); margin: 0 0 0 auto; border-radius: 1rem 0 0 1rem; }
 .dialog--navigation { width: 18rem; height: 100dvh; max-height: 100dvh; max-width: calc(100vw - 3rem); margin: 0 auto 0 0; border-radius: 0 1rem 1rem 0; }
 .dialog--confirmation { width: 29rem; }
@@ -309,7 +310,7 @@
 .dialog-title:focus { outline: none; }
 .dialog-icon { width: 1.5rem; height: 1.5rem; color: var(--accent); }
 .dialog-description { color: var(--muted); font-size: 0.8125rem; margin-top: 0.5rem; max-width: 42ch; }
-.dialog-content { padding: 1.5rem; }
+.dialog-content { padding: 1.5rem; overflow-y: auto; flex: 1 1 auto; }
 .form-layout { display: flex; flex-direction: column; gap: 1.25rem; }
 .form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .field { min-width: 0; }
@@ -748,4 +749,40 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 @container (max-width: 56rem) { .quality-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 639px) {
   .chart-scroll > svg.aux-chart:not(.scatter-svg) { min-width: 34rem; }
+}
+
+/* Session recorder: one shared header, then one compact row per target. */
+.record-session .segmented-control { align-self: start; }
+.record-session .form-actions { flex-wrap: wrap; }
+.record-session-head { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1rem; }
+.align-self-start { align-self: start; justify-self: start; }
+.record-program { display: grid; gap: 0.75rem; padding: 1rem; background: var(--color-slate-50); border-radius: 0.75rem; }
+.record-program-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.record-targets { list-style: none; display: grid; gap: 0.75rem; }
+.record-target { border: 1px solid var(--line); border-radius: 0.75rem; padding: 0.5rem 1rem 0.875rem; background: #fff; }
+.record-target--on { border-color: var(--color-brand-300); background: var(--color-brand-50); }
+.record-target-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 1rem; justify-content: space-between; }
+.record-target-toggle { display: inline-flex; align-items: center; gap: 0.6rem; min-height: 2.75rem; font-size: 0.9375rem; font-weight: 500; }
+.record-target-toggle input { width: 1.05rem; height: 1.05rem; }
+.record-target-name { font-weight: 500; }
+.record-target-meta { color: var(--muted); font-size: 0.75rem; }
+.record-target-body { display: grid; gap: 0.75rem; }
+.record-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: 0.75rem; }
+.record-fields .field > label { font-size: 0.75rem; }
+.record-tracking { border: 0; padding: 0; }
+.record-tracking legend { font-size: 0.8125rem; font-weight: 500; margin-bottom: 0.4rem; }
+.record-tracking-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.5rem; }
+.radio-option--compact { padding: 0.6rem 0.7rem; }
+.record-phase { max-width: 17rem; }
+.record-status { padding: 0.6rem 0.75rem; border: 1px solid var(--color-brand-200); border-radius: 0.5rem; background: var(--color-brand-50); color: var(--color-brand-700); font-size: 0.8125rem; }
+
+/* Vertical-axis controls inside the chart toolbar. */
+.axis-popover .popover-content { left: 0; right: auto; width: 18rem; }
+.axis-fields { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.5rem 0.6rem; align-items: center; }
+.axis-fields label { font-size: 0.8125rem; color: var(--color-slate-700); }
+.axis-fields input { width: 100%; min-height: 2.75rem; padding: 0.5rem 0.6rem; border: 1px solid var(--color-slate-300); border-radius: 0.5rem; background: #fff; color: var(--ink); font-size: 1rem; }
+
+@media (max-width: 639px) {
+  .record-session-head, .record-fields, .record-tracking-options { grid-template-columns: minmax(0, 1fr); }
+  .axis-popover .popover-content { width: min(18rem, calc(100vw - 3rem)); }
 }
