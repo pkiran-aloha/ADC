@@ -22,6 +22,9 @@ namespace Welina.Analytics.Api.Services
             bool includeUntracked = false);
 
         List<AbcEntry> GetAbcData(string clientId, DateTime? startDate = null, DateTime? endDate = null);
+        List<ServiceSession> GetServiceSessions(string clientId, DateTime? startDate = null, DateTime? endDate = null);
+        List<StaffMember> GetStaff();
+        ClinicalStandards GetClinicalStandards();
         AbcConfiguration? GetAbcConfiguration(string clientId);
 
         // Annotations

@@ -22,6 +22,30 @@ const customKeys = new Set(seed.customFieldDefinitions.map(field => field.key));
 const saTypes = ['TrialByTrial', 'Frequency', 'Duration', 'IntervalData', 'Anecdotal', 'FluencyRate'];
 const brTypes = ['Frequency', 'Duration', 'IntervalData'];
 const statuses = ['Baselining', 'Teaching', 'Maintaining', 'Generalizing', 'Pending', 'Completed', 'OnHold', 'Discontinued'];
+const minutesOf = clock => Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
+const tenths = (part, whole) => Math.round(1000 * part / whole) / 10;
+function ruleValue(row, rule) {
+  switch (rule.measure) {
+    case 'percentCorrect': case 'percentIntervals': return row.value;
+    case 'intervalCount': return row.occurredIntervals;
+    case 'count': return row.occurrenceCount;
+    case 'ratePerHour': return 60 * row.occurrenceCount / row.lessonDurationMinutes;
+    case 'correctPerMinute': return row.occurrenceCount / row.lessonDurationMinutes;
+    case 'durationSeconds': return row.durationSeconds;
+    default: throw new Error(`Unknown mastery measure ${rule.measure}`);
+  }
+}
+const meetsRule = (value, rule) => ({ atLeast: value >= rule.threshold, atMost: value <= rule.threshold,
+  below: value < rule.threshold, above: value > rule.threshold })[rule.comparison];
+function firstCriterionRow(rows, rule) {
+  let streak = 0;
+  for (const row of rows) {
+    if (row.value == null) continue;
+    streak = meetsRule(ruleValue(row, rule), rule) ? streak + 1 : 0;
+    if (streak >= rule.consecutiveSessions) return row;
+  }
+  return null;
+}
 const phases = ['Baseline', 'Pending', 'Acquisition', 'Maintenance', 'Generalization', 'Completed', 'OnHold', 'Discontinued'];
 
 test('committed fixture is reproducible from the source generator', () => {
@@ -31,9 +55,9 @@ test('committed fixture is reproducible from the source generator', () => {
 test('all clients have diverse, fully described Skill Acquisition and unitary Behavior Reduction programs', () => {
   assert.equal(seed.asOfDate, '2026-10-14');
   assert.match(seed.revision, /^[a-f0-9]{16}$/);
-  assert.equal(seed.clients.length, 3);
-  assert.ok(seed.programs.length >= 20);
-  assert.ok(targets.length >= 35);
+  assert.equal(seed.clients.length, 5);
+  assert.ok(seed.programs.length >= 35);
+  assert.ok(targets.length >= 60);
   unique(seed.clients, 'client');
   unique(seed.programs, 'program');
   unique(targets, 'target');
@@ -149,7 +173,8 @@ test('recordings match their type, client and measured values; zero is distinct 
       assert.equal(program.category, 'BehaviorReduction');
       assert.equal(row.value, null);
       for (const field of ['correctCount', 'totalTrials', 'occurredIntervals', 'totalIntervals',
-        'durationSeconds', 'occurrenceCount', 'lessonDurationMinutes', 'qualitativeEntry']) {
+        'durationSeconds', 'occurrenceCount', 'lessonDurationMinutes', 'qualitativeEntry', 'trialSequence',
+        'intervalScores', 'episodeDurations', 'errorCount', 'ioa']) {
         assert.ok(!(field in row), `Untracked ${row.id} cannot contain ${field}`);
       }
       untracked++;
@@ -161,10 +186,16 @@ test('recordings match their type, client and measured values; zero is distinct 
       trackedZero++;
     }
     switch (target.type) {
-      case 'TrialByTrial':
+      case 'TrialByTrial': {
         assert.ok(row.totalTrials > 0 && row.correctCount >= 0 && row.correctCount <= row.totalTrials);
         assert.equal(row.value, Math.round(100 * row.correctCount / row.totalTrials));
+        // Trial-by-trial prompt codes come from the target's prompt hierarchy.
+        const codes = new Set(seed.promptHierarchyTemplates.find(item => item.id === target.promptHierarchyId).codes);
+        assert.equal(row.trialSequence.length, row.totalTrials, row.id);
+        assert.ok([...row.trialSequence].every(code => codes.has(code)), row.id);
+        assert.equal([...row.trialSequence].filter(code => code === 'I').length, row.correctCount, row.id);
         break;
+      }
       case 'IntervalData':
         assert.ok(row.totalIntervals > 0 && row.occurredIntervals >= 0 && row.occurredIntervals <= row.totalIntervals);
         assert.equal(row.value, Math.round(100 * row.occurredIntervals / row.totalIntervals));
@@ -172,16 +203,26 @@ test('recordings match their type, client and measured values; zero is distinct 
           assert.equal(row.totalIntervals, target.intervalSettings.numberOfIntervals);
         }
         assert.ok(!('correctCount' in row) && !('totalTrials' in row));
+        assert.match(row.intervalScores, /^[01]+$/);
+        assert.equal(row.intervalScores.length, row.totalIntervals, row.id);
+        assert.equal([...row.intervalScores].filter(score => score === '1').length, row.occurredIntervals, row.id);
         break;
-      case 'Duration':
+      case 'Duration': {
         assert.ok(row.durationSeconds >= 0);
         assert.equal(row.value, row.durationSeconds);
-        assert.equal(row.occurrenceCount, row.durationSeconds > 0 ? 1 : 0);
+        // Each episode (bout) is kept so average duration and count stay truthful.
+        const episodes = row.episodeDurations || [];
+        assert.equal(row.occurrenceCount, episodes.length, row.id);
+        assert.equal(episodes.reduce((sum, seconds) => sum + seconds, 0), row.durationSeconds, row.id);
+        assert.ok(episodes.every(seconds => Number.isInteger(seconds) && seconds > 0));
+        assert.equal(row.occurrenceCount === 0, row.durationSeconds === 0);
         break;
+      }
       case 'Frequency':
       case 'FluencyRate':
         assert.ok(row.occurrenceCount >= 0 && row.lessonDurationMinutes > 0);
         assert.equal(row.value, row.occurrenceCount);
+        if (target.type === 'FluencyRate') assert.ok(Number.isInteger(row.errorCount) && row.errorCount >= 0, row.id);
         break;
       case 'Anecdotal':
         assert.ok(text(row.qualitativeEntry));
@@ -231,6 +272,139 @@ test('ABC configurations are textual lists and all event selections belong to th
   }
 });
 
+test('phase histories are chronological and automatic promotions agree with structured mastery rules', () => {
+  const mastered = new Set(['Maintenance', 'Generalization', 'Completed']);
+  for (const target of targets) {
+    const history = target.phaseHistory;
+    assert.ok(history.length >= 1 && history.every(entry => phases.includes(entry.phase) && /^2026-\d\d-\d\d$/.test(entry.date)), target.id);
+    for (let index = 1; index < history.length; index++) assert.ok(history[index - 1].date < history[index].date, target.id);
+    assert.equal(history.at(-1).phase, target.phase);
+    assert.equal(history.at(-1).date, target.phaseEnteredDate);
+    const rows = seed.sessionData.filter(row => row.targetId === target.id);
+    if (rows.length) assert.ok(history[0].date <= rows[0].timestamp.slice(0, 10), `${target.id} has data before its first phase`);
+    const closed = history.find(entry => ['Completed', 'OnHold', 'Discontinued'].includes(entry.phase));
+    if (closed) assert.ok(rows.every(row => row.timestamp.slice(0, 10) < closed.date), `${target.id} has data after ${closed.phase}`);
+    if (target.masteryRule) {
+      assert.ok(['atLeast', 'atMost', 'below', 'above'].includes(target.masteryRule.comparison));
+      assert.ok(Number.isInteger(target.masteryRule.consecutiveSessions) && target.masteryRule.consecutiveSessions > 0);
+    }
+    if (target.masterySettings !== 'Automatic' || !target.masteryRule) continue;
+    const start = history.findIndex(entry => entry.phase === 'Acquisition');
+    if (start < 0) continue;
+    const next = history[start + 1];
+    const teaching = rows.filter(row => row.timestamp.slice(0, 10) >= history[start].date && (!next || row.timestamp.slice(0, 10) < next.date));
+    const met = firstCriterionRow(teaching, target.masteryRule);
+    if (next && mastered.has(next.phase)) {
+      assert.equal(met, teaching.at(-1), `${target.id} must be promoted the day after first meeting its rule`);
+      const promoted = new Date(`${met.timestamp.slice(0, 10)}T12:00:00Z`);
+      promoted.setUTCDate(promoted.getUTCDate() + 1);
+      assert.equal(next.date, promoted.toISOString().slice(0, 10), target.id);
+    } else {
+      assert.equal(met, null, `${target.id} met an automatic rule without a promotion`);
+    }
+  }
+  const brTargets = targets.filter(target => byProgram.get(target.programId).category === 'BehaviorReduction');
+  assert.ok(brTargets.every(target => ['Escape', 'Attention', 'Tangible', 'Automatic'].includes(target.functionHypothesis) && text(target.intervention)));
+});
+
+test('service sessions explain every observation: schedule, setting, staff, supervision and fidelity', () => {
+  unique(seed.serviceSessions, 'service session');
+  const sessions = new Map(seed.serviceSessions.map(session => [session.id, session]));
+  const roles = new Map(seed.staff.map(person => [person.name, person.role]));
+  for (const session of seed.serviceSessions) {
+    assert.ok(byClient.has(session.clientId));
+    assert.match(session.date, /^2026-\d\d-\d\d$/);
+    assert.ok(session.date <= seed.asOfDate);
+    assert.ok(['Clinic', 'Home', 'School', 'Community', 'Telehealth'].includes(session.setting));
+    assert.ok(['97153', '97155', '97156'].includes(session.serviceCode));
+    assert.equal(roles.get(session.therapistName), session.role, session.id);
+    assert.equal(session.minutes, minutesOf(session.end) - minutesOf(session.start));
+    if (session.status === 'Cancelled') assert.ok(text(session.cancelReason));
+    else assert.equal(session.status, 'Completed');
+    for (const event of session.settingEvents || []) assert.ok(byConfig.get(session.clientId).settingEvents.includes(event));
+    if (session.supervision) {
+      assert.ok(['BCBA', 'BCaBA'].includes(roles.get(session.supervision.supervisor)));
+      assert.equal(session.role, 'RBT');
+      assert.ok(session.supervision.minutes > 0 && session.supervision.minutes <= session.minutes);
+    }
+    if (session.fidelity) {
+      assert.ok(session.supervision, 'Procedural fidelity is scored during supervision');
+      assert.equal(session.fidelity.percent, tenths(session.fidelity.correct, session.fidelity.total));
+    }
+  }
+  for (const row of seed.sessionData) {
+    const session = sessions.get(row.serviceSessionId);
+    assert.ok(session, row.id);
+    assert.equal(session.clientId, row.clientId);
+    assert.equal(session.status, 'Completed');
+    assert.notEqual(session.serviceCode, '97156', 'Caregiver guidance does not produce client data');
+    assert.equal(session.date, row.timestamp.slice(0, 10));
+    const minute = minutesOf(row.timestamp.slice(11, 16));
+    assert.ok(minute >= minutesOf(session.start) && minute < minutesOf(session.end), row.id);
+    assert.equal(row.therapistName, session.therapistName);
+  }
+  for (const client of seed.clients) {
+    const direct = seed.serviceSessions.filter(item => item.clientId === client.id && item.status === 'Completed' && item.serviceCode !== '97156');
+    assert.ok(direct.filter(item => item.ioaObserver).length / direct.length >= 0.2, `${client.id} IOA coverage`);
+    assert.ok(direct.some(item => item.fidelity) && direct.some(item => item.settingEvents));
+  }
+});
+
+test('interobserver agreement uses the method that matches each measurement tool', () => {
+  const methods = { TrialByTrial: 'TrialByTrial', IntervalData: 'IntervalByInterval', Duration: 'TotalDuration', Frequency: 'TotalCount', FluencyRate: 'TotalCount' };
+  const sessions = new Map(seed.serviceSessions.map(session => [session.id, session]));
+  const withIoa = seed.sessionData.filter(row => row.ioa);
+  assert.ok(withIoa.length > 500);
+  for (const row of withIoa) {
+    const target = byTarget.get(row.targetId);
+    assert.equal(row.ioa.method, methods[target.type], row.id);
+    assert.notEqual(row.ioa.observer, row.therapistName);
+    assert.equal(sessions.get(row.serviceSessionId).ioaObserver, row.ioa.observer);
+    if ('agreements' in row.ioa) {
+      assert.equal(row.ioa.total, row.totalTrials ?? row.totalIntervals);
+      assert.ok(row.ioa.agreements >= 0 && row.ioa.agreements <= row.ioa.total);
+      assert.equal(row.ioa.percent, tenths(row.ioa.agreements, row.ioa.total));
+    } else {
+      assert.equal(row.ioa.primary, row.durationSeconds ?? row.occurrenceCount);
+      const { primary, secondary } = row.ioa;
+      assert.equal(row.ioa.percent, primary === secondary ? 100 : tenths(Math.min(primary, secondary), Math.max(primary, secondary)));
+    }
+  }
+  assert.ok(withIoa.some(row => row.ioa.percent < 80), 'Low-agreement sessions exist for data-quality review');
+});
+
+test('ABC narratives sample measured episodes and use the documented function catalogs', () => {
+  const measured = new Map();
+  for (const row of seed.sessionData) {
+    const target = byTarget.get(row.targetId);
+    if (byProgram.get(target.programId).category !== 'BehaviorReduction' || row.value == null) continue;
+    const episodes = target.type === 'IntervalData' ? (row.intervalScores.match(/1+/g) || []).length : row.occurrenceCount;
+    measured.set(`${row.serviceSessionId}/${target.name}`, episodes);
+  }
+  const recorded = new Map();
+  for (const entry of seed.abcEntries) {
+    for (const behavior of entry.behaviors) {
+      const key = `${entry.serviceSessionId}/${behavior}`;
+      recorded.set(key, (recorded.get(key) || 0) + 1);
+    }
+  }
+  for (const [key, count] of recorded) assert.ok(count <= (measured.get(key) ?? 0), `${key} has more ABC records than measured episodes`);
+  const sessions = new Map(seed.serviceSessions.map(session => [session.id, session]));
+  for (const entry of seed.abcEntries) {
+    const session = sessions.get(entry.serviceSessionId);
+    assert.equal(session.clientId, entry.clientId);
+    assert.equal(session.therapistName, entry.therapist);
+    assert.deepEqual(entry.settingEvents || [], session.settingEvents || []);
+  }
+  const functions = new Set(['Escape', 'Attention', 'Tangible', 'Sensory', 'None']);
+  for (const config of seed.abcConfigurations) {
+    assert.deepEqual(Object.keys(config.antecedentCategories), config.antecedents);
+    assert.deepEqual(Object.keys(config.consequenceFunctions), config.consequences);
+    assert.ok(Object.values(config.consequenceFunctions).every(value => functions.has(value)));
+    assert.ok(Object.values(config.antecedentCategories).every(text));
+  }
+});
+
 test('browser demo reseeds old localStorage and filters analytics without losing raw seed semantics', async () => {
   const store = new Map([['welina_programs', JSON.stringify([{ id: 'outdated' }])]]);
   globalThis.localStorage = {
@@ -240,24 +414,44 @@ test('browser demo reseeds old localStorage and filters analytics without losing
   const { apiService } = await import('../frontend/src/services/apiService.js');
   const { INITIAL_PROGRAMS, SEED_VERSION } = await import('../frontend/src/data/mockData.js');
   assert.equal(store.get('welina_seed_version'), JSON.stringify(SEED_VERSION));
-  assert.equal(apiService.getClients().length, 3);
+  assert.equal(apiService.getClients().length, seed.clients.length);
   assert.equal(apiService.getPrograms('cli-noah', 'BehaviorReduction').length, 3);
   assert.equal(apiService.getAbcConfiguration('cli-emma').behaviors.length, 3);
-  assert.equal(apiService.getAbcData('cli-emma', 'Past 1 Month').length, 12);
-  assert.equal(apiService.getAbcData('cli-emma', 'All').length, 14);
 
+  // Independent date arithmetic: one calendar month before the snapshot day's end.
+  const since = months => {
+    const date = new Date(`${seed.asOfDate}T23:59:59`);
+    date.setMonth(date.getMonth() - months);
+    return date;
+  };
+  const emma = seed.abcEntries.filter(entry => entry.clientId === 'cli-emma');
+  assert.equal(apiService.getAbcData('cli-emma', 'Past 1 Month').length, emma.filter(entry => new Date(entry.timestamp) >= since(1)).length);
+  assert.equal(apiService.getAbcData('cli-emma', 'All').length, emma.length);
+  assert.ok(apiService.getAbcData('cli-emma', 'Past 1 Month').length >= 12);
+
+  const vocal = seed.sessionData.filter(row => row.targetId === 'br-vocal' && new Date(row.timestamp) >= since(1));
   const observed = apiService.getTargetData({ clientId: 'cli-liam', targetIds: ['br-vocal'] }).rawRecords;
-  assert.equal(observed.length, 11); // 12 recorded dates, 1 untracked date
-  assert.equal(observed.filter(point => point.missingDataMode === 'ZeroOut').length, 2);
+  assert.equal(observed.length, vocal.filter(row => row.missingDataMode !== 'DataNotTracked').length);
+  const zeros = vocal.filter(row => row.missingDataMode === 'ZeroOut').length;
+  assert.ok(zeros >= 1, 'The default month includes measured zero sessions');
+  assert.equal(observed.filter(point => point.missingDataMode === 'ZeroOut').length, zeros);
   const withoutZero = apiService.getTargetData({ clientId: 'cli-liam', targetIds: ['br-vocal'],
     zeroOutBehavior: false }).rawRecords;
-  assert.equal(withoutZero.length, 9);
-  assert.equal(apiService.getCumulativeMastery('cli-liam', 'prog-playing').at(-1).cumulativeCount, 2);
+  assert.equal(withoutZero.length, observed.length - zeros);
 
-  apiService.updateTargetPhase({ targetId: 'tgt-expr-food', newPhase: 'Baseline', addPhaseLine: false });
-  assert.equal(apiService.getPrograms('cli-liam')[0].targets[0].phase, 'Baseline');
+  // Mastery accumulates from the first mastered phase in each target's history.
+  const playing = apiService.getCumulativeMastery('cli-liam', 'prog-playing');
+  assert.equal(playing.at(-1).cumulativeCount, 2);
+  const share = INITIAL_PROGRAMS.flatMap(program => program.targets).find(target => target.id === 'tgt-play-share');
+  assert.equal(playing[0].date, share.phaseHistory.find(entry => entry.phase === 'Maintenance').date);
+
+  apiService.updateTargetPhase({ targetId: 'tgt-expr-food', newPhase: 'Baseline', addPhaseLine: false, phaseDate: '2026-10-14' });
+  const updated = apiService.getPrograms('cli-liam')[0].targets[0];
+  assert.equal(updated.phase, 'Baseline');
+  assert.deepEqual(updated.phaseHistory.at(-1), { phase: 'Baseline', date: '2026-10-14' });
   assert.equal(INITIAL_PROGRAMS[0].targets[0].phase, 'Generalization');
   apiService.resetToDefault();
   assert.equal(apiService.getPrograms('cli-liam')[0].targets[0].phase, 'Generalization');
+  assert.ok(apiService.getServiceSessions('cli-liam').length > 100);
   delete globalThis.localStorage;
 });

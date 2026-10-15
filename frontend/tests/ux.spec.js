@@ -498,10 +498,12 @@ test('session pagination and weekly/monthly labels follow the actual grouped dat
 test('clinician splitting and all-hidden clinician recovery only use the active target', async ({ page }) => {
   await open(page);
   const targets = skillProgram.targets.filter(target => target.type === 'TrialByTrial');
-  await page.locator('#target-analysis .target-legend').first().getByRole('button', { name: targets[1].name, exact: true }).click();
+  for (const target of targets.slice(1)) await page.locator('#target-analysis .target-legend').first().getByRole('button', { name: target.name, exact: true }).click();
   await page.getByLabel('Split by clinician').check();
   const legend = page.locator('#target-analysis .target-legend').nth(1);
-  const names = [...new Set(seed.sessionData.filter(row => row.targetId === targets[0].id).map(row => row.therapistName))];
+  const since = new Date(`${seed.asOfDate}T23:59:59`);
+  since.setMonth(since.getMonth() - 1);
+  const names = [...new Set(seed.sessionData.filter(row => row.targetId === targets[0].id && new Date(row.timestamp) >= since).map(row => row.therapistName))];
   await expect(legend.getByRole('button')).toHaveCount(names.length);
   for (const name of names) await legend.getByRole('button', { name, exact: true }).click();
   await expect(page.getByRole('heading', { name: 'No series are visible.' })).toBeVisible();
@@ -668,5 +670,146 @@ test('404 return button retains contrast at rest, hover and keyboard focus', asy
   await page.mouse.move(0, 0);
   for (let index = 0; index < 4; index++) await page.keyboard.press('Tab');
   await expect(button).toBeFocused();
+  await accessible(page);
+});
+
+// ---------------------------------------------------------------------------
+// Analytical charting: drill-down, functions, visual analysis, ABC patterns and forecasts
+// ---------------------------------------------------------------------------
+const behaviorTargets = programs.filter(program => program.category === 'BehaviorReduction').map(program => program.targets[0]);
+
+test('chart points drill down by pointer and keyboard to sessions and trial-by-trial prompts', async ({ page }) => {
+  await open(page);
+  const region = page.locator('#target-analysis .chart-scroll').first();
+  await region.focus();
+  await page.keyboard.press('End');
+  await expect(region.locator('[aria-live="polite"]')).not.toHaveText('');
+  await page.keyboard.press('Enter');
+  const inspector = page.locator('#target-analysis .inspector');
+  await expect(inspector.getByRole('heading', { name: 'Observation details' })).toBeVisible();
+  const items = inspector.locator('.inspector-item');
+  if (await items.count()) await items.first().click();
+  await expect(inspector.locator('.inspector-detail')).toBeVisible();
+  await expect(inspector.getByRole('list', { name: /^Trial sequence:/ })).toBeVisible();
+  await expect(inspector).toContainText('Recorded by');
+  await accessible(page);
+  await page.getByRole('button', { name: 'Previous observation group' }).click();
+  await expect(inspector.getByRole('heading', { name: 'Observation details' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close observation details' }).click();
+  await expect(inspector).toHaveCount(0);
+  // Tap inside the visible part of the (horizontally scrollable) chart.
+  await page.locator('#target-analysis svg.chart-svg').scrollIntoViewIfNeeded();
+  const box = await page.locator('#target-analysis svg.chart-svg').boundingBox();
+  const viewport = page.viewportSize();
+  await page.mouse.click(box.x + Math.min(box.width * 0.5, (viewport.width - box.x) * 0.6), box.y + box.height * 0.5);
+  await expect(page.getByRole('heading', { name: 'Observation details' })).toBeVisible();
+});
+
+test('chart functions add median, criterion, projection, envelope and split-middle overlays', async ({ page }) => {
+  await open(page);
+  await page.locator('#target-date-range').selectOption('6 months');
+  const helpers = skillProgram.targets.find(target => target.phase === 'Acquisition' && target.type === 'TrialByTrial');
+  await page.getByLabel('Analyze target').selectOption(helpers.id);
+  await page.getByRole('button', { name: /^Chart functions/ }).click();
+  const menu = page.getByRole('group', { name: /^Chart functions/ });
+  for (const name of ['Median line', 'Mastery criterion line', 'Projection (80% band)', 'Stability envelope', 'Condition means', 'IOA markers']) {
+    await menu.getByRole('checkbox', { name: new RegExp(`^${name.replace(/[()]/g, '\\$&')}`) }).check();
+  }
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Chart functions (6)' })).toBeFocused();
+  const svg = page.locator('#target-analysis svg.chart-svg');
+  await expect(svg).toContainText('Median:');
+  await expect(svg).toContainText('Criterion ≥ 80');
+  await expect(svg).toContainText('Projection · 80% band');
+  await page.getByLabel('Trend', { exact: true }).check();
+  await page.getByLabel('Trend calculation').selectOption('split-middle');
+  await expect(page.locator('#target-analysis .chart-caption')).toContainText('Split-middle line of progress');
+  await accessible(page);
+});
+
+test('visual analysis compares conditions with effect sizes and the dual-criterion lines', async ({ page }) => {
+  await open(page);
+  await page.locator('#target-date-range').selectOption('6 months');
+  const panel = page.locator('.analysis-panel');
+  await expect(panel.getByRole('heading', { name: 'Visual analysis' })).toBeVisible();
+  await expect(panel.locator('#analysis-comparison')).toContainText('Baseline → Acquisition');
+  await expect(panel).toContainText('NAP');
+  await expect(panel).toContainText('Conservative dual-criterion');
+  await panel.getByLabel('Show criterion lines').check();
+  await expect(page.locator('#target-analysis svg.chart-svg')).toContainText('CDC criterion lines');
+  for (const tab of ['Progress & decisions', 'Data quality', 'Context']) {
+    await panel.getByRole('button', { name: tab, exact: true }).click();
+    await expect(panel.getByRole('button', { name: tab, exact: true })).toHaveAttribute('aria-pressed', 'true');
+  }
+  await expect(panel.getByRole('group', { name: 'Break down by' })).toBeVisible();
+  await panel.locator('.context-bar').first().click();
+  await expect(panel.locator('.context-bar').first()).toHaveAttribute('aria-pressed', 'true');
+  await accessible(page);
+  await panel.getByRole('button', { name: 'Data quality', exact: true }).click();
+  await expect(panel).toContainText('IOA coverage');
+});
+
+test('prompt levels and celeration views show the data behind accuracy and fluency', async ({ page }) => {
+  await open(page);
+  await page.getByRole('group', { name: 'Chart view' }).getByRole('button', { name: 'Prompt levels', exact: true }).click();
+  await expect(page.locator('#target-analysis svg.chart-svg title').first()).toHaveText('Prompt levels');
+  const fluency = programs.find(program => program.targets.some(target => target.type === 'FluencyRate'));
+  await page.locator('#target-program').selectOption(fluency.id);
+  await page.locator('#target-date-range').selectOption('3 months');
+  await page.getByRole('group', { name: 'Chart view' }).getByRole('button', { name: 'Celeration', exact: true }).click();
+  await expect(page.locator('#target-analysis svg.chart-svg')).toContainText('/wk');
+  await accessible(page);
+});
+
+test('ABC patterns drill into the log and the forecast reports its own accuracy', async ({ page }) => {
+  await open(page);
+  const abc = page.locator('#abc-observations');
+  await abc.getByRole('button', { name: 'Patterns', exact: true }).click();
+  await page.locator('#abc-date-range').selectOption('Past 6 Months');
+  await expect(abc.getByRole('heading', { name: 'Antecedents before each behavior' })).toBeVisible();
+  await expect(abc.getByRole('heading', { name: 'Descriptive function profile' })).toBeVisible();
+  await expect(abc).toContainText(`FBA hypothesis: ${behaviorTargets[0].functionHypothesis}`);
+  await accessible(page);
+  await abc.locator('button.heat-cell').first().click();
+  await expect(abc.getByRole('button', { name: 'Log', exact: true })).toBeVisible();
+  await expect(abc.locator('.filter-chips')).toContainText('Antecedent:');
+  const rows = abc.locator('.abc-table tbody tr');
+  expect(await rows.count()).toBeGreaterThan(0);
+  await abc.getByRole('button', { name: 'Clear filters' }).click();
+  await expect(abc.locator('.filter-chips')).toHaveCount(0);
+  await abc.getByRole('button', { name: 'Forecast', exact: true }).click();
+  await expect(abc.getByRole('heading', { name: 'Next-session outlook' })).toBeVisible();
+  await expect(abc.locator('.model-card')).toContainText('later sessions');
+  const result = abc.locator('.forecast-result strong');
+  const before = await result.innerText();
+  await abc.getByRole('checkbox', { name: /Poor sleep reported/ }).check();
+  await expect(abc.locator('.forecast-delta')).toBeVisible();
+  expect(Number(await result.innerText())).toBeGreaterThan(Number(before));
+  await expect(abc.locator('.likely-list li')).toHaveCount(behaviorTargets.length);
+  await accessible(page);
+});
+
+test('the weekly progress map opens a target and week in the target analysis', async ({ page }) => {
+  await open(page);
+  const map = page.locator('.progress-heatmap');
+  await expect(map.getByRole('heading', { name: 'Weekly progress map' })).toBeVisible();
+  const cell = map.locator('button.heat-cell').first();
+  const label = await cell.getAttribute('aria-label');
+  await cell.click();
+  await expect(page.locator('#target-analysis')).toBeFocused();
+  await expect(page.locator('#target-grouping')).toHaveValue('Weekly');
+  await expect(page.getByRole('heading', { name: 'Observation details' })).toBeVisible();
+  expect(label).toContain(skillProgram.targets[0].name);
+  await map.getByRole('button', { name: 'Behaviors', exact: true }).click();
+  await expect(map.locator('tbody tr')).toHaveCount(behaviorTargets.length);
+});
+
+test('service and data quality summarize dosage, IOA, fidelity and supervision', async ({ page }) => {
+  await open(page);
+  const section = page.locator('#service-quality');
+  await expect(section.getByRole('heading', { name: 'Service & data quality' })).toBeVisible();
+  await expect(section).toContainText(`${client.authorizedHoursPerWeek} authorized`);
+  await expect(section.getByRole('table', { name: /Supervision of RBT hours/ })).toBeVisible();
+  await expect(section).toContainText('IOA coverage');
   await accessible(page);
 });

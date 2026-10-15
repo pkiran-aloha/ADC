@@ -7,9 +7,23 @@ import {
   INITIAL_GRAPH_NOTES,
   INITIAL_ABC_CONFIGURATIONS,
   INITIAL_ABC_ENTRIES,
+  SERVICE_SESSIONS,
+  STAFF,
+  CLINICAL_STANDARDS,
   SEED_VERSION,
   SEED_AS_OF_DATE
 } from '../data/mockData.js';
+
+const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
+
+// First date a target entered a mastered phase; falls back to the current phase for
+// targets created before phase histories existed.
+export function masteryDate(target) {
+  const history = target.phaseHistory || [];
+  const first = history.find(entry => MASTERED_PHASES.includes(entry.phase));
+  if (first) return first.date;
+  return MASTERED_PHASES.includes(target.phase) ? target.phaseEnteredDate || null : null;
+}
 
 const STORAGE_KEYS = {
   CLIENTS: 'welina_clients',
@@ -59,6 +73,9 @@ class AnalyticsService {
       this.abcEntries = getStored(STORAGE_KEYS.ABC_ENTRIES, cloneSeed(INITIAL_ABC_ENTRIES));
     }
     this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
+    this.serviceSessions = SERVICE_SESSIONS;
+    this.staff = STAFF;
+    this.standards = CLINICAL_STANDARDS;
     this.publishSnapshot();
   }
 
@@ -74,26 +91,32 @@ class AnalyticsService {
     this.snapshot = {
       clients: [...this.clients], programs: [...this.programs], sessions: [...this.sessions],
       abcEntries: [...this.abcEntries], phaseLines: [...this.phaseLines], phaseRanges: [...this.phaseRanges],
-      graphNotes: [...this.graphNotes], storageError: Boolean(this.storageError)
+      graphNotes: [...this.graphNotes], serviceSessions: SERVICE_SESSIONS, storageError: Boolean(this.storageError)
     };
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(new Event('welina-data-change'));
     }
   }
 
-  saveAll() {
-    // Try every key: do not silently claim persistence when storage is full/blocked.
-    const writes = [
-      [STORAGE_KEYS.CLIENTS, this.clients],
-      [STORAGE_KEYS.PROGRAMS, this.programs],
-      [STORAGE_KEYS.SESSIONS, this.sessions],
-      [STORAGE_KEYS.PHASE_LINES, this.phaseLines],
-      [STORAGE_KEYS.PHASE_RANGES, this.phaseRanges],
-      [STORAGE_KEYS.GRAPH_NOTES, this.graphNotes],
-      [STORAGE_KEYS.ABC_ENTRIES, this.abcEntries],
-      [STORAGE_KEYS.SEED_VERSION, SEED_VERSION]
-    ].map(([key, value]) => setStored(key, value));
-    this.storageError = writes.some(saved => !saved);
+  saveAll(keys = null) {
+    // Only rewrite what changed (observations alone are ~1 MB), but track failures per
+    // key so a later small write never hides an earlier failed one.
+    const values = {
+      [STORAGE_KEYS.CLIENTS]: this.clients,
+      [STORAGE_KEYS.PROGRAMS]: this.programs,
+      [STORAGE_KEYS.SESSIONS]: this.sessions,
+      [STORAGE_KEYS.PHASE_LINES]: this.phaseLines,
+      [STORAGE_KEYS.PHASE_RANGES]: this.phaseRanges,
+      [STORAGE_KEYS.GRAPH_NOTES]: this.graphNotes,
+      [STORAGE_KEYS.ABC_ENTRIES]: this.abcEntries,
+      [STORAGE_KEYS.SEED_VERSION]: SEED_VERSION
+    };
+    this.failedKeys = this.failedKeys || new Set();
+    for (const key of keys ? [...keys, ...this.failedKeys] : Object.keys(values)) {
+      if (setStored(key, values[key])) this.failedKeys.delete(key);
+      else this.failedKeys.add(key);
+    }
+    this.storageError = this.failedKeys.size > 0;
     this.publishSnapshot();
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(new CustomEvent('welina-storage-status', { detail: { saved: !this.storageError } }));
@@ -118,6 +141,10 @@ class AnalyticsService {
     return this.clients;
   }
 
+  getServiceSessions(clientId) {
+    return this.serviceSessions.filter(session => session.clientId === clientId);
+  }
+
   getClient(id) {
     return this.clients.find(c => c.id === id) || null;
   }
@@ -135,17 +162,11 @@ class AnalyticsService {
     const program = this.programs.find(p => p.clientId === clientId && p.id === programId);
     if (!program) return [];
 
-    const masteredStates = ['Maintenance', 'Generalization', 'Completed'];
     const transitionEvents = [];
 
     program.targets.forEach(tgt => {
-      if (masteredStates.includes(tgt.phase) && tgt.phaseEnteredDate) {
-        transitionEvents.push({
-          date: tgt.phaseEnteredDate,
-          targetName: tgt.name,
-          phase: tgt.phase
-        });
-      }
+      const date = masteryDate(tgt);
+      if (date) transitionEvents.push({ date, targetName: tgt.name, phase: tgt.phase });
     });
 
     if (transitionEvents.length === 0) return [];
@@ -257,20 +278,20 @@ class AnalyticsService {
     const id = line.id || `pcl-${Date.now()}`;
     const newLine = { ...line, id };
     this.phaseLines.push(newLine);
-    this.saveAll();
+    this.saveAll([STORAGE_KEYS.PHASE_LINES]);
     return newLine;
   }
 
   deletePhaseLine(id) {
     this.phaseLines = this.phaseLines.filter(p => p.id !== id);
-    this.saveAll();
+    this.saveAll([STORAGE_KEYS.PHASE_LINES]);
   }
 
   updatePhaseLine(id, updated) {
     const idx = this.phaseLines.findIndex(p => p.id === id);
     if (idx !== -1) {
       this.phaseLines[idx] = { ...this.phaseLines[idx], ...updated };
-      this.saveAll();
+      this.saveAll([STORAGE_KEYS.PHASE_LINES]);
     }
   }
 
@@ -278,20 +299,20 @@ class AnalyticsService {
     const id = range.id || `pr-${Date.now()}`;
     const newRange = { ...range, id };
     this.phaseRanges.push(newRange);
-    this.saveAll();
+    this.saveAll([STORAGE_KEYS.PHASE_RANGES]);
     return newRange;
   }
 
   deletePhaseRange(id) {
     this.phaseRanges = this.phaseRanges.filter(p => p.id !== id);
-    this.saveAll();
+    this.saveAll([STORAGE_KEYS.PHASE_RANGES]);
   }
 
   updatePhaseRange(id, updated) {
     const idx = this.phaseRanges.findIndex(p => p.id === id);
     if (idx !== -1) {
       this.phaseRanges[idx] = { ...this.phaseRanges[idx], ...updated };
-      this.saveAll();
+      this.saveAll([STORAGE_KEYS.PHASE_RANGES]);
     }
   }
 
@@ -299,20 +320,20 @@ class AnalyticsService {
     const id = note.id || `gn-${Date.now()}`;
     const newNote = { ...note, id };
     this.graphNotes.push(newNote);
-    this.saveAll();
+    this.saveAll([STORAGE_KEYS.GRAPH_NOTES]);
     return newNote;
   }
 
   deleteGraphNote(id) {
     this.graphNotes = this.graphNotes.filter(p => p.id !== id);
-    this.saveAll();
+    this.saveAll([STORAGE_KEYS.GRAPH_NOTES]);
   }
 
   updateGraphNote(id, updated) {
     const idx = this.graphNotes.findIndex(p => p.id === id);
     if (idx !== -1) {
       this.graphNotes[idx] = { ...this.graphNotes[idx], ...updated };
-      this.saveAll();
+      this.saveAll([STORAGE_KEYS.GRAPH_NOTES]);
     }
   }
 
@@ -332,6 +353,9 @@ class AnalyticsService {
 
     target.phase = newPhase;
     target.phaseEnteredDate = phaseDate || new Date().toISOString().split('T')[0];
+    // Keep the phase history chronological so mastery and phase analytics stay truthful.
+    const history = (target.phaseHistory || []).filter(entry => entry.date < target.phaseEnteredDate);
+    target.phaseHistory = [...history, { phase: newPhase, date: target.phaseEnteredDate }];
 
     if (addPhaseLine) {
       this.addPhaseLine({
@@ -345,7 +369,7 @@ class AnalyticsService {
       });
     }
 
-    this.saveAll();
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.PHASE_LINES]);
     return target;
   }
 
@@ -358,7 +382,7 @@ class AnalyticsService {
       ...data
     };
     this.sessions.push(newPoint);
-    this.saveAll();
+    this.saveAll([STORAGE_KEYS.SESSIONS]);
     return newPoint;
   }
 }

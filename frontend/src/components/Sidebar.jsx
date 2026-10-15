@@ -1,9 +1,10 @@
-import { ChartLineUp, Target, Notebook, SidebarSimple, ArrowUpRight, RefreshCw } from './ui/Icons';
+import { ChartLineUp, Target, Notebook, SidebarSimple, ArrowUpRight, RefreshCw, ShieldAlert } from './ui/Icons';
 
 const destinations = [
   { id: 'overview', label: 'Progress overview', icon: ChartLineUp },
   { id: 'target-analysis', label: 'Target analysis', icon: Target },
-  { id: 'abc-observations', label: 'ABC observations', icon: Notebook }
+  { id: 'abc-observations', label: 'ABC observations', icon: Notebook },
+  { id: 'service-quality', label: 'Service & data quality', icon: ShieldAlert }
 ];
 
 export default function Sidebar({ activeSection = 'overview', collapsed = false, onToggle, hasClient, drawer = false, onNavigate, onResetData }) {

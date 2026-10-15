@@ -36,3 +36,17 @@ export function chartMarkerInk(color) {
   const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
   return luminance > 0.179 ? '#000000' : '#ffffff';
 }
+
+// Reinforcer types delivered by ABC consequences (descriptive function analysis).
+export const FUNCTION_COLORS = { Escape: '#a36959', Attention: '#697b96', Tangible: '#9b7a3d', Sensory: '#527d82', None: '#c9d1c4' };
+
+// Sequential heat-map color from the canvas tone to the accent, with legible ink.
+export function heatColor(t) {
+  const low = [246, 247, 243];
+  const high = [52, 99, 76];
+  const clamped = Math.max(0, Math.min(1, t));
+  const mix = low.map((value, index) => Math.round(value + (high[index] - value) * clamped));
+  const hex = `#${mix.map(value => value.toString(16).padStart(2, '0')).join('')}`;
+  // Pure black or white ink always clears 4.5:1 against this scale (WCAG AA).
+  return { background: hex, color: chartMarkerInk(hex) };
+}

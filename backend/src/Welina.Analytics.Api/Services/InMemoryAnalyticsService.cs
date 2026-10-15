@@ -18,6 +18,9 @@ namespace Welina.Analytics.Api.Services
         private readonly List<PhaseChangeLine> _phaseLines = new();
         private readonly List<PhaseRange> _phaseRanges = new();
         private readonly List<GraphNote> _graphNotes = new();
+        private readonly List<ServiceSession> _serviceSessions = new();
+        private readonly List<StaffMember> _staff = new();
+        private readonly ClinicalStandards _standards;
 
         public InMemoryAnalyticsService()
         {
@@ -39,6 +42,9 @@ namespace Welina.Analytics.Api.Services
             _graphNotes.AddRange(seed.GraphNotes);
             _programCatalog.PromptHierarchyTemplates.AddRange(seed.PromptHierarchyTemplates);
             _programCatalog.CustomFieldDefinitions.AddRange(seed.CustomFieldDefinitions);
+            _serviceSessions.AddRange(seed.ServiceSessions);
+            _staff.AddRange(seed.Staff);
+            _standards = seed.ClinicalStandards;
         }
 
         public List<Client> GetClients() => _clients;
@@ -68,7 +74,17 @@ namespace Welina.Analytics.Api.Services
 
             foreach (var target in program.Targets)
             {
-                if (masteredStates.Contains(target.Phase))
+                // A target counts from the first time it entered a mastered phase.
+                var firstMastered = target.PhaseHistory
+                    .Where(entry => masteredStates.Contains(entry.Phase))
+                    .OrderBy(entry => entry.Date)
+                    .Select(entry => (DateTime?)entry.Date)
+                    .FirstOrDefault();
+                if (firstMastered.HasValue)
+                {
+                    transitionEvents.Add((firstMastered.Value.Date, target.Name));
+                }
+                else if (masteredStates.Contains(target.Phase))
                 {
                     transitionEvents.Add((target.PhaseEnteredDate.Date, target.Name));
                 }
@@ -176,6 +192,20 @@ namespace Welina.Analytics.Api.Services
         public AbcConfiguration? GetAbcConfiguration(string clientId) =>
             _abcConfigurations.FirstOrDefault(a => a.ClientId == clientId);
 
+        public List<ServiceSession> GetServiceSessions(string clientId, DateTime? startDate = null, DateTime? endDate = null)
+        {
+            var query = _serviceSessions.Where(s => s.ClientId == clientId);
+            if (startDate.HasValue)
+                query = query.Where(s => s.Date >= startDate.Value.Date);
+            if (endDate.HasValue)
+                query = query.Where(s => s.Date <= endDate.Value.Date);
+            return query.OrderBy(s => s.Date).ThenBy(s => s.Start).ToList();
+        }
+
+        public List<StaffMember> GetStaff() => _staff;
+
+        public ClinicalStandards GetClinicalStandards() => _standards;
+
         public List<PhaseChangeLine> GetPhaseChangeLines(string clientId, string targetId)
         {
             return _phaseLines.Where(p => p.TargetId == targetId).OrderBy(p => p.Date).ToList();
@@ -265,6 +295,9 @@ namespace Welina.Analytics.Api.Services
 
             target.Phase = newPhase;
             target.PhaseEnteredDate = DateTime.UtcNow;
+            var enteredDate = target.PhaseEnteredDate.Date;
+            target.PhaseHistory.RemoveAll(entry => entry.Date >= enteredDate);
+            target.PhaseHistory.Add(new PhaseHistoryEntry { Phase = newPhase, Date = enteredDate });
 
             if (addPhaseLine)
             {

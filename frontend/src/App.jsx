@@ -11,10 +11,12 @@ import { AnalyticsSkeleton } from './components/ui/EmptyState';
 import { useFeedback } from './utils/useFeedback';
 import { User, Calendar, ChartLineUp, Target, Notebook, CheckCircle2, ArrowRight, ArrowCounterClockwise, AlertTriangle } from './components/ui/Icons';
 import { apiService } from './services/apiService';
-import { SEED_AS_OF_DATE } from './data/mockData';
+import { SEED_AS_OF_DATE, PROMPT_HIERARCHY_TEMPLATES, CLINICAL_STANDARDS } from './data/mockData';
 
 const ClientSpecificSection = lazy(() => import('./components/ClientSpecificSection'));
 const AbcDataSection = lazy(() => import('./components/AbcDataSection'));
+const ProgressHeatmap = lazy(() => import('./components/overview/ProgressHeatmap'));
+const ServiceQualitySection = lazy(() => import('./components/ServiceQualitySection'));
 const initials = name => name.split(' ').map(part => part[0]).slice(0, 2).join('');
 const snapshotDate = new Date(`${SEED_AS_OF_DATE}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
@@ -26,6 +28,9 @@ export default function App() {
   const [recordTargetId, setRecordTargetId] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
   const [annotationEditor, setAnnotationEditor] = useState(null);
+  // Drill-down requests from summary views (e.g., the progress heat map) re-open the
+  // target analysis focused on a program, target and week.
+  const [focusRequest, setFocusRequest] = useState(null);
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('overview');
   const [collapsed, setCollapsed] = useState(() => {
@@ -39,6 +44,13 @@ export default function App() {
   const programs = useMemo(() => data.programs.filter(program => program.clientId === selectedClientId), [data.programs, selectedClientId]);
   const sessions = data.sessions;
   const abcEntries = useMemo(() => data.abcEntries.filter(entry => entry.clientId === selectedClientId), [data.abcEntries, selectedClientId]);
+  const serviceSessions = useMemo(() => data.serviceSessions.filter(session => session.clientId === selectedClientId), [data.serviceSessions, selectedClientId]);
+  const clientFocus = focusRequest?.clientId === selectedClientId ? focusRequest : null;
+  const behaviorTargets = useMemo(() => programs.filter(program => program.category === 'BehaviorReduction').flatMap(program => program.targets), [programs]);
+  const behaviorRows = useMemo(() => {
+    const ids = new Set(behaviorTargets.map(target => target.id));
+    return sessions.filter(row => ids.has(row.targetId));
+  }, [sessions, behaviorTargets]);
   const annotations = useMemo(() => ({ phaseLines: data.phaseLines, phaseRanges: data.phaseRanges, graphNotes: data.graphNotes }), [data.phaseLines, data.phaseRanges, data.graphNotes]);
   const currentClient = clients.find(client => client.id === selectedClientId);
   const skillPrograms = programs.filter(program => program.category === 'SkillAcquisition');
@@ -57,7 +69,7 @@ export default function App() {
       frame = null;
       const threshold = (document.querySelector('.app-header')?.getBoundingClientRect().height || 0) + 40;
       let current = 'overview';
-      for (const id of ['overview', 'target-analysis', 'abc-observations']) {
+      for (const id of ['overview', 'target-analysis', 'abc-observations', 'service-quality']) {
         const section = document.getElementById(id);
         if (section && section.getBoundingClientRect().top <= threshold) current = id;
       }
@@ -112,6 +124,18 @@ export default function App() {
     apiService.resetToDefault();
     saved('Demo data restored. Your navigation preferences haven’t changed.');
     setResetOpen(false);
+  }
+  function openTargetWeek({ program, target, week }) {
+    setFocusRequest({
+      clientId: selectedClientId, nonce: Date.now(), category: program.category === 'BehaviorReduction' ? 'Behavior' : 'SkillAcquisition',
+      programId: program.category === 'SkillAcquisition' ? program.id : undefined, behaviorIds: program.category === 'BehaviorReduction' ? [target.id] : undefined,
+      targetType: target.type, durationFilter: '3 months', aggregation: 'Weekly', selectedKey: week, analysisTargetId: target.id
+    });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const section = document.getElementById('target-analysis');
+      section?.scrollIntoView({ block: 'start' });
+      section?.focus({ preventScroll: true });
+    }));
   }
   function openRecorder(target = null) {
     setRecordTargetId(target?.id || '');
@@ -177,11 +201,15 @@ export default function App() {
               </dl>
               <OverallMasterySection programs={programs} selectedProgramId={selectedMasteryProgId}
                 onSelectProgram={id => setMasterySelections(value => ({ ...value, [selectedClientId]: id }))} masteryData={masteryData} />
+              <Suspense fallback={<AnalyticsSkeleton />}>
+                <ProgressHeatmap key={selectedClientId} programs={programs} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE} onOpen={openTargetWeek} />
+              </Suspense>
             </>}
           </section>
           {currentClient && <>
             <Suspense fallback={<AnalyticsSkeleton />}>
-              <ClientSpecificSection key={selectedClientId} client={currentClient} programs={programs} sessions={sessions} annotations={annotations}
+              <ClientSpecificSection key={`${selectedClientId}-${clientFocus?.nonce || 0}`} client={currentClient} programs={programs} sessions={sessions} annotations={annotations}
+                serviceSessions={serviceSessions} abcEntries={abcEntries} templates={PROMPT_HIERARCHY_TEMPLATES} standards={CLINICAL_STANDARDS} initialFocus={clientFocus}
                 onAddPhaseLineClick={target => openAnnotation('line', target)}
                 onAddPhaseRangeClick={target => openAnnotation('range', target)}
                 onAddGraphNoteClick={target => openAnnotation('note', target)}
@@ -194,8 +222,13 @@ export default function App() {
             </Suspense>
             <Suspense fallback={<AnalyticsSkeleton />}>
               <AbcDataSection key={selectedClientId} client={currentClient} abcEntries={abcEntries}
-                abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
+                abcConfiguration={apiService.getAbcConfiguration(selectedClientId)} behaviorTargets={behaviorTargets}
+                serviceSessions={serviceSessions} sessionRows={behaviorRows}
                 onRefresh={() => { refreshAll(); notify('ABC observations refreshed from this browser.'); }} />
+            </Suspense>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <ServiceQualitySection key={selectedClientId} client={currentClient} serviceSessions={serviceSessions} sessions={clientSessions}
+                standards={CLINICAL_STANDARDS} asOfDate={SEED_AS_OF_DATE} />
             </Suspense>
           </>}
           <footer className="workspace-footer">

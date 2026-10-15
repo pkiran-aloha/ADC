@@ -12,5 +12,9 @@ export const INITIAL_PHASE_RANGES = seed.phaseRanges;
 export const INITIAL_GRAPH_NOTES = seed.graphNotes;
 export const INITIAL_ABC_CONFIGURATIONS = seed.abcConfigurations;
 export const INITIAL_ABC_ENTRIES = seed.abcEntries;
+// Appointments (setting, staff, setting events, supervision, fidelity) are read-only context.
+export const SERVICE_SESSIONS = seed.serviceSessions;
+export const STAFF = seed.staff;
+export const CLINICAL_STANDARDS = seed.clinicalStandards;
 export const PROMPT_HIERARCHY_TEMPLATES = seed.promptHierarchyTemplates;
 export const CUSTOM_FIELD_DEFINITIONS = seed.customFieldDefinitions;
