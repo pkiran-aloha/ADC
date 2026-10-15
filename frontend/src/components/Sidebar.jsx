@@ -1,13 +1,6 @@
-import { ChartLineUp, Target, Notebook, SidebarSimple, ArrowUpRight, RefreshCw, ShieldAlert, FileText, Plus, Upload, Eye } from './ui/Icons';
+import { SidebarSimple, ArrowUpRight, RefreshCw, Plus, Upload, Eye } from './ui/Icons';
+import { WORKFLOWS } from '../data/workflows';
 import { ACCESS_LEVELS } from '../utils/permissions';
-
-const destinations = [
-  { id: 'overview', label: 'Progress overview', icon: ChartLineUp },
-  { id: 'target-analysis', label: 'Target analysis', icon: Target },
-  { id: 'abc-observations', label: 'ABC observations', icon: Notebook },
-  { id: 'service-quality', label: 'Service & data quality', icon: ShieldAlert },
-  { id: 'reports', label: 'Reports', icon: FileText }
-];
 
 export default function Sidebar({
   activeSection = 'overview', collapsed = false, onToggle, hasClient, drawer = false, onNavigate, onResetData,
@@ -23,14 +16,14 @@ export default function Sidebar({
       </button>}
     </div>
     <nav className="sidebar-nav" id={drawer ? 'mobile-navigation' : 'workspace-navigation'} aria-label={drawer ? 'Mobile analytics navigation' : 'Analytics navigation'}>
-      {destinations.map(destination => {
-        const Icon = destination.icon;
-        const content = <><Icon /><span className="nav-label">{destination.label}</span><span className="nav-tooltip" aria-hidden="true">{destination.label}</span></>;
-        return !hasClient && destination.id !== 'overview'
-          ? <button key={destination.id} type="button" className="nav-item" disabled title="Choose a client to view analytics">{content}</button>
-          : <a key={destination.id} className="nav-item" href={`#${destination.id}`}
-            aria-current={activeSection === destination.id ? 'location' : undefined}
-            onClick={() => onNavigate?.(destination.id)}>{content}</a>;
+      {WORKFLOWS.map(workflow => {
+        const Icon = workflow.icon;
+        const content = <><Icon /><span className="nav-label">{workflow.label}</span><span className="nav-tooltip" aria-hidden="true">{workflow.label}</span></>;
+        return !hasClient && workflow.id !== 'overview'
+          ? <button key={workflow.id} type="button" className="nav-item" disabled title="Choose a client to view analytics">{content}</button>
+          : <a key={workflow.id} className="nav-item" href={`#${workflow.id}`}
+            aria-current={activeSection === workflow.id ? 'location' : undefined}
+            onClick={event => { event.preventDefault(); onNavigate?.(workflow.id); }}>{content}</a>;
       })}
     </nav>
     {hasClient && <div className="sidebar-actions">

@@ -87,9 +87,9 @@ const TargetChart = forwardRef(function TargetChart({
   const getY = value => {
     if (logScale) {
       const safe = Math.max(logFloor, Math.min(value, logCeil));
-      return PADDING.top + GRAPH_HEIGHT - ((Math.log10(safe) - Math.log10(logFloor)) / (Math.log10(logCeil) - Math.log10(logFloor))) * GRAPH_HEIGHT;
+      return plotTop + GRAPH_HEIGHT - ((Math.log10(safe) - Math.log10(logFloor)) / (Math.log10(logCeil) - Math.log10(logFloor))) * GRAPH_HEIGHT;
     }
-    return PADDING.top + GRAPH_HEIGHT - ((clamp(value, yMin, yMax) - yMin) / (yMax - yMin)) * GRAPH_HEIGHT;
+    return plotTop + GRAPH_HEIGHT - ((clamp(value, yMin, yMax) - yMin) / (yMax - yMin)) * GRAPH_HEIGHT;
   };
   const getAnnotationX = (date, clampToRange = false) => {
     if (aggregation === 'Per Session') {
@@ -106,6 +106,21 @@ const TargetChart = forwardRef(function TargetChart({
     const fraction = (toTime(key) - toTime(measuredKeys[next - 1])) / (toTime(measuredKeys[next]) - toTime(measuredKeys[next - 1]));
     return getX(measuredKeys[next - 1]) + fraction * (getX(measuredKeys[next]) - getX(measuredKeys[next - 1]));
   };
+
+  // Annotation text: every note gets its full text in a label above the plot, wrapped to
+  // two lines and laid out in rows so two notes on nearby dates never overlap and the
+  // label box always matches its text (feedback: readable annotation text).
+  const noteLabels = layoutNoteLabels((annotations?.graphNotes || []).map((note, index) => {
+    const x = getAnnotationX(note.date);
+    return x == null ? null : { key: note.id || `note-${index}`, x, text: note.noteText, note, date: note.date };
+  }).filter(Boolean), { minX: PADDING.left + 2, maxX: WIDTH - PADDING.right - 2, maxRows: 3, gap: 10 });
+  // The note band lives between the condition strip and the plot. When notes need more
+  // rows than the built-in gap, the canvas grows upward so nothing is clipped or covered.
+  const notesHeight = noteLabels.reduce((max, label) => Math.max(max, label.rowY + label.boxHeight), 0);
+  const NOTES_GAP = PADDING.top - (BAND.top + BAND.height);
+  const extraTop = Math.max(0, notesHeight - NOTES_GAP + 12);
+  const plotTop = PADDING.top + extraTop;
+  const chartHeight = HEIGHT + extraTop;
 
   const durationInMinutes = targetType === 'Duration' && durationView !== 'Total Count' && yMax >= 120;
   const tickText = value => (durationInMinutes ? Math.round(value / 6) / 10 : formatNumber(value, value < 1 ? 2 : 1));
@@ -144,13 +159,6 @@ const TargetChart = forwardRef(function TargetChart({
   const baselineY = getY(clamp(0, yMin, yMax));
   const outsideCount = observed.filter(value => value > yMax || value < yMin).length;
 
-  // Interaction: nearest category under the pointer or keyboard focus.
-  // Annotation text: every note gets its full text in a label above the plot, laid out in
-  // rows so two notes on nearby dates never overlap (feedback: readable annotation text).
-  const noteLabels = layoutNoteLabels((annotations?.graphNotes || []).map((note, index) => {
-    const x = getAnnotationX(note.date);
-    return x == null ? null : { key: note.id || `note-${index}`, x, text: note.noteText, note, date: note.date };
-  }).filter(Boolean), { minX: PADDING.left + 2, maxX: WIDTH - PADDING.right - 2, rowHeight: 30, maxRows: 3 });
 
   // Phase milestones (introduced, mastered, maintenance) sit on the time axis so acquisition
   // rate is readable straight from the graph.
@@ -225,7 +233,7 @@ const TargetChart = forwardRef(function TargetChart({
   const tooltipKey = shownKey;
   const tooltipPoints = tooltipKey ? pointsAt(tooltipKey) : [];
   const tooltipLeft = tooltipKey ? (getX(tooltipKey) / WIDTH) * 100 : 0;
-  const tooltipTop = tooltipPoints.length ? (Math.min(...tooltipPoints.map(({ point }) => getY(point.val))) / HEIGHT) * 100 : 0;
+  const tooltipTop = tooltipPoints.length ? (Math.min(...tooltipPoints.map(({ point }) => getY(point.val))) / chartHeight) * 100 : 0;
   const valueText = point => (percent ? `${point.val}%` : formatNumber(point.val, point.val < 10 ? 2 : 1));
 
   return <div className="chart-scroll" tabIndex={0} role="region" aria-label="Target analysis chart. Scroll horizontally for the full timeline." aria-describedby={instructionsId}
@@ -233,11 +241,11 @@ const TargetChart = forwardRef(function TargetChart({
     <p id={instructionsId} className="sr-only">Use the left and right arrow keys to move between observations and Enter to open details.</p>
     <div className="chart-inner chart-inner--quantitative">
       <div className="chart-stage">
-        <svg ref={setRefs} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="chart-svg" role="img"
+        <svg ref={setRefs} viewBox={`0 0 ${WIDTH} ${chartHeight}`} className="chart-svg" role="img"
           aria-label={`${CHART_TYPES.find(item => item.value === chartType)?.label || 'Line'} chart of ${cumulativeLabel} across ${measuredKeys.length} observation groups. Read the plotted data table below for exact values.`}>
           <title>Target observations</title><desc>One labeled series per target or clinician. The data table below provides all plotted measurements.</desc>
           <defs>
-            <clipPath id={clipId}><rect x={PADDING.left - 8} y={PADDING.top} width={GRAPH_WIDTH + 16} height={GRAPH_HEIGHT} /></clipPath>
+            <clipPath id={clipId}><rect x={PADDING.left - 8} y={plotTop} width={GRAPH_WIDTH + 16} height={GRAPH_HEIGHT} /></clipPath>
           </defs>
 
           {showPhaseLabels && bandSpans.length > 0 && <g className="condition-bar">
@@ -254,8 +262,8 @@ const TargetChart = forwardRef(function TargetChart({
             {showGridlines && <line x1={PADDING.left} y1={getY(value)} x2={WIDTH - PADDING.right} y2={getY(value)} stroke={CHART_GRID} strokeDasharray="3 3" />}
             <text x={PADDING.left - 8} y={getY(value) + 3.5} textAnchor="end" fontSize="13" fill={CHART_MUTED} fontFamily={FONT}>{tickText(value)}</text>
           </g>)}
-          <line x1={PADDING.left} x2={PADDING.left} y1={PADDING.top} y2={PADDING.top + GRAPH_HEIGHT} stroke="#c9d1c4" strokeWidth="1" />
-          <text x={-(PADDING.top + GRAPH_HEIGHT / 2)} y="18" transform="rotate(-90)" textAnchor="middle" fontSize="13" fontWeight="500" fill={CHART_INK} fontFamily={FONT}>
+          <line x1={PADDING.left} x2={PADDING.left} y1={plotTop} y2={plotTop + GRAPH_HEIGHT} stroke="#c9d1c4" strokeWidth="1" />
+          <text x={-(plotTop + GRAPH_HEIGHT / 2)} y="18" transform="rotate(-90)" textAnchor="middle" fontSize="13" fontWeight="500" fill={CHART_INK} fontFamily={FONT}>
             {cumulativeLabel}{logScale ? ' · log scale' : ''}
           </text>
 
@@ -267,8 +275,8 @@ const TargetChart = forwardRef(function TargetChart({
               if (startX == null || endX == null) return null;
               const rangeWidth = Math.max(12, Math.abs(endX - startX));
               return <g key={range.id || index}>
-                <rect x={Math.min(startX, endX)} y={PADDING.top} width={rangeWidth} height={GRAPH_HEIGHT} fill={range.color || '#71957f33'} />
-                <text x={Math.min(startX, endX) + rangeWidth / 2} y={PADDING.top + 14} textAnchor="middle" fontSize="12" fontWeight="500" fill={CHART_INK} fontFamily={FONT}>{range.label}</text>
+                <rect x={Math.min(startX, endX)} y={plotTop} width={rangeWidth} height={GRAPH_HEIGHT} fill={range.color || '#71957f33'} />
+                <text x={Math.min(startX, endX) + rangeWidth / 2} y={plotTop + 14} textAnchor="middle" fontSize="12" fontWeight="500" fill={CHART_INK} fontFamily={FONT}>{range.label}</text>
               </g>;
             })}
 
@@ -287,7 +295,7 @@ const TargetChart = forwardRef(function TargetChart({
               </g>;
             })}
 
-            {selectedKey && allKeys.includes(selectedKey) && <rect x={getX(selectedKey) - 9} y={PADDING.top} width="18" height={GRAPH_HEIGHT} fill="#34634c" opacity="0.1" rx="3" />}
+            {selectedKey && allKeys.includes(selectedKey) && <rect x={getX(selectedKey) - 9} y={plotTop} width="18" height={GRAPH_HEIGHT} fill="#34634c" opacity="0.1" rx="3" />}
 
             {overlays.goal && <g>
               <line x1={PADDING.left} x2={WIDTH - PADDING.right} y1={getY(overlays.goal.value)} y2={getY(overlays.goal.value)} stroke="#9b7a3d" strokeWidth="2" strokeDasharray="2 4" />
@@ -327,9 +335,9 @@ const TargetChart = forwardRef(function TargetChart({
 
             {/* Phase dividers: a light casing keeps the line readable where it crosses data. */}
             {dividers.map((divider, index) => <g key={`divider-${index}`}>
-              <line x1={divider.x} x2={divider.x} y1={BAND.top + BAND.height + 3} y2={PADDING.top + GRAPH_HEIGHT}
+              <line x1={divider.x} x2={divider.x} y1={BAND.top + BAND.height + 3} y2={plotTop + GRAPH_HEIGHT}
                 stroke="#FFFFFF" strokeWidth="4" opacity="0.75" />
-              <line x1={divider.x} x2={divider.x} y1={BAND.top + BAND.height + 3} y2={PADDING.top + GRAPH_HEIGHT}
+              <line x1={divider.x} x2={divider.x} y1={BAND.top + BAND.height + 3} y2={plotTop + GRAPH_HEIGHT}
                 stroke={divider.color} strokeWidth={showPhaseLabels ? 1.6 : 1.4} strokeOpacity={showPhaseLabels ? 0.55 : 0.4}
                 strokeDasharray={divider.dotted ? '4 4' : undefined} />
               <title>{divider.label ? `${divider.label} · ${divider.date}` : 'Phase change'}</title>
@@ -394,7 +402,7 @@ const TargetChart = forwardRef(function TargetChart({
               <title>Split-middle line of progress (White &amp; Haring, 1980)</title>
             </g>}
 
-            {shownKey && <line x1={getX(shownKey)} x2={getX(shownKey)} y1={PADDING.top} y2={PADDING.top + GRAPH_HEIGHT} stroke="#29372a" strokeWidth="1" strokeDasharray="2 2" opacity="0.7" pointerEvents="none" />}
+            {shownKey && <line x1={getX(shownKey)} x2={getX(shownKey)} y1={plotTop} y2={plotTop + GRAPH_HEIGHT} stroke="#29372a" strokeWidth="1" strokeDasharray="2 2" opacity="0.7" pointerEvents="none" />}
           </g>
 
           {/* Value labels sit outside the clipped area so top-of-range points keep theirs. */}
@@ -405,12 +413,12 @@ const TargetChart = forwardRef(function TargetChart({
               y={getY(point.val) - (chartType === 'bars' ? 4 : 9)} textAnchor="middle" fontSize="10" fontWeight="600" fill={CHART_INK}
               stroke="#FFFFFF" strokeWidth="3" paintOrder="stroke" fontFamily={FONT} pointerEvents="none">{valueText(point)}</text>))}
 
-          {outsideCount > 0 && <text x={WIDTH - PADDING.right - 4} y={PADDING.top + 13} textAnchor="end" fontSize="11" fontWeight="600" fill="#863c30"
+          {outsideCount > 0 && <text x={WIDTH - PADDING.right - 4} y={plotTop + 13} textAnchor="end" fontSize="11" fontWeight="600" fill="#863c30"
             stroke="#FFFFFF" strokeWidth="3" paintOrder="stroke" fontFamily={FONT}>
             {outsideCount} observation{outsideCount === 1 ? '' : 's'} outside the axis range
           </text>}
 
-          {suppressed && (suppressed.trials > 0 || suppressed.shortObservations > 0) && <text x={PADDING.left + 4} y={PADDING.top + 13}
+          {suppressed && (suppressed.trials > 0 || suppressed.shortObservations > 0) && <text x={PADDING.left + 4} y={plotTop + 13}
             fontSize="11" fontWeight="600" fill="#4b5a73" stroke="#FFFFFF" strokeWidth="3" paintOrder="stroke" fontFamily={FONT}>
             {[suppressed.trials ? `${suppressed.trials} low-trial session${suppressed.trials === 1 ? '' : 's'}` : null,
               suppressed.shortObservations ? `${suppressed.shortObservations} short observation${suppressed.shortObservations === 1 ? '' : 's'}` : null]
@@ -426,7 +434,7 @@ const TargetChart = forwardRef(function TargetChart({
           </g>)}
 
           {milestoneMarkers.map(milestone => <g key={`${milestone.kind}-${milestone.date}`}>
-            <polygon points={`${milestone.x},${PADDING.top + GRAPH_HEIGHT - 7} ${milestone.x - 5},${PADDING.top + GRAPH_HEIGHT + 4} ${milestone.x + 5},${PADDING.top + GRAPH_HEIGHT + 4}`}
+            <polygon points={`${milestone.x},${plotTop + GRAPH_HEIGHT - 7} ${milestone.x - 5},${plotTop + GRAPH_HEIGHT + 4} ${milestone.x + 5},${plotTop + GRAPH_HEIGHT + 4}`}
               fill={milestone.kind === 'Introduced' ? '#4b5a73' : '#294f3d'} opacity="0.9" />
             <title>{`${milestone.label} · ${milestone.date}`}</title>
           </g>)}
@@ -435,37 +443,45 @@ const TargetChart = forwardRef(function TargetChart({
             const x = getAnnotationX(note.date);
             if (x == null) return null;
             return <g key={note.id || index} className="chart-point">
-              <circle cx={x} cy={HEIGHT - PADDING.bottom + 12} r="8" fill={note.color || '#34634c'} stroke="#FFFFFF" strokeWidth="1.5" />
-              <text x={x} y={HEIGHT - PADDING.bottom + 15.5} textAnchor="middle" fontSize="10" fontWeight="600" fontFamily={FONT} fill={chartMarkerInk(note.color || '#34634c')}>N</text>
+              <circle cx={x} cy={chartHeight - PADDING.bottom + 12} r="8" fill={note.color || '#34634c'} stroke="#FFFFFF" strokeWidth="1.5" />
+              <text x={x} y={chartHeight - PADDING.bottom + 15.5} textAnchor="middle" fontSize="10" fontWeight="600" fontFamily={FONT} fill={chartMarkerInk(note.color || '#34634c')}>N</text>
               <title>{`Note by ${note.staffName} (${note.date}):\n${note.noteText}`}</title>
             </g>;
           })}
 
-          {noteLabels.map(label => <g key={`label-${label.key}`} className="chart-note-label">
-            <line x1={label.x} y1={BAND.top + BAND.height + 4} x2={label.boxLeft + label.width / 2} y2={PADDING.top - 8 - label.rowY + 2}
-              stroke={label.note.color || '#34634c'} strokeWidth="1" opacity="0.6" pointerEvents="none" />
-            <rect x={label.boxLeft} y={PADDING.top - 22 - label.rowY} width={label.width} height="20" rx="3"
-              fill="#FFFFFF" stroke={label.note.color || '#34634c'} strokeWidth="1.1" pointerEvents="none" />
-            <text x={label.boxLeft + 6} y={PADDING.top - 8 - label.rowY} fontSize="11" fontWeight="500" fill={CHART_INK} fontFamily={FONT} pointerEvents="none">
-              {label.text}
-            </text>
-            <title>{`Note by ${label.note.staffName} (${label.date}): ${label.text}`}</title>
-          </g>)}
+          {noteLabels.map(label => {
+            const boxTop = plotTop - label.rowY - label.boxHeight;
+            return <line key={`leader-${label.key}`} x1={label.x} y1={BAND.top + BAND.height + 4}
+              x2={label.boxLeft + label.width / 2} y2={boxTop}
+              stroke={label.note.color || '#34634c'} strokeWidth="1" opacity="0.5" pointerEvents="none" />;
+          })}
+          {noteLabels.map(label => {
+            const boxTop = plotTop - label.rowY - label.boxHeight;
+            return <g key={`label-${label.key}`} className="chart-note-label">
+              <rect x={label.boxLeft} y={boxTop} width={label.width} height={label.boxHeight} rx="3"
+                fill="#FFFFFF" stroke={label.note.color || '#34634c'} strokeWidth="1.1" pointerEvents="none" />
+              {label.lines.map((line, index) => <text key={index} x={label.boxLeft + 7} y={boxTop + 6 + index * 14}
+                fontSize="11" fontWeight="500" fill={CHART_INK} fontFamily={FONT} pointerEvents="none">
+                {line}
+              </text>)}
+              <title>{`Note by ${label.note.staffName} (${label.date}): ${label.text}`}</title>
+            </g>;
+          })}
 
           {allKeys.map((key, index) => {
             const every = Math.ceil(allKeys.length / (aggregation === 'Weekly' ? 7 : aggregation === 'Monthly' ? 10 : 14));
             const last = index === allKeys.length - 1;
             if (every > 1 && index % every !== 0 && !(last && index % every >= every / 2)) return null;
             const projected = forecastKeys.includes(key);
-            return <text key={key} x={getX(key)} y={HEIGHT - PADDING.bottom + 36} textAnchor="middle" fontSize="12" fill={projected ? '#4b5a73' : CHART_MUTED} fontStyle={projected ? 'italic' : undefined} fontFamily={FONT}>
+            return <text key={key} x={getX(key)} y={chartHeight - PADDING.bottom + 36} textAnchor="middle" fontSize="12" fill={projected ? '#4b5a73' : CHART_MUTED} fontStyle={projected ? 'italic' : undefined} fontFamily={FONT}>
               {formatChartDate(key, aggregation)}
             </text>;
           })}
-          <text x={PADDING.left + GRAPH_WIDTH / 2} y={HEIGHT - 8} textAnchor="middle" fontSize="13" fontWeight="500" fill={CHART_INK} fontFamily={FONT}>
+          <text x={PADDING.left + GRAPH_WIDTH / 2} y={chartHeight - 8} textAnchor="middle" fontSize="13" fontWeight="500" fill={CHART_INK} fontFamily={FONT}>
             {aggregation === 'Per Session' ? 'Session timeline' : 'Observation date'}
           </text>
 
-          <rect x={PADDING.left - 10} y={PADDING.top} width={GRAPH_WIDTH + 20} height={GRAPH_HEIGHT} fill="transparent" className="chart-hit-area"
+          <rect x={PADDING.left - 10} y={plotTop} width={GRAPH_WIDTH + 20} height={GRAPH_HEIGHT} fill="transparent" className="chart-hit-area"
             onPointerMove={event => { setPointerActive(true); setActiveKey(keyAtClientX(event.clientX)); }}
             onPointerLeave={() => { setPointerActive(false); setActiveKey(null); }}
             onClick={event => { const key = keyAtClientX(event.clientX); if (key) onSelect?.(key); }} />

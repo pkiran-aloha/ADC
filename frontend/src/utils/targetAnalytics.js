@@ -176,6 +176,11 @@ export function formatLongDate(date) {
   return new Date(`${date.slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
+// Compact form for dense table columns (no weekday): the roster keeps dates on one line.
+export function formatShortDate(date) {
+  return new Date(`${date.slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
 export function unitLabel(view) {
   const { targetType, durationView, rateView, frequencyView } = view;
   if (targetType === 'TrialByTrial') return '% correct';

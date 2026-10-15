@@ -70,11 +70,12 @@
   --z-popover: 30;
   --z-feedback: 40;
   --header-height: 5rem;
+  --tabs-height: 3.75rem;
 }
 
 @layer base {
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; scroll-padding-top: calc(var(--header-height) + 1.5rem); }
+  html { scroll-behavior: smooth; scroll-padding-top: calc(var(--header-height) + var(--tabs-height) + 1rem); }
   body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); font-size: 0.875rem; line-height: 1.6; -webkit-font-smoothing: antialiased; }
   body.has-dialog { overflow: hidden; }
   button, input, select, textarea { font: inherit; }
@@ -113,7 +114,7 @@
 .client-picker select { background: transparent; border: 0; min-height: 1.5rem; font-size: 0.8125rem; font-weight: 600; min-width: 0; width: 100%; color: var(--ink); }
 .client-picker:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--color-brand-100); }
 .icon-button.mobile-nav-toggle { display: none; }
-.button, .icon-button { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 2.75rem; border-radius: 0.5rem; font-weight: 500; font-size: 0.8125rem; line-height: 1.3; border: 1px solid transparent; text-decoration: none; }
+.button, .icon-button { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 2.75rem; border-radius: 0.5rem; font-weight: 500; font-size: 0.8125rem; line-height: 1.3; border: 1px solid transparent; text-decoration: none; white-space: nowrap; }
 .button { padding: 0.65rem 1rem; }
 .button--primary { background: var(--accent); color: #fff; }
 .button--primary:hover:not(:disabled) { background: var(--color-brand-700); box-shadow: 0 3px 9px rgb(41 79 61 / 14%); }
@@ -269,11 +270,11 @@
 .observation-log { margin-top: 1.75rem; }
 .observation-log h3 { font-family: var(--font-display); font-weight: 500; font-size: 1.125rem; letter-spacing: -0.02em; margin-bottom: 0.25rem; }
 .observation-log > p { color: var(--muted); font-size: 0.75rem; margin-bottom: 1rem; }
-.abc-table { min-width: 67rem; }
+.abc-table { min-width: 58rem; }
 .abc-table .observation-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.abc-table .observation-staff { min-width: 10rem; font-weight: 500; }
-.abc-table .observation-context { min-width: 10rem; }
-.abc-table .observation-notes { min-width: 18rem; }
+.abc-table .observation-staff { min-width: 8.5rem; font-weight: 500; }
+.abc-table .observation-context { min-width: 8.5rem; }
+.abc-table .observation-notes { min-width: 14rem; }
 .table-tags { display: flex; flex-direction: column; gap: 0.375rem; }
 .table-tags span { padding-left: 0.5rem; border-left: 2px solid var(--color-slate-300); font-size: 0.75rem; line-height: 1.5; }
 .table-tags--behavior span { border-left-color: var(--accent); color: var(--color-brand-800); font-weight: 500; }
@@ -373,6 +374,9 @@
   .shell-layout--collapsed { --sidebar-width: 4.75rem; }
   .client-supervisor { display: none; }
   .metric { padding-inline: 1.25rem; }
+  /* Below the roomy desktop range the header keeps one primary action per screen:
+     add/import stay one click away in the sidebar's Data actions. */
+  .header-entry, .header-import { display: none; }
 }
 @media (max-width: 1023px) {
   .shell-layout, .shell-layout--collapsed { grid-template-columns: minmax(0, 1fr); }
@@ -381,9 +385,12 @@
   .sidebar--drawer .sidebar-heading { display: none; }
   .icon-button.mobile-nav-toggle { display: inline-flex; }
   .header-inner { gap: 0.75rem; }
-  .header-controls { gap: 0.5rem; }
+  .header-controls { gap: 0.5rem; min-width: 0; }
   .brand-caption { display: none; }
-  .client-picker { min-width: 14rem; }
+  .client-picker { min-width: 11rem; flex: 1 1 12rem; max-width: 24rem; }
+  .client-picker select { text-overflow: ellipsis; }
+  /* Access, import and reset live in the drawer at this size, so the bar stays aligned. */
+  .header-controls .access-level, .header-reset { display: none; }
 }
 @media (max-width: 639px) {
   :root { --header-height: 7.75rem; }
@@ -808,15 +815,21 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 .chip-button { min-height: 2.75rem; min-width: 3rem; padding: 0.3rem 0.7rem; border: 1px solid var(--color-slate-300); border-radius: 999px; background: #fff; font-size: 0.75rem; color: var(--color-slate-700); }
 .chip-button:hover:not(:disabled) { border-color: var(--color-brand-400); background: var(--color-brand-50); }
 
-/* Reports: builder on the left, roster on the right. */
-.reports-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 1rem; }
+/* Reports: a compact builder, then the roster on its own full-width row so six
+   data columns fit without horizontal scrolling. */
+.reports-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+.reports-builder { max-width: 52rem; }
 .reports-builder, .reports-roster { display: grid; gap: 0.9rem; align-content: start; padding: 1.1rem 1.2rem 1.25rem; border: 1px solid var(--line); border-radius: 0.75rem; background: #fff; }
 .reports-builder h3, .reports-roster h3 { font-family: var(--font-display); font-size: 1.0625rem; font-weight: 500; }
 .scope-list { display: grid; gap: 0.35rem; max-height: 15rem; overflow-y: auto; padding: 0.6rem 0.7rem; border: 1px solid var(--line); border-radius: 0.6rem; background: var(--color-slate-50); }
 .scope-list label { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.8125rem; }
-.report-includes, .report-scope, .roster-actions, .roster-filter { display: grid; gap: 0.6rem; }
+.report-includes, .report-scope, .roster-actions { display: grid; gap: 0.6rem; }
 .roster-actions .form-row, .reports-builder .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.75rem; }
-@container (max-width: 60rem) { .reports-layout { grid-template-columns: minmax(0, 1fr); } }
+/* Both roster filter groups spread evenly across the card instead of stacking. */
+.segmented-control.roster-filter, .roster-actions .segmented-control { display: flex; width: 100%; }
+.segmented-control.roster-filter button, .roster-actions .segmented-control button { flex: 1 1 0; }
+.roster-actions .button { justify-self: start; }
+
 
 /* Program status, milestones and target progress inside visual analysis. */
 .progress-view { display: grid; gap: 1rem; }
@@ -847,7 +860,8 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 .status-label--billed { background: var(--color-amber-100); color: var(--color-amber-800); }
 
 /* Legend grouping, pending charts and the flipped-orientation note. */
-.legend-group { display: grid; gap: 0.3rem; }
+.legend-group { display: grid; gap: 0.3rem; align-content: start; min-width: 0; }
+.legend-group-items { display: flex; flex-wrap: wrap; gap: 0.625rem; }
 .legend-group-label { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--color-slate-500); }
 .chart-pending { padding: 0.6rem 0.75rem; border: 1px dashed var(--color-slate-300); border-radius: 0.5rem; background: var(--color-slate-50); color: var(--muted); font-size: 0.8125rem; }
 .chart-note-label { font-size: 0.6875rem; fill: var(--color-slate-600); }
@@ -884,3 +898,103 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
   /* The phone header keeps one primary action; data entry and access move to the drawer. */
   .header-entry, .header-import, .header-controls .access-level { display: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   Workflow tabs: one screen per naturally occurring job, never the whole dump.
+   --------------------------------------------------------------------------- */
+.workspace-tabs-bar {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin: -0.5rem -0.5rem 1.5rem;
+  padding: 0.55rem 0.5rem;
+  background: color-mix(in srgb, var(--canvas) 92%, #fff);
+  backdrop-filter: blur(10px);
+}
+.workspace-tabs-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.workspace-tabs-scroll::-webkit-scrollbar { display: none; }
+.workspace-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  width: max-content;
+  background: var(--color-slate-100);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+.workspace-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.95rem;
+  border: 0;
+  border-radius: 0.55rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.workspace-tab svg { color: currentColor; }
+.workspace-tab:hover { color: var(--ink); background: rgb(255 255 255 / 70%); }
+.workspace-tab[aria-selected='true'] {
+  color: var(--color-brand-800);
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(38 57 40 / 10%), 0 6px 16px -10px rgb(38 57 40 / 24%);
+}
+.workspace-tabs-bar .snapshot--bar {
+  margin-left: auto;
+  flex-shrink: 0;
+  gap: 0.45rem;
+  padding-top: 0;
+}
+.snapshot--bar .snapshot-label { display: inline; }
+.snapshot--bar strong { display: inline; margin-left: 0.35rem; font-weight: 500; }
+.workflow-panel:focus { outline: none; }
+/* Narrow screens keep the demo snapshot with the overview copy instead of the tab bar. */
+.snapshot--inline { display: none; padding-top: 0; }
+.snapshot--inline .snapshot-label { display: inline; }
+.snapshot--inline strong { display: inline; margin-left: 0.35rem; }
+@media (max-width: 899px) {
+  .workspace-tabs-bar .snapshot--bar { display: none; }
+  .snapshot--inline { display: flex; margin-top: 0.65rem; }
+}
+@media (max-width: 639px) {
+  .workspace-tabs-bar { margin-bottom: 1.15rem; padding-inline: 0; }
+  .workspace-tab { padding-inline: 0.85rem; }
+}
+
+/* Reports roster: keep names readable and dates on one line. */
+.roster-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: end;
+}
+.reports-roster .data-table { min-width: 42rem; }
+.reports-roster .data-table th { padding: 0.65rem 0.85rem; vertical-align: bottom; }
+.reports-roster .data-table td { padding: 0.75rem 0.85rem; }
+.reports-roster .data-table th:first-child, .reports-roster .data-table td:first-child { min-width: 12rem; }
+.reports-roster .data-table td:first-child strong { display: block; line-height: 1.35; }
+.reports-roster .data-table td small { margin-top: 0.15rem; line-height: 1.35; }
+.reports-roster .data-table .roster-nowrap { white-space: nowrap; }
+.reports-roster .data-table .stat-chip { margin-top: 0.15rem; }
+@media (max-width: 639px) {
+  .roster-filter-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Live week strip: bars get real pixel heights so empty days never ghost the row. */
+.week-strip > div { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 0.25rem; height: 100%; }
+.week-strip-bar { width: 100%; max-width: 2.25rem; border-radius: 0.25rem 0.25rem 0 0; background: var(--color-brand-400); flex-shrink: 0; }
+
+/* Chart note labels wrap to at most two lines; the SVG text is split by the component. */
+.chart-note-label rect { fill: #fffdf6; }
+.chart-note-label text { dominant-baseline: hanging; }

@@ -88,7 +88,7 @@ export default function ServiceQualitySection({ client, serviceSessions, session
         <p className="abc-card-note">What is happening on the schedule right now, and which appointments still need documentation. Nothing here requires opening a session note.</p>
         <dl className="quality-kpis quality-kpis--compact" aria-label="Live session activity summary">
           <div className="kpi"><dt>Appointments today</dt><dd><strong>{activity.today}</strong><small>{activity.cancelled} cancelled · {activity.inProgress} in progress</small></dd></div>
-          <div className="kpi"><dt>Observations recorded</dt><dd><strong>{activity.observations}</strong><small>{activity.targets} targets · {formatNumber(activity.minutesRecorded)} minutes of data</small></dd></div>
+          <div className="kpi"><dt>Observations recorded</dt><dd><strong>{activity.observations}</strong><small>{activity.targets} target{activity.targets === 1 ? '' : 's'} · {formatNumber(activity.minutesRecorded)} minutes of data</small></dd></div>
           <div className="kpi"><dt>Documentation</dt><dd><strong>{activity.documentationRate == null ? '–' : `${activity.documentationRate}%`}</strong>
             <small>{activity.documented} of {activity.today} appointments have data</small>
             <span className={`stat-chip stat-chip--${activity.pending.length ? 'attention' : 'positive'}`}>{activity.pending.length ? `${activity.pending.length} pending` : 'All clear'}</span></dd></div>
@@ -112,7 +112,7 @@ export default function ServiceQualitySection({ client, serviceSessions, session
         </div> : <p className="field-hint">No appointments on the schedule for this fictional day.</p>}
         <div className="week-strip" role="img" aria-label="Observation counts for the last seven days">
           {week.map(day => <div key={day.date}>
-            <span className="week-strip-bar" style={{ height: `${Math.max(4, (100 * day.observations) / weekPeak)}%` }} title={`${day.date}: ${day.observations} observations, ${day.appointments} appointments`} />
+            <span className="week-strip-bar" style={{ height: `${Math.max(3, Math.round((64 * day.observations) / weekPeak))}px` }} title={`${day.date}: ${day.observations} observations, ${day.appointments} appointments`} />
             <small>{day.date.slice(8)}</small>
             <span className="sr-only">{day.date}: {day.observations} observations across {day.appointments} appointments</span>
           </div>)}

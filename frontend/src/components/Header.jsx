@@ -4,7 +4,7 @@ import { ACCESS_LEVELS } from '../utils/permissions';
 
 export default function Header({
   clients, selectedClientId, onSelectClient, onOpenRecordModal, onResetData, onOpenNavigation, navigationOpen,
-  onOpenImport, onOpenManualEntry, accessLevel = 'full', onAccessLevelChange, canEdit = true
+  onOpenImport, onOpenManualEntry, onBrandClick, accessLevel = 'full', onAccessLevelChange, canEdit = true
 }) {
   return <header className="app-header">
     <div className="header-inner">
@@ -12,7 +12,8 @@ export default function Header({
         aria-expanded={navigationOpen} aria-controls="mobile-navigation" onClick={onOpenNavigation}>
         <List size={23} />
       </button>
-      <a className="brand" href="#overview" aria-label="Welina — progress overview">
+      <a className="brand" href="#overview" aria-label="Welina — progress overview"
+        onClick={event => { event.preventDefault(); onBrandClick?.(); }}>
         <BrandMark className="brand-mark" />
         <div><span className="brand-name">Welina</span><span className="brand-caption">Clinical workspace</span></div>
       </a>

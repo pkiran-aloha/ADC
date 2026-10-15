@@ -104,10 +104,12 @@ cd frontend && npm ci && npm test && npm run build
 
 ## Analytics workspace
 
+The workspace opens on one workflow at a time instead of one long page. Five tabs group the screens around naturally occurring jobs — **Progress overview**, **Target analysis**, **ABC observations**, **Service & data quality**, and **Reports** — with keyboard tab semantics (arrow keys, Home/End), a session snapshot chip, and URL hashes (`#target-analysis`, …) that open the matching workflow. The sidebar stays in sync with the active tab, and screens keep their state when you switch back to them.
+
 ### Progress overview and client selection
 - Start with the first fictional client, switch clients in the named header selector, or clear it to see the client-choice state. Recording and analytics are inactive without a client.
 - Read counts derived from the actual fixture: programs, mastered skill targets, session observations, and ABC observations.
-- Use real section navigation, collapse the desktop sidebar into a labeled icon rail, or open the keyboard-accessible mobile drawer.
+- Jump between workflows from the tab strip or the sidebar, collapse the desktop sidebar into a labeled icon rail, or open the keyboard-accessible mobile drawer.
 
 ### Skill mastery and weekly progress map
 - Plot only mastery transition dates for the selected program. Same-date transitions combine into one cumulative point. A target counts from the first date its phase history enters `Maintenance`, `Generalization`, or `Completed`.
