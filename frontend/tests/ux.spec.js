@@ -17,10 +17,17 @@ const test = base.extend({
   }, { auto: true }]
 });
 
-async function open(page) {
+async function open(page, tab = 'Progress overview') {
   await page.goto('./');
-  await expect(page.locator('#target-analysis')).toBeVisible();
-  await expect(page.locator('#abc-observations')).toBeVisible();
+  await activate(page, tab);
+}
+// The workspace shows one workflow at a time. Switch through the tab strip, the same
+// control on every breakpoint, and wait until the selection is committed.
+async function activate(page, tab) {
+  const button = page.getByRole('tab', { name: tab, exact: true });
+  await button.click();
+  await expect(button).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel', { name: tab, exact: true })).toBeVisible();
 }
 async function accessible(page) {
   await page.evaluate(async () => {
@@ -69,8 +76,11 @@ for (const width of [320, 390, 768, 1024, 1440, 1920]) {
   test(`layout stays within the ${width}px viewport`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     await open(page);
-    const dimensions = await page.evaluate(() => ({ viewport: innerWidth, width: document.documentElement.scrollWidth }));
-    expect(dimensions.width).toBeLessThanOrEqual(dimensions.viewport);
+    for (const tab of ['Progress overview', 'Target analysis', 'ABC observations', 'Service & data quality', 'Reports']) {
+      await activate(page, tab);
+      const dimensions = await page.evaluate(() => ({ viewport: innerWidth, width: document.documentElement.scrollWidth }));
+      expect(dimensions.width, `overflow in “${tab}”`).toBeLessThanOrEqual(dimensions.viewport);
+    }
   });
 }
 
@@ -82,14 +92,16 @@ test('default dashboard has accessible names, contrast and semantic sections', a
 });
 
 test('client switching isolates records and retains valid program selections', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   for (const item of seed.clients) {
     await page.getByLabel('Current client').selectOption(item.id);
+    await activate(page, 'Progress overview');
     await expect(page.locator('.client-identity').getByRole('heading', { name: item.name, exact: true })).toBeVisible();
-    const first = seed.programs.find(program => program.clientId === item.id && program.category === 'SkillAcquisition');
-    await expect(page.locator('#target-program')).toHaveValue(first.id);
     const count = seed.sessionData.filter(row => row.clientId === item.id).length;
     await expect(page.locator('.metric').filter({ hasText: 'Session observations' }).locator('.metric-number')).toHaveText(String(count));
+    await activate(page, 'Target analysis');
+    const first = seed.programs.find(program => program.clientId === item.id && program.category === 'SkillAcquisition');
+    await expect(page.locator('#target-program')).toHaveValue(first.id);
   }
 });
 
@@ -102,6 +114,7 @@ test('no-client state has real choices and inactive recording', async ({ page })
   await accessible(page);
   await page.getByRole('button', { name: new RegExp(seed.clients[1].name) }).click();
   await expect(page.locator('.client-identity')).toContainText(seed.clients[1].name);
+  await activate(page, 'Target analysis');
   await expect(page.locator('#target-analysis')).toBeVisible();
 });
 
@@ -162,7 +175,7 @@ test('help works with keyboard and touch without leaving the viewport', async ({
 });
 
 test('behavior comparison opens on click, supports checkboxes and dismisses with Escape', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   await page.getByRole('button', { name: /Behavior reduction/ }).click();
   const trigger = page.getByRole('button', { name: /Choose behaviors/ });
   await trigger.click();
@@ -179,7 +192,7 @@ test('behavior comparison opens on click, supports checkboxes and dismisses with
 });
 
 test('chart title updates persist after refresh and overlay controls are keyboard accessible', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   await page.getByRole('button', { name: /^Edit chart title:/ }).click();
   await page.getByLabel('Chart title', { exact: true }).fill('Labeling responses over time');
   await page.getByLabel('Chart title', { exact: true }).press('Enter');
@@ -202,6 +215,7 @@ test('mastery and all-hidden target states explain a path forward', async ({ pag
   await page.locator('#mastery-prog').selectOption(pending.id);
   await expect(page.getByRole('heading', { name: 'Mastery is still ahead.' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Export mastery', exact: true })).toBeDisabled();
+  await activate(page, 'Target analysis');
   const legend = page.locator('#target-analysis .target-legend').first();
   for (const target of skillProgram.targets.filter(item => item.type === 'TrialByTrial')) await legend.getByRole('button', { name: target.name, exact: true }).click();
   await expect(page.getByRole('heading', { name: 'No series are visible.' })).toBeVisible();
@@ -334,7 +348,7 @@ test('copy last session and shared minutes fill a whole program in two clicks', 
 });
 
 test('the vertical axis can be fixed by the clinician and recovers from a bad range', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   const chart = page.locator('#target-analysis svg.chart-svg');
   await expect(chart).toContainText('100');
   await page.getByRole('button', { name: /^Y axis/ }).click();
@@ -354,7 +368,7 @@ test('the vertical axis can be fixed by the clinician and recovers from a bad ra
 });
 
 test('every measurement type can be drawn as bars, points or a cumulative record', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   const chart = page.locator('#target-analysis svg.chart-svg');
   await expect(chart.locator('path[stroke-width="2.2"]').first()).toBeVisible();
   await page.getByLabel('Plot', { exact: true }).selectOption('bars');
@@ -372,7 +386,7 @@ test('every measurement type can be drawn as bars, points or a cumulative record
 });
 
 test('phase labels sit in their own strip, clear of every plotted point', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   const chart = page.locator('#target-analysis svg.chart-svg');
   const strip = chart.locator('.condition-bar');
   await expect(strip).toBeVisible();
@@ -388,7 +402,7 @@ test('phase labels sit in their own strip, clear of every plotted point', async 
 });
 
 test('value labels print each plotted measurement when the timeline is short', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   await page.getByLabel('Group by').selectOption('Weekly');
   const chart = page.locator('#target-analysis svg.chart-svg');
   await page.getByRole('button', { name: 'Values', exact: true }).click();
@@ -400,7 +414,7 @@ test('value labels print each plotted measurement when the timeline is short', a
 });
 
 test('behavior zero and untracked records stay distinct in local data and CSV', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   const target = programs.find(program => program.category === 'BehaviorReduction' && program.targets[0].type === 'Frequency').targets[0];
   let dialog = await record(page, target);
   await dialog.getByRole('spinbutton', { name: /^Occurrences/ }).fill('0');
@@ -439,12 +453,15 @@ test('phase-change recording creates the line on the chosen target and date', as
 });
 
 test('annotation add/edit uses the plotted target, validates ranges, and keeps mastery selection', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   const chosen = programs.find(program => program.category === 'SkillAcquisition' && program.id !== skillProgram.id && seed.sessionData.some(row => program.targets.some(target => target.id === row.targetId)));
   await page.locator('#target-program').selectOption(chosen.id);
   const type = await page.locator('.measurement-tabs button[aria-pressed="true"]').innerText();
   const target = chosen.targets.find(item => item.type === Object.entries({ TrialByTrial: 'Trial by trial', Duration: 'Duration', Frequency: 'Frequency', IntervalData: 'Interval data', Anecdotal: 'Anecdotal', FluencyRate: 'Fluency / rate' }).find(([, label]) => label === type)[0]);
+  // The mastery chart lives in the progress workflow; its selection must survive the trip.
+  await activate(page, 'Progress overview');
   await page.locator('#mastery-prog').selectOption(chosen.id);
+  await activate(page, 'Target analysis');
   await page.getByRole('button', { name: 'Phase line', exact: true }).click();
   let dialog = page.getByRole('dialog', { name: 'Add phase line' });
   await expect(dialog).toContainText(target.name);
@@ -475,7 +492,7 @@ test('annotation add/edit uses the plotted target, validates ranges, and keeps m
 });
 
 test('graph notes validate, save and edit; native dialogs contain focus and honor Escape', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   const trigger = page.getByRole('button', { name: 'Note', exact: true });
   await trigger.click();
   let dialog = page.getByRole('dialog', { name: 'Add graph note' });
@@ -500,7 +517,7 @@ test('graph notes validate, save and edit; native dialogs contain focus and hono
 });
 
 test('frequency views, narrative notes, data tables and log pagination remain functional', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   const frequencyProgram = programs.find(program => program.category === 'SkillAcquisition' && program.targets.some(target => target.type === 'Frequency'));
   await page.locator('#target-program').selectOption(frequencyProgram.id);
   await page.getByRole('button', { name: 'Frequency', exact: true }).click();
@@ -510,6 +527,7 @@ test('frequency views, narrative notes, data tables and log pagination remain fu
   await page.locator('#target-program').selectOption(skillProgram.id);
   await page.getByRole('button', { name: 'Anecdotal', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Observation notes', exact: true })).toBeVisible();
+  await activate(page, 'ABC observations');
   await page.locator('#abc-observations').getByRole('button', { name: 'Log', exact: true }).click();
   const table = page.locator('.abc-table');
   const initial = await table.locator('tbody tr').first().innerText();
@@ -528,11 +546,13 @@ test('CSV, SVG, PNG and ZIP exports produce actual files without changing target
   expect(svg.name).toMatch(/\.svg$/); expect(svg.bytes.toString()).toContain('<svg');
   const png = await download(page, 'Export mastery', 'Chart image · PNG');
   expect([...png.bytes.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  await activate(page, 'Target analysis');
   const raw = await download(page, 'Export targets', 'Raw observations · CSV');
   const parsed = csv(raw.bytes.toString());
   expect(parsed[1][parsed[0].indexOf('Target Name')]).toBe(skillProgram.targets[0].name);
   const zip = await download(page, 'Export targets', 'All client targets · ZIP');
   expect(zip.name).toMatch(/\.zip$/); expect(zip.bytes.subarray(0, 2).toString()).toBe('PK');
+  await activate(page, 'ABC observations');
   const abc = await download(page, 'Export ABC', 'Observation log · CSV');
   expect(abc.bytes.toString()).toContain('Antecedents');
 });
@@ -587,6 +607,8 @@ test('slow code loading gets a layout skeleton and respects reduced motion', asy
   await context.route('**/assets/ClientSpecificSection*.js', async route => { await gate; await route.continue(); });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('./', { waitUntil: 'domcontentloaded' });
+  // Heavy workflows load their own chunk on first visit, with a layout-shaped skeleton.
+  await page.getByRole('tab', { name: 'Target analysis', exact: true }).click();
   await expect(page.locator('main .analytics-skeleton').first()).toBeVisible();
   release();
   await expect(page.locator('#target-analysis')).toBeVisible();
@@ -600,7 +622,7 @@ test('privacy, terms and a true nested-path 404 have accessible return paths', a
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await accessible(page);
     await page.getByRole('link', { name: 'Back to analytics', exact: true }).click();
-    await expect(page.locator('#target-analysis')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Progress overview', level: 1 })).toBeVisible();
   }
   const response = await page.goto('missing/deep-page');
   expect(response.status()).toBe(404);
@@ -611,7 +633,9 @@ test('privacy, terms and a true nested-path 404 have accessible return paths', a
 });
 
 test('the skip link bypasses workspace navigation with a visible focus target', async ({ page }) => {
-  await open(page);
+  // A fresh load puts sequential focus at the document start, so Tab reaches the skip link.
+  await page.goto('./');
+  await expect(page.getByRole('heading', { name: 'Progress overview', level: 1 })).toBeVisible();
   await page.keyboard.press('Tab');
   const skip = page.getByRole('link', { name: 'Skip to analytics', exact: true });
   await expect(skip).toBeFocused();
@@ -621,7 +645,7 @@ test('the skip link bypasses workspace navigation with a visible focus target', 
 });
 
 test('session pagination and weekly/monthly labels follow the actual grouped data', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   await page.getByLabel('Group by').selectOption({ label: 'Session' });
   await page.locator('#target-analysis summary').filter({ hasText: 'View plotted data table' }).click();
   const firstCell = page.locator('#target-analysis .data-table tbody tr').first().locator('td').first();
@@ -637,7 +661,7 @@ test('session pagination and weekly/monthly labels follow the actual grouped dat
 });
 
 test('clinician splitting and all-hidden clinician recovery only use the active target', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   const targets = skillProgram.targets.filter(target => target.type === 'TrialByTrial');
   for (const target of targets.slice(1)) await page.locator('#target-analysis .target-legend').first().getByRole('button', { name: target.name, exact: true }).click();
   await page.getByLabel('Split by clinician').check();
@@ -660,7 +684,7 @@ test('clinician splitting and all-hidden clinician recovery only use the active 
 });
 
 test('range and note editing/deletion do not duplicate or lose unrelated annotations', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   await page.getByRole('button', { name: 'Phase range', exact: true }).click();
   let dialog = page.getByRole('dialog', { name: 'Add phase range' });
   await dialog.getByLabel('Start date').fill('2026-10-05');
@@ -686,7 +710,7 @@ test('range and note editing/deletion do not duplicate or lose unrelated annotat
 });
 
 test('program setup remains inspectable and demo learning materials actually download', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   await page.locator('#target-analysis summary').filter({ hasText: 'Program setup' }).click();
   const definition = page.getByRole('article', { name: `${skillProgram.name} definition` });
   await expect(definition).toContainText(skillProgram.programObjective);
@@ -714,7 +738,7 @@ test('recording sheet also fits a 320px screen without clipping', async ({ page 
 });
 
 test('empty program recording starts with that program’s target, not the first program', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   const chosen = programs.filter(program => program.category === 'SkillAcquisition')[1];
   await page.evaluate(ids => {
     const rows = JSON.parse(localStorage.getItem('welina_sessions'));
@@ -730,7 +754,7 @@ test('empty program recording starts with that program’s target, not the first
 });
 
 test('out-of-range data is not mislabeled as hidden series and has a recovery action', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   await page.evaluate(ids => {
     const rows = JSON.parse(localStorage.getItem('welina_sessions'));
     localStorage.setItem('welina_sessions', JSON.stringify(rows.map(row => ids.includes(row.targetId) ? { ...row, timestamp: '2026-01-14T10:00:00' } : row)));
@@ -759,41 +783,58 @@ test('metadata, social artwork, local fonts and project-prefixed assets all exis
   expect(await page.evaluate(() => document.fonts.check('16px Outfit'))).toBe(true);
 });
 
-test('navigation and manual scrolling agree about the active section without double header offsets', async ({ page }, testInfo) => {
+test('workflow tabs show one screen at a time, sync the sidebar and keep deep links', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await open(page);
-  const destinations = [['abc-observations', 'ABC observations'], ['target-analysis', 'Target analysis'], ['overview', 'Progress overview']];
-  for (const [id, name] of destinations) {
-    if (testInfo.project.name === 'mobile') {
-      await page.getByRole('button', { name: 'Open workspace navigation' }).click();
-      await page.getByRole('dialog').getByRole('link', { name, exact: true }).click();
-      await expect(page.getByRole('dialog')).toHaveCount(0);
-    } else await page.getByRole('navigation', { name: 'Analytics navigation', exact: true }).getByRole('link', { name, exact: true }).click();
-    const offset = await page.evaluate(sectionId => ({
-      panel: document.getElementById(sectionId).getBoundingClientRect().top,
-      header: document.querySelector('.app-header').getBoundingClientRect().height
-    }), id);
-    expect(offset.panel).toBeGreaterThanOrEqual(offset.header);
-    expect(offset.panel).toBeLessThanOrEqual(offset.header + 40);
+  const workflows = [['overview', 'Progress overview'], ['target-analysis', 'Target analysis'], ['abc-observations', 'ABC observations'], ['service-quality', 'Service & data quality'], ['reports', 'Reports']];
+  for (const [id, name] of workflows) {
+    await activate(page, name);
+    const panel = page.locator(`#workflow-panel-${id}`);
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveAttribute('aria-labelledby', `workflow-tab-${id}`);
+    expect(new URL(page.url()).hash).toBe(`#${id}`);
+    for (const [otherId] of workflows) {
+      if (otherId !== id) await expect(page.locator(`#workflow-panel-${otherId}`)).toBeHidden();
+    }
     await expect(page.locator(`.shell-layout > .sidebar a[href="#${id}"]`)).toHaveAttribute('aria-current', 'location');
   }
-  await page.evaluate(() => { const section = document.getElementById('abc-observations'); window.scrollTo({ top: scrollY + section.getBoundingClientRect().top - 110, behavior: 'instant' }); });
-  await expect(page.locator('.shell-layout > .sidebar a[href="#abc-observations"]')).toHaveAttribute('aria-current', 'location');
+  // Arrow keys move along the tab strip with a roving tabindex.
+  await page.getByRole('tab', { name: 'Reports', exact: true }).focus();
+  await page.keyboard.press('Home');
+  await expect(page.getByRole('tab', { name: 'Progress overview', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Target analysis', exact: true })).toHaveAttribute('aria-selected', 'true');
+  // Deep links open the named workflow without a scroll hunt.
+  await page.goto('./#abc-observations');
+  await expect(page.getByRole('tab', { name: 'ABC observations', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#abc-observations')).toBeVisible();
+});
+
+test('returning to a workflow keeps its chart state instead of resetting the screen', async ({ page }) => {
+  await open(page, 'Target analysis');
+  await page.getByLabel('Group by').selectOption('Weekly');
+  await activate(page, 'Reports');
+  await expect(page.getByRole('heading', { name: 'Reports', level: 2 })).toBeVisible();
+  await activate(page, 'Target analysis');
+  await expect(page.getByLabel('Group by')).toHaveValue('Weekly');
 });
 
 test('default controls provide 44px pointer targets or full-sized associated labels', async ({ page }) => {
   await open(page);
-  const small = await page.evaluate(() => [...document.querySelectorAll('button,a,select,summary,input,textarea')]
-    .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')
-    .map(element => {
-      const rect = element.getBoundingClientRect();
-      const label = element.labels?.[0]?.getBoundingClientRect();
-      return { name: element.getAttribute('aria-label') || element.id || element.textContent.trim().slice(0, 40),
-        width: rect.width, height: rect.height, top: rect.top, bottom: rect.bottom, label };
-    })
-    .filter(element => element.bottom > 0 && (element.width < 43.9 || element.height < 43.9) && !(element.label?.width >= 43.9 && element.label?.height >= 43.9))
-    .map(({ name, width, height }) => ({ name, width, height })));
-  expect(small).toEqual([]);
+  for (const tab of ['Progress overview', 'Target analysis', 'ABC observations', 'Service & data quality', 'Reports']) {
+    await activate(page, tab);
+    const small = await page.evaluate(() => [...document.querySelectorAll('button,a,select,summary,input,textarea')]
+      .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')
+      .map(element => {
+        const rect = element.getBoundingClientRect();
+        const label = element.labels?.[0]?.getBoundingClientRect();
+        return { name: element.getAttribute('aria-label') || element.id || element.textContent.trim().slice(0, 40),
+          width: rect.width, height: rect.height, top: rect.top, bottom: rect.bottom, label };
+      })
+      .filter(element => element.bottom > 0 && (element.width < 43.9 || element.height < 43.9) && !(element.label?.width >= 43.9 && element.label?.height >= 43.9))
+      .map(({ name, width, height }) => ({ name, width, height })));
+    expect(small, `small targets in “${tab}”`).toEqual([]);
+  }
 });
 
 test('404 return button retains contrast at rest, hover and keyboard focus', async ({ page }) => {
@@ -820,7 +861,7 @@ test('404 return button retains contrast at rest, hover and keyboard focus', asy
 const behaviorTargets = programs.filter(program => program.category === 'BehaviorReduction').map(program => program.targets[0]);
 
 test('chart points drill down by pointer and keyboard to sessions and trial-by-trial prompts', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   const region = page.locator('#target-analysis .chart-scroll').first();
   await region.focus();
   await page.keyboard.press('End');
@@ -847,7 +888,7 @@ test('chart points drill down by pointer and keyboard to sessions and trial-by-t
 });
 
 test('chart functions add median, criterion, projection, envelope and split-middle overlays', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   await page.locator('#target-date-range').selectOption('6 months');
   const helpers = skillProgram.targets.find(target => target.phase === 'Acquisition' && target.type === 'TrialByTrial');
   await page.getByLabel('Analyze target').selectOption(helpers.id);
@@ -869,7 +910,7 @@ test('chart functions add median, criterion, projection, envelope and split-midd
 });
 
 test('visual analysis compares conditions with effect sizes and the dual-criterion lines', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   await page.locator('#target-date-range').selectOption('6 months');
   const panel = page.locator('.analysis-panel');
   await expect(panel.getByRole('heading', { name: 'Visual analysis' })).toBeVisible();
@@ -891,7 +932,7 @@ test('visual analysis compares conditions with effect sizes and the dual-criteri
 });
 
 test('prompt levels and celeration views show the data behind accuracy and fluency', async ({ page }) => {
-  await open(page);
+  await open(page, 'Target analysis');
   await page.getByRole('group', { name: 'Chart view' }).getByRole('button', { name: 'Prompt levels', exact: true }).click();
   await expect(page.locator('#target-analysis svg.chart-svg title').first()).toHaveText('Prompt levels');
   const fluency = programs.find(program => program.targets.some(target => target.type === 'FluencyRate'));
@@ -903,7 +944,7 @@ test('prompt levels and celeration views show the data behind accuracy and fluen
 });
 
 test('ABC patterns drill into the log and the forecast reports its own accuracy', async ({ page }) => {
-  await open(page);
+  await open(page, 'ABC observations');
   const abc = page.locator('#abc-observations');
   await abc.getByRole('button', { name: 'Patterns', exact: true }).click();
   await page.locator('#abc-date-range').selectOption('Past 6 Months');
@@ -941,12 +982,14 @@ test('the weekly progress map opens a target and week in the target analysis', a
   await expect(page.locator('#target-grouping')).toHaveValue('Weekly');
   await expect(page.getByRole('heading', { name: 'Observation details' })).toBeVisible();
   expect(label).toContain(skillProgram.targets[0].name);
+  // The map itself lives in the progress workflow; go back to it before filtering.
+  await activate(page, 'Progress overview');
   await map.getByRole('button', { name: 'Behaviors', exact: true }).click();
   await expect(map.locator('tbody tr')).toHaveCount(behaviorTargets.length);
 });
 
 test('service and data quality summarize dosage, IOA, fidelity and supervision', async ({ page }) => {
-  await open(page);
+  await open(page, 'Service & data quality');
   const section = page.locator('#service-quality');
   await expect(section.getByRole('heading', { name: 'Service & data quality' })).toBeVisible();
   await expect(section).toContainText(`${client.authorizedHoursPerWeek} authorized`);
@@ -960,7 +1003,7 @@ async function visibleTrigger(page, name) {
 }
 
 test('reports build a print-ready multi-graph document and a target list by status', async ({ page }) => {
-  await open(page);
+  await open(page, 'Reports');
   const reports = page.locator('#reports');
   await expect(reports.getByRole('heading', { name: 'Reports', level: 2 })).toBeVisible();
   await expect(reports.getByLabel('Template')).toHaveValue('clinical-review');
@@ -984,7 +1027,7 @@ test('reports build a print-ready multi-graph document and a target list by stat
 
 test('view-only analytics access keeps reading and exporting but blocks every change', async ({ page }, testInfo) => {
   await page.addInitScript(() => window.localStorage.setItem('welina_access_level', 'view'));
-  await open(page);
+  await open(page, 'Target analysis');
   await expect(page.locator('.view-only-notice').first()).toContainText('View-only analytics access');
   await expect(page.getByRole('button', { name: 'Record observation', exact: true })).toBeDisabled();
   await expect(page.locator('#target-analysis .annotation-actions button').first()).toBeDisabled();
@@ -1006,7 +1049,7 @@ test('view-only analytics access keeps reading and exporting but blocks every ch
 });
 
 test('the live session activity panel reports today without opening a session note', async ({ page }) => {
-  await open(page);
+  await open(page, 'Service & data quality');
   const activity = page.locator('.live-activity');
   await expect(activity.getByRole('heading', { name: /Session activity/ })).toBeVisible();
   await expect(activity).toContainText('Appointments today');
@@ -1017,7 +1060,7 @@ test('the live session activity panel reports today without opening a session no
 });
 
 test('event timestamps read as a time-of-day scatterplot in the ABC patterns', async ({ page }) => {
-  await open(page);
+  await open(page, 'ABC observations');
   const abc = page.locator('#abc-observations');
   await abc.getByRole('button', { name: 'Patterns', exact: true }).click();
   await expect(abc.getByRole('heading', { name: 'Time of day' })).toBeVisible();

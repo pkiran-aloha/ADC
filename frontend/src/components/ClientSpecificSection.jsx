@@ -759,10 +759,12 @@ export default function ClientSpecificSection({
       <div className="target-legend">
         {targetStages.map(group => <div className="legend-group" key={group.id}>
           <p className="legend-group-label" title={group.hint}>{group.label} <span>({group.targets.filter(target => !hiddenTargetIds.has(target.id)).length}/{group.targets.length} shown)</span></p>
-          {group.targets.map(target => <button type="button" key={target.id} className="legend-button" aria-pressed={visibleTargetIds.has(target.id)} onClick={() => setHiddenTargetIds(previous => { const next = new Set(previous); if (next.has(target.id)) next.delete(target.id); else next.add(target.id); return next; })}>
-            <MarkerSwatch color={seriesColor(activeTargets.findIndex(item => item.id === target.id), colorMode === 'BlackAndWhite')} shape={preferences.markerShape} count={tabTargets.length} index={tabTargets.findIndex(item => item.id === target.id)} />
-            <span>{target.name}</span>{visibleTargetIds.has(target.id) ? <CheckSquare size={17} /> : <Square size={17} />}
-          </button>)}
+          <div className="legend-group-items">
+            {group.targets.map(target => <button type="button" key={target.id} className="legend-button" aria-pressed={visibleTargetIds.has(target.id)} onClick={() => setHiddenTargetIds(previous => { const next = new Set(previous); if (next.has(target.id)) next.delete(target.id); else next.add(target.id); return next; })}>
+              <MarkerSwatch color={seriesColor(activeTargets.findIndex(item => item.id === target.id), colorMode === 'BlackAndWhite')} shape={preferences.markerShape} count={tabTargets.length} index={tabTargets.findIndex(item => item.id === target.id)} />
+              <span>{target.name}</span>{visibleTargetIds.has(target.id) ? <CheckSquare size={17} /> : <Square size={17} />}
+            </button>)}
+          </div>
         </div>)}
       </div>
       {splitByTherapist && tabTargets.length === 1 && <div className="mt-4"><span className="legend-title">Visible clinicians</span><div className="target-legend">{allTherapistsForTarget.map((name, index) => <button type="button" key={name} className="legend-button" aria-pressed={visibleTherapists.has(name)} onClick={() => setHiddenTherapists(previous => { const next = new Set(previous); if (next.has(name)) next.delete(name); else next.add(name); return next; })}><Swatch color={seriesColor(index, colorMode === 'BlackAndWhite')} /><UserCheck size={17} />{name}</button>)}</div></div>}

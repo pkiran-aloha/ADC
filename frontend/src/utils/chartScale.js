@@ -72,29 +72,66 @@ export function describeAxisBounds(bounds = {}) {
 
 // ---------------------------------------------------------------------------
 // Annotation label layout. Round-2 feedback: annotation text has to stay readable in the
-// application and in exports, without overlapping. Labels are placed left to right into
-// as many rows as needed, each row keeping a minimum gap.
+// application and in exports, without overlapping. Notes wrap to at most two lines inside
+// a box that is sized to the text, and the rows stack into a band above the plot so a
+// label never covers a data point or the condition strip.
 // ---------------------------------------------------------------------------
 
-export function estimateLabelWidth(text, { fontSize = 11, padding = 16, maxWidth = 260 } = {}) {
-  const perCharacter = 0.53 * fontSize;
+export function estimateLabelWidth(text, { fontSize = 11, padding = 14, maxWidth = 320 } = {}) {
+  const perCharacter = 0.56 * fontSize;
   return Math.min(maxWidth, Math.max(28, String(text || '').length * perCharacter + padding));
 }
 
-// items: [{ x, key, ... }] positioned on the chart. Returns the same items with `row` and
-// `boxLeft`/`width` so the caller can draw a non-overlapping label above the plot.
-export function layoutNoteLabels(items = [], { minX = 0, maxX = 1000, rowHeight = 30, maxRows = 3, gap = 8, fontSize = 11 } = {}) {
+// Word-wrap annotation text to the box budget; the last line carries the ellipsis so the
+// box and its text always agree (text used to spill out of the rectangle).
+export function wrapLabelLines(text, { fontSize = 11, maxWidth = 320, maxLines = 2, padding = 14 } = {}) {
+  const perCharacter = 0.56 * fontSize;
+  const budget = Math.max(8, Math.floor((maxWidth - padding) / perCharacter));
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= budget) { current = candidate; continue; }
+    if (current) lines.push(current);
+    current = word.length > budget ? `${word.slice(0, budget - 1)}…` : word;
+  }
+  if (current) lines.push(current);
+  if (!lines.length) lines.push('');
+  if (lines.length > maxLines) {
+    lines.length = maxLines;
+    const last = lines[maxLines - 1];
+    lines[maxLines - 1] = `${last.slice(0, Math.max(1, budget - 1)).trimEnd()}…`;
+  }
+  return lines;
+}
+
+// items: [{ x, key, ... }] positioned on the chart. Returns the same items with `row`,
+// `boxLeft`, `lines`, `width`, `boxHeight` and `rowY` (distance from the plot top to the
+// top of the label's row) so the caller can draw a non-overlapping label band above the plot.
+export function layoutNoteLabels(items = [], { minX = 0, maxX = 1000, maxRows = 3, gap = 10, fontSize = 11, maxLabelWidth = 320, lineHeight = 14 } = {}) {
   const sorted = [...items].sort((a, b) => a.x - b.x);
   const rows = Array.from({ length: maxRows }, () => []);
   const placed = [];
   for (const item of sorted) {
-    const width = estimateLabelWidth(item.text || item.label, { fontSize });
+    const lines = wrapLabelLines(item.text || item.label, { fontSize, maxWidth: maxLabelWidth });
+    const width = Math.min(maxLabelWidth, Math.ceil(Math.max(...lines.map(line => line.length)) * 0.56 * fontSize + 14));
     let row = rows.findIndex(rowItems => rowItems.every(existing => Math.abs(existing.center - item.x) >= (existing.width + width) / 2 + gap));
     if (row === -1) row = maxRows - 1;
     const boxLeft = Math.min(Math.max(item.x - width / 2, minX), Math.max(minX, maxX - width));
     rows[row].push({ center: item.x, width });
-    // rowY lets the caller draw the label box without repeating the row height.
-    placed.push({ ...item, row, rowY: row * rowHeight, width, boxLeft });
+    placed.push({ ...item, row, lines, width, boxLeft });
+  }
+  // Rows stack upward from the plot edge: row 0 sits closest to the data, each row is as
+  // tall as its tallest box, and every box sits below the condition strip.
+  const rowHeights = rows.map((_, index) => Math.max(22, ...placed.filter(place => place.row === index).map(place => place.lines.length * lineHeight + 8), 0));
+  let offset = 0;
+  for (let index = 0; index < maxRows; index++) {
+    for (const place of placed.filter(candidate => candidate.row === index)) {
+      place.rowY = offset;
+      place.boxHeight = rowHeights[index];
+    }
+    offset += rowHeights[index] + 5;
   }
   return placed;
 }

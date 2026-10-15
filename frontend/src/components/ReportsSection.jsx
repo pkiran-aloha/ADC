@@ -11,7 +11,7 @@ import {
   REPORT_TEMPLATES, REPORT_RANGES, ROSTER_FILTERS, templateById, rangeStart, targetRoster, rosterCsv,
   buildReportModel, reportHtml, renderReportCharts, reportFileName, reportSummarySentence, rosterStatus
 } from '../utils/reportBuilder';
-import { formatLongDate } from '../utils/targetAnalytics';
+import { formatShortDate } from '../utils/targetAnalytics';
 import { MEASUREMENT_LABELS } from '../utils/formValidation';
 
 // One place for the paperwork that surrounds the graphs: a multi-graph, print-ready report
@@ -154,7 +154,7 @@ export default function ReportsSection({
         <article className="reports-roster" aria-labelledby="roster-title">
           <h3 id="roster-title">Targets by status</h3>
           <SegmentedControl label="Target status" value={rosterFilter} onChange={setRosterFilter} options={ROSTER_FILTERS.map(item => ({ value: item.value, label: item.label.split(' ')[0] }))} className="roster-filter" />
-          <div className="form-row">
+          <div className="form-row roster-filter-row">
             <div className="control-field"><label htmlFor="roster-date-field">Filter dates by</label>
               <select id="roster-date-field" value={rosterDateField} onChange={event => setRosterDateField(event.target.value)}>
                 <option value="introduced">Date introduced</option>
@@ -178,11 +178,11 @@ export default function ReportsSection({
                 <thead><tr><th scope="col">Target</th><th scope="col">Measurement</th><th scope="col">Status</th><th scope="col">Introduced</th><th scope="col">Mastered</th><th scope="col">Last data</th></tr></thead>
                 <tbody>{roster.map(row => <tr key={row.id}>
                   <td><strong>{row.name}</strong><small className="block text-slate-500">{row.program}</small></td>
-                  <td>{MEASUREMENT_LABELS[row.type] || row.type}</td>
-                  <td><span className={`stat-chip stat-chip--${['mastered', 'maintenance'].includes(rosterStatus({ phase: row.phase }).id) ? 'positive' : 'neutral'}`}>{row.status}</span></td>
-                  <td>{row.introducedOn ? formatLongDate(row.introducedOn) : '—'}</td>
-                  <td>{row.masteredOn ? `${formatLongDate(row.masteredOn)}${row.daysToMastery != null ? ` (${row.daysToMastery} d)` : ''}` : '—'}</td>
-                  <td>{row.lastDataDate || '—'}</td>
+                  <td className="roster-nowrap">{MEASUREMENT_LABELS[row.type] || row.type}</td>
+                  <td className="roster-nowrap"><span className={`stat-chip stat-chip--${['mastered', 'maintenance'].includes(rosterStatus({ phase: row.phase }).id) ? 'positive' : 'neutral'}`}>{row.status}</span></td>
+                  <td className="roster-nowrap">{row.introducedOn ? formatShortDate(row.introducedOn) : '—'}</td>
+                  <td className="roster-nowrap">{row.masteredOn ? `${formatShortDate(row.masteredOn)}${row.daysToMastery != null ? ` (${row.daysToMastery} d)` : ''}` : '—'}</td>
+                  <td className="roster-nowrap">{row.lastDataDate ? formatShortDate(row.lastDataDate) : '—'}</td>
                 </tr>)}</tbody>
               </table>
             </div>}
