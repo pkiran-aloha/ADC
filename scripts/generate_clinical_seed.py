@@ -211,6 +211,14 @@ CLINICAL_STANDARDS = {
     "nonoverlap": {"napBands": [0.66, 0.93], "pndBands": [50, 70, 90],
                    "source": "Parker & Vannest (2009) NAP; Scruggs & Mastropieri (1998) PND"},
     "cdc": {"shiftSd": 0.25, "alpha": 0.05, "source": "Fisher, Kelley & Lomas (2003) conservative dual-criterion"},
+    # Graphing policy: the minimum session size that becomes a data point on a graph, so a
+    # two-trial probe cannot suggest more variability than the sample supports.
+    "graphing": {"minimumTrialsPerDataPoint": 5, "minimumMinutesPerDataPoint": 1,
+                 "source": "Organisation graphing policy for the demo workspace; set by the clinical director"},
+    # Behaviour-reduction mastery: baseline level plus a percentage reduction sustained over
+    # consecutive measured days, unless an individual target configures its own rule.
+    "behaviorReduction": {"reductionPercent": 80, "sustainedDays": 14, "baselineSource": "mean",
+                          "source": "Dual-criterion style reduction rule (Fisher, Kelley & Lomas, 2003) scaled to the target's baseline"},
 }
 
 PROMPT_HIERARCHY_TEMPLATES = [

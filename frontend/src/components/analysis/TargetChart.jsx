@@ -1,9 +1,10 @@
-import { forwardRef, useId, useMemo, useRef, useState } from 'react';
+import { createElement, forwardRef, useId, useMemo, useRef, useState } from 'react';
 import EmptyState from '../ui/EmptyState';
 import { formatChartDate, chartMarkerInk, CHART_GRID, CHART_MUTED, CHART_INK } from '../../utils/chartTheme';
 import { getObservationKey, sortObservationKeys } from '../../utils/analyticsMetrics';
 import { formatNumber } from '../../utils/targetAnalytics';
-import { axisTicks, resolveAxisBounds, CHART_TYPES } from '../../utils/chartScale';
+import { axisTicks, resolveAxisBounds, CHART_TYPES, layoutNoteLabels } from '../../utils/chartScale';
+import { markerElement, resolveMarkerShape } from '../../utils/markerShapes';
 
 const WIDTH = 850;
 const HEIGHT = 380;
@@ -31,7 +32,8 @@ const TargetChart = forwardRef(function TargetChart({
   showAverageLine, averageValue, showTrendLine, trendlinePoints, regressionParams,
   showGridlines, annotations, aggregation, extraXKeys = [], hasVisibleSeries = true, onChangeDateRange,
   overlays = {}, selectedKey = null, highlightKeys = null, onSelect,
-  chartType = 'line', axisBounds = {}, showValues = false, showPhaseLabels = true, conditionSpans = []
+  chartType = 'line', axisBounds = {}, showValues = false, showPhaseLabels = true, conditionSpans = [],
+  markerPreference = 'auto', milestones = [], suppressed = null
 }, ref) {
   const [activeKey, setActiveKey] = useState(null);
   const [pointerActive, setPointerActive] = useState(false);
@@ -128,6 +130,12 @@ const TargetChart = forwardRef(function TargetChart({
     })()
     : axisTicks(yMin, yMax, 5);
 
+  // Data-point markers: the clinician's shape choice, with solid circles when a single
+  // target is plotted (the usual single-case convention).
+  const seriesShapes = plotSeries.map((series, index) => (series.isSummary
+    ? 'circleOpen'
+    : resolveMarkerShape(markerPreference, { seriesCount: plotSeries.length, seriesIndex: index })));
+
   // Bar geometry: grouped columns centred on each observation group.
   const bandWidth = allKeys.length ? GRAPH_WIDTH / allKeys.length : GRAPH_WIDTH;
   const seriesCount = Math.max(1, plotSeries.length);
@@ -137,6 +145,20 @@ const TargetChart = forwardRef(function TargetChart({
   const outsideCount = observed.filter(value => value > yMax || value < yMin).length;
 
   // Interaction: nearest category under the pointer or keyboard focus.
+  // Annotation text: every note gets its full text in a label above the plot, laid out in
+  // rows so two notes on nearby dates never overlap (feedback: readable annotation text).
+  const noteLabels = layoutNoteLabels((annotations?.graphNotes || []).map((note, index) => {
+    const x = getAnnotationX(note.date);
+    return x == null ? null : { key: note.id || `note-${index}`, x, text: note.noteText, note, date: note.date };
+  }).filter(Boolean), { minX: PADDING.left + 2, maxX: WIDTH - PADDING.right - 2, rowHeight: 30, maxRows: 3 });
+
+  // Phase milestones (introduced, mastered, maintenance) sit on the time axis so acquisition
+  // rate is readable straight from the graph.
+  const milestoneMarkers = milestones.map(milestone => {
+    const x = getAnnotationX(milestone.date);
+    return x == null ? null : { ...milestone, x };
+  }).filter(Boolean);
+
   const keyAtClientX = clientX => {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect || !measuredKeys.length) return null;
@@ -333,7 +355,8 @@ const TargetChart = forwardRef(function TargetChart({
                   </rect>;
                 })}
                 {chartType !== 'bars' && chartType !== 'points' && segments.map((segment, index) => <path key={index} d={segment.map((point, position) => `${position ? 'L' : 'M'} ${getX(point.xKey)} ${getY(point.val)}`).join(' ')}
-                  fill="none" stroke={series.color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" opacity={dimmed ? 0.45 : 1} />)}
+                  fill="none" stroke={series.color} strokeWidth={series.isSummary ? 2.6 : 2.2} strokeDasharray={series.isSummary ? '8 4' : undefined}
+                  strokeLinecap="round" strokeLinejoin="round" opacity={dimmed ? 0.45 : 1} />)}
                 {series.points.map(point => {
                   const x = getX(point.xKey) + (chartType === 'bars' ? barOffset(seriesPosition) + barWidth / 2 : 0);
                   const y = getY(point.val);
@@ -346,10 +369,14 @@ const TargetChart = forwardRef(function TargetChart({
                   return <g key={point.xKey} className="chart-point">
                     {ioa != null && <circle cx={x} cy={y} r="9" fill="none" stroke={ioa < 80 ? '#a34436' : '#527d82'} strokeWidth="1.6" strokeDasharray={ioa < 80 ? '2 2' : undefined} />}
                     {highlighted && <circle cx={x} cy={y} r="10" fill="#9b7a3d" opacity="0.28" />}
-                    {showMarker && chartType === 'points'
-                      ? <circle cx={x} cy={y} r={emphasized ? 6 : 4.6} fill={beyond ? series.color : series.color} stroke="#FFFFFF" strokeWidth="1.5" opacity={dimmed && !highlighted ? 0.5 : 0.95} />
-                      : showMarker && <rect x={x - size} y={y - size} width={size * 2} height={size * 2}
-                        fill={beyond ? series.color : '#FFFFFF'} stroke={series.color} strokeWidth="2" opacity={dimmed && !highlighted ? 0.5 : 1} />}
+                    {showMarker && (() => {
+                      const shape = emphasized && chartType === 'points' && seriesShapes[seriesPosition] === 'squareOpen' ? 'circleOpen' : seriesShapes[seriesPosition];
+                      const marker = markerElement(shape, {
+                        x, y, size: chartType === 'points' ? (emphasized ? 6 : 4.6) : size,
+                        color: series.color, fill: beyond ? series.color : undefined
+                      });
+                      return createElement(marker.tag, { ...marker.props, opacity: dimmed && !highlighted ? 0.5 : 1 });
+                    })()}
                     <title>{`Target: ${series.name}\n${aggregation === 'Per Session' ? 'Session' : 'Date'}: ${point.xKey}\nValue: ${point.displayVal}\nTherapist: ${point.therapist || 'Recorded'}${ioa != null ? `\nIOA: ${ioa}%` : ''}`}</title>
                   </g>;
                 })}
@@ -383,12 +410,25 @@ const TargetChart = forwardRef(function TargetChart({
             {outsideCount} observation{outsideCount === 1 ? '' : 's'} outside the axis range
           </text>}
 
+          {suppressed && (suppressed.trials > 0 || suppressed.shortObservations > 0) && <text x={PADDING.left + 4} y={PADDING.top + 13}
+            fontSize="11" fontWeight="600" fill="#4b5a73" stroke="#FFFFFF" strokeWidth="3" paintOrder="stroke" fontFamily={FONT}>
+            {[suppressed.trials ? `${suppressed.trials} low-trial session${suppressed.trials === 1 ? '' : 's'}` : null,
+              suppressed.shortObservations ? `${suppressed.shortObservations} short observation${suppressed.shortObservations === 1 ? '' : 's'}` : null]
+              .filter(Boolean).join(' · ')} hidden by the graphing policy
+          </text>}
+
           {showPhaseLabels && lineLabels.map(({ line, x, row }, index) => <g key={line.id || index}>
             <rect x={Math.min(x - 4, WIDTH - PADDING.right - 150)} y={4 + row * 24} width="150" height="20" rx="3" fill="#294f3d" opacity="0.92" />
             <text x={Math.min(x + 2, WIDTH - PADDING.right - 144)} y={18 + row * 24} fontSize="11" fontWeight="500" fill="#FFFFFF" fontFamily={FONT}>
               {fitText(line.label, 140)}
             </text>
             <title>{`${line.label} · ${line.date}${line.isAutomated ? ' · automated' : ''}`}</title>
+          </g>)}
+
+          {milestoneMarkers.map(milestone => <g key={`${milestone.kind}-${milestone.date}`}>
+            <polygon points={`${milestone.x},${PADDING.top + GRAPH_HEIGHT - 7} ${milestone.x - 5},${PADDING.top + GRAPH_HEIGHT + 4} ${milestone.x + 5},${PADDING.top + GRAPH_HEIGHT + 4}`}
+              fill={milestone.kind === 'Introduced' ? '#4b5a73' : '#294f3d'} opacity="0.9" />
+            <title>{`${milestone.label} · ${milestone.date}`}</title>
           </g>)}
 
           {(annotations?.graphNotes || []).map((note, index) => {
@@ -400,6 +440,17 @@ const TargetChart = forwardRef(function TargetChart({
               <title>{`Note by ${note.staffName} (${note.date}):\n${note.noteText}`}</title>
             </g>;
           })}
+
+          {noteLabels.map(label => <g key={`label-${label.key}`} className="chart-note-label">
+            <line x1={label.x} y1={BAND.top + BAND.height + 4} x2={label.boxLeft + label.width / 2} y2={PADDING.top - 8 - label.rowY + 2}
+              stroke={label.note.color || '#34634c'} strokeWidth="1" opacity="0.6" pointerEvents="none" />
+            <rect x={label.boxLeft} y={PADDING.top - 22 - label.rowY} width={label.width} height="20" rx="3"
+              fill="#FFFFFF" stroke={label.note.color || '#34634c'} strokeWidth="1.1" pointerEvents="none" />
+            <text x={label.boxLeft + 6} y={PADDING.top - 8 - label.rowY} fontSize="11" fontWeight="500" fill={CHART_INK} fontFamily={FONT} pointerEvents="none">
+              {label.text}
+            </text>
+            <title>{`Note by ${label.note.staffName} (${label.date}): ${label.text}`}</title>
+          </g>)}
 
           {allKeys.map((key, index) => {
             const every = Math.ceil(allKeys.length / (aggregation === 'Weekly' ? 7 : aggregation === 'Monthly' ? 10 : 14));
@@ -422,9 +473,10 @@ const TargetChart = forwardRef(function TargetChart({
         {tooltipKey && tooltipPoints.length > 0 && <div className={`chart-tooltip${tooltipLeft > 62 ? ' chart-tooltip--left' : ''}`} style={{ left: `${tooltipLeft}%`, top: `${Math.max(4, tooltipTop)}%` }} aria-hidden="true">
           <strong>{formatChartDate(tooltipKey, aggregation)}</strong>
           {tooltipPoints.map(({ series, point }) => <span key={series.id} className="chart-tooltip-row">
-            <i style={{ background: series.color }} />{series.name}<b>{point.displayVal}</b>
+            <i style={{ background: series.color }} />{series.name}{series.isSummary ? ' (combined)' : ''}<b>{point.displayVal}</b>
           </span>)}
           {tooltipPoints[0].point.therapist && <small>{tooltipPoints[0].point.therapist}</small>}
+          {tooltipPoints[0].point.range && <small>Range across targets: {tooltipPoints[0].point.range.min}–{tooltipPoints[0].point.range.max}</small>}
           <small className="chart-tooltip-hint">{onSelect ? 'Click or press Enter for details' : ''}</small>
         </div>}
       </div>

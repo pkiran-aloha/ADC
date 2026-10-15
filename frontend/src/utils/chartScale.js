@@ -69,3 +69,32 @@ export function describeAxisBounds(bounds = {}) {
   if (min == null && max == null) return 'automatic';
   return `${min == null ? 'auto' : min}–${max == null ? 'auto' : max}`;
 }
+
+// ---------------------------------------------------------------------------
+// Annotation label layout. Round-2 feedback: annotation text has to stay readable in the
+// application and in exports, without overlapping. Labels are placed left to right into
+// as many rows as needed, each row keeping a minimum gap.
+// ---------------------------------------------------------------------------
+
+export function estimateLabelWidth(text, { fontSize = 11, padding = 16, maxWidth = 260 } = {}) {
+  const perCharacter = 0.53 * fontSize;
+  return Math.min(maxWidth, Math.max(28, String(text || '').length * perCharacter + padding));
+}
+
+// items: [{ x, key, ... }] positioned on the chart. Returns the same items with `row` and
+// `boxLeft`/`width` so the caller can draw a non-overlapping label above the plot.
+export function layoutNoteLabels(items = [], { minX = 0, maxX = 1000, rowHeight = 30, maxRows = 3, gap = 8, fontSize = 11 } = {}) {
+  const sorted = [...items].sort((a, b) => a.x - b.x);
+  const rows = Array.from({ length: maxRows }, () => []);
+  const placed = [];
+  for (const item of sorted) {
+    const width = estimateLabelWidth(item.text || item.label, { fontSize });
+    let row = rows.findIndex(rowItems => rowItems.every(existing => Math.abs(existing.center - item.x) >= (existing.width + width) / 2 + gap));
+    if (row === -1) row = maxRows - 1;
+    const boxLeft = Math.min(Math.max(item.x - width / 2, minX), Math.max(minX, maxX - width));
+    rows[row].push({ center: item.x, width });
+    // rowY lets the caller draw the label box without repeating the row height.
+    placed.push({ ...item, row, rowY: row * rowHeight, width, boxLeft });
+  }
+  return placed;
+}

@@ -3,7 +3,8 @@ import SectionHeader from './ui/SectionHeader';
 import { getObservationKey } from '../utils/analyticsMetrics';
 import { formatChartDate, CHART_GRID, CHART_MUTED, CHART_INK } from '../utils/chartTheme';
 import { addDays, mean } from '../utils/stats';
-import { formatNumber } from '../utils/targetAnalytics';
+import { formatNumber, formatClock, formatLongDate } from '../utils/targetAnalytics';
+import { activitySnapshot, weeklyActivity, DOCUMENTATION_STATUSES } from '../utils/sessionActivity';
 
 const FONT = 'Geist, sans-serif';
 const CODES = [
@@ -62,6 +63,11 @@ export default function ServiceQualitySection({ client, serviceSessions, session
   }, [serviceSessions]);
   const minimum = standards?.supervision?.rbtMinimumPercent ?? 5;
   const contactsNeeded = standards?.supervision?.rbtMinimumContactsPerMonth ?? 2;
+  // Live view of the current fictional day: what is scheduled, what has been recorded and
+  // what still needs documenting — without downloading a session note.
+  const activity = useMemo(() => activitySnapshot({ serviceSessions, sessions, asOfDate }), [serviceSessions, sessions, asOfDate]);
+  const week = useMemo(() => weeklyActivity({ serviceSessions, sessions, asOfDate, days: 7 }), [serviceSessions, sessions, asOfDate]);
+  const weekPeak = Math.max(1, ...week.map(day => day.observations));
 
   return <section id="service-quality" className="panel" aria-labelledby="service-quality-title" tabIndex={-1}>
     <SectionHeader id="service-quality-title" title="Service & data quality" description="Dosage against authorization, attendance, agreement between observers, procedural fidelity and supervision."
@@ -74,6 +80,44 @@ export default function ServiceQualitySection({ client, serviceSessions, session
           <span className={`stat-chip stat-chip--${ioaCoverage >= (standards?.ioa?.minimumCoveragePercent ?? 20) ? 'positive' : 'attention'}`}>{ioaCoverage >= (standards?.ioa?.minimumCoveragePercent ?? 20) ? 'Meets ≥ 20%' : 'Below 20%'}</span></dd></div>
         <div className="kpi"><dt>Procedural fidelity</dt><dd><strong>{fidelityRecent.length ? `${formatNumber(mean(fidelityRecent))}%` : '–'}</strong><small>{fidelityRecent.length} checks · {fidelityRecent.filter(value => value < fidelityMinimum).length} below {fidelityMinimum}%</small></dd></div>
       </dl>
+      <article className="abc-card abc-card--wide live-activity" aria-labelledby="activity-title">
+        <div className="abc-card-head">
+          <h3 id="activity-title">Session activity · {formatLongDate(activity.date)}</h3>
+          <span className="stat-chip stat-chip--neutral">Demo clock {activity.clock}</span>
+        </div>
+        <p className="abc-card-note">What is happening on the schedule right now, and which appointments still need documentation. Nothing here requires opening a session note.</p>
+        <dl className="quality-kpis quality-kpis--compact" aria-label="Live session activity summary">
+          <div className="kpi"><dt>Appointments today</dt><dd><strong>{activity.today}</strong><small>{activity.cancelled} cancelled · {activity.inProgress} in progress</small></dd></div>
+          <div className="kpi"><dt>Observations recorded</dt><dd><strong>{activity.observations}</strong><small>{activity.targets} targets · {formatNumber(activity.minutesRecorded)} minutes of data</small></dd></div>
+          <div className="kpi"><dt>Documentation</dt><dd><strong>{activity.documentationRate == null ? '–' : `${activity.documentationRate}%`}</strong>
+            <small>{activity.documented} of {activity.today} appointments have data</small>
+            <span className={`stat-chip stat-chip--${activity.pending.length ? 'attention' : 'positive'}`}>{activity.pending.length ? `${activity.pending.length} pending` : 'All clear'}</span></dd></div>
+          <div className="kpi"><dt>Elapsed session time</dt><dd><strong>{formatNumber(activity.elapsedMinutes / 60)} h</strong><small>of {formatNumber(week.reduce((sum, day) => sum + day.minutes, 0) / 60)} h scheduled this week</small></dd></div>
+        </dl>
+        {activity.appointments.length ? <div className="data-table-scroll" tabIndex={0} role="region" aria-label="Today's appointments with recording progress">
+          <table className="stat-table">
+            <caption className="sr-only">Appointments on {activity.date} with recording progress and documentation status</caption>
+            <thead><tr><th scope="col">Time</th><th scope="col">Appointment</th><th scope="col">Therapist</th><th scope="col">State</th><th scope="col">Observations</th><th scope="col">Documentation</th></tr></thead>
+            <tbody>{activity.appointments.map(item => <tr key={item.id}>
+              <td>{item.start}–{item.end}</td>
+              <td>{item.setting} · {item.serviceCode}{item.settingEvents.length ? <small className="block text-slate-500">Setting events: {item.settingEvents.join(', ')}</small> : null}</td>
+              <td>{item.therapistName}{item.supervision ? <small className="block text-slate-500">Supervised by {item.supervision}</small> : null}</td>
+              <td><span className={`stat-chip stat-chip--${item.state === 'inProgress' ? 'attention' : item.cancelled ? 'muted' : 'neutral'}`}>{item.cancelled ? 'Cancelled' : item.state === 'inProgress' ? 'In progress' : item.state === 'upcoming' ? 'Upcoming' : 'Finished'}</span></td>
+              <td>{item.observations ? `${item.observations} across ${item.targets} target${item.targets === 1 ? '' : 's'}` : '—'}
+                {item.lastRecordedAt ? <small className="block text-slate-500">last {formatClock(item.lastRecordedAt)}</small> : null}</td>
+              <td>{item.cancelled ? '—' : <><span className={`stat-chip stat-chip--${DOCUMENTATION_STATUSES[item.documentation].tone}`}>{DOCUMENTATION_STATUSES[item.documentation].label}</span>
+                {item.minutesRecorded ? <small className="block text-slate-500">{formatNumber(item.minutesRecorded)} min recorded</small> : null}</>}</td>
+            </tr>)}</tbody>
+          </table>
+        </div> : <p className="field-hint">No appointments on the schedule for this fictional day.</p>}
+        <div className="week-strip" role="img" aria-label="Observation counts for the last seven days">
+          {week.map(day => <div key={day.date}>
+            <span className="week-strip-bar" style={{ height: `${Math.max(4, (100 * day.observations) / weekPeak)}%` }} title={`${day.date}: ${day.observations} observations, ${day.appointments} appointments`} />
+            <small>{day.date.slice(8)}</small>
+            <span className="sr-only">{day.date}: {day.observations} observations across {day.appointments} appointments</span>
+          </div>)}
+        </div>
+      </article>
       <div className="quality-grid">
         <article className="abc-card abc-card--wide" aria-labelledby="hours-title">
           <h3 id="hours-title">Weekly service hours</h3>

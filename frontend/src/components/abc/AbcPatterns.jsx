@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { HeatMatrix, FunctionBars, Scatterplot, FlowDiagram, ForestPlot, MiniTrend } from './AbcVisuals';
+import { HeatMatrix, FunctionBars, Scatterplot, TimeOfDayScatter, FlowDiagram, ForestPlot, MiniTrend } from './AbcVisuals';
 import { FUNCTION_COLORS } from '../../utils/chartTheme';
 import {
   contingency, functionProfile, scatterplot, weekdayBlockRates, precursorChains, settingEventEffects, sequenceFlows,
-  intensityTrend, phaseOn, FUNCTIONS
+  intensityTrend, phaseOn, timeOfDayPattern, timeOfDayShares, FUNCTIONS, clockLabel
 } from '../../utils/abcAnalytics';
 import { formatNumber } from '../../utils/targetAnalytics';
 
@@ -39,6 +39,8 @@ export default function AbcPatterns({ entries, allEntries, config, behaviorTarge
   const effects = useMemo(() => settingEventEffects(sessionRows, serviceSessions, behaviorTargets.map(target => target.id)), [sessionRows, serviceSessions, behaviorTargets]);
   const flows = useMemo(() => sequenceFlows(entries, config), [entries, config]);
   const trend = useMemo(() => intensityTrend(entries, behaviors), [entries, behaviors]);
+  const dayPattern = useMemo(() => timeOfDayPattern(entries, { binMinutes: 60, behaviors }), [entries, behaviors]);
+  const dayShares = useMemo(() => timeOfDayShares(dayPattern), [dayPattern]);
 
   if (entries.length < 5) return <div className="analysis-empty"><p><strong>Patterns need more records.</strong> Choose a longer date range to analyze antecedents, consequences and timing.</p></div>;
   const cellFor = (table, row, column, kind) => {
@@ -96,6 +98,19 @@ export default function AbcPatterns({ entries, allEntries, config, behaviorTarge
               <span className="inspector-item-title">{spot.weekday} {spot.block}–{String(Number(spot.block.slice(0, 2)) + 1).padStart(2, '0')}:00 · ×{formatNumber(spot.ratio, 1)} the average</span>
               <span className="inspector-item-meta">{spot.count} records in {formatNumber(spot.hours, 0)} observed hours · {formatNumber(spot.rate, 2)} per hour</span>
             </button></li>)}</ul> : <p className="field-hint">No window has enough observation time yet.</p>}
+        </div>
+      </article>
+      <article className="abc-card abc-card--wide" aria-labelledby="abc-clock">
+        <h3 id="abc-clock">Time of day</h3>
+        <p className="abc-card-note">Every recorded event by its timestamp (updated with each new entry), on a 24-hour axis. Use it to time toileting schedules or to see when episodes cluster within the day.</p>
+        <TimeOfDayScatter pattern={dayPattern} />
+        <div className="hotspots">
+          <h4>Share of events by part of day</h4>
+          <ul>{dayShares.filter(bucket => bucket.count > 0).map(bucket => <li key={bucket.id}>
+            <span className="inspector-item-title">{bucket.label} · {bucket.count} events ({Math.round(bucket.share * 100)}%)</span>
+            <span className="inspector-item-meta">{dayPattern.peak ? `Peak hour ${dayPattern.peak.label} with ${dayPattern.peak.count} events` : ''}</span>
+          </li>)}</ul>
+          {dayPattern.earliest != null && <p className="field-hint">Earliest event {clockLabel(dayPattern.earliest)} · latest {clockLabel(dayPattern.latest)}</p>}
         </div>
       </article>
       <article className="abc-card abc-card--wide" aria-labelledby="abc-flow">

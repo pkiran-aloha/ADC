@@ -204,3 +204,42 @@ export function MiniTrend({ series, weeks, maxValue = 5, label }) {
     <ul className="prompt-legend">{series.map((item, index) => <li key={item.behavior}><i style={{ background: colors[index % colors.length] }} />{item.behavior}</li>)}</ul>
   </div>;
 }
+
+// Event timestamps read as clock time: one dot per recorded event, positioned by date and
+// time of day and sized by intensity. Requested for toileting and behavior-reduction
+// analysis, where the time of day matters more than the running total.
+export function TimeOfDayScatter({ pattern, maxDates = 60 }) {
+  if (!pattern?.points?.length) return null;
+  const dates = [...new Set(pattern.points.map(point => point.date))].slice(-maxDates);
+  const plotted = pattern.points.filter(point => dates.includes(point.date));
+  const left = 66;
+  const top = 12;
+  const plotHeight = 320;
+  const columnWidth = Math.max(12, Math.min(30, 620 / Math.max(1, dates.length)));
+  const width = left + dates.length * columnWidth + 28;
+  const height = top + plotHeight + 46;
+  const toY = minutes => top + (minutes / 1440) * plotHeight;
+  const hours = [0, 6, 12, 18, 24];
+  return <div className="chart-scroll" tabIndex={0} role="region" aria-label="Scatterplot of event timestamps by date and time of day. Scroll horizontally for all dates.">
+    <svg viewBox={`0 0 ${width} ${height}`} className="aux-chart scatter-svg" style={{ minWidth: `${Math.min(width, 940)}px` }} role="img"
+      aria-label={`${plotted.length} events plotted by date and clock time across ${dates.length} dates. Larger dots are higher intensity.`}>
+      {hours.map(hour => <g key={hour}>
+        <line x1={left} x2={width - 20} y1={toY(hour * 60)} y2={toY(hour * 60)} stroke={CHART_GRID} strokeDasharray="3 3" />
+        <text x={left - 6} y={toY(hour * 60) + 4} textAnchor="end" fontSize="9.5" fill={CHART_MUTED} fontFamily={FONT}>{String(hour % 24).padStart(2, '0')}:00</text>
+      </g>)}
+      {dates.map((date, index) => <g key={date}>
+        {(index % Math.ceil(dates.length / 12) === 0 || index === dates.length - 1) && <text x={left + index * columnWidth + columnWidth / 2} y={height - 24} fontSize="9" fill={CHART_MUTED} fontFamily={FONT} textAnchor="middle">{date.slice(5)}</text>}
+        <line x1={left + index * columnWidth + columnWidth / 2} x2={left + index * columnWidth + columnWidth / 2} y1={top} y2={top + plotHeight} stroke="#eef2ee" />
+      </g>)}
+      {plotted.map(point => {
+        const index = dates.indexOf(point.date);
+        const cx = left + index * columnWidth + columnWidth / 2 + ((point.minutes % 60) / 60 - 0.5) * (columnWidth - 6);
+        const radius = 2.4 + (point.intensity ? (point.intensity - 1) * 0.7 : 0);
+        return <circle key={point.id} cx={cx} cy={toY(point.minutes)} r={radius} fill={point.intensity >= 4 ? '#8e4a3a' : point.intensity >= 3 ? '#b97a5c' : '#527d82'} opacity="0.85">
+          <title>{`${point.timestamp.slice(11, 16)} on ${point.date} · ${point.behaviors.join(', ')}${point.intensity ? ` · intensity ${point.intensity}/5` : ''}`}</title>
+        </circle>;
+      })}
+      <text x={left} y={height - 8} fontSize="9.5" fill={CHART_INK} fontFamily={FONT}>Each dot is one recorded event · size and colour show intensity</text>
+    </svg>
+  </div>;
+}

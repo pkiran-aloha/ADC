@@ -120,6 +120,17 @@
       "shiftSd": 0.25,
       "alpha": 0.05,
       "source": "Fisher, Kelley & Lomas (2003) conservative dual-criterion"
+    },
+    "graphing": {
+      "minimumTrialsPerDataPoint": 5,
+      "minimumMinutesPerDataPoint": 1,
+      "source": "Organisation graphing policy for the demo workspace; set by the clinical director"
+    },
+    "behaviorReduction": {
+      "reductionPercent": 80,
+      "sustainedDays": 14,
+      "baselineSource": "mean",
+      "source": "Dual-criterion style reduction rule (Fisher, Kelley & Lomas, 2003) scaled to the target's baseline"
     }
   },
   "promptHierarchyTemplates": [
@@ -8651,5 +8662,5 @@
     {"id":"abc-mateo-0116","clientId":"cli-mateo","timestamp":"2026-10-06T13:12:00","therapist":"Alex Chen, RBT","antecedents":["Preferred topic interrupted","Teacher attention to others"],"behaviors":["Perseverative Talk"],"consequences":["Redirected to shared topic"],"location":"Hallway","notes":"Preferred topic interrupted → perseverative talk. Redirected to shared topic. Brief escalation, then settled after 1 min.","intensity":2,"durationMinutes":1,"serviceSessionId":"ss-mateo-0089"},
     {"id":"abc-mateo-0117","clientId":"cli-mateo","timestamp":"2026-10-13T12:49:00","therapist":"Alex Chen, RBT","antecedents":["Writing task assigned","Preferred topic interrupted"],"behaviors":["Work Refusal"],"consequences":["Break card honored"],"location":"Classroom","notes":"Writing task assigned → work refusal. Break card honored. Calm within 1 min; resumed the activity.","intensity":2,"durationMinutes":1,"serviceSessionId":"ss-mateo-0092"}
   ],
-  "revision": "a6f53e6d22fa95ff"
+  "revision": "3c8b5ee51fb6024c"
 }

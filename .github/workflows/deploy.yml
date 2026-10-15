@@ -44,6 +44,12 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      # Renders every analytics section on the server so prop and helper mistakes that a
+      # bundle cannot catch fail the build instead of the browser.
+      - name: Render analytics sections headlessly
+        working-directory: frontend
+        run: npm run smoke
+
       - name: Build frontend application
         working-directory: frontend
         run: npm run build

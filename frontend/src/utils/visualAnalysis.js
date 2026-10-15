@@ -306,3 +306,117 @@ export function ioaSummary(rows, { minimumAgreement = 80, minimumCoverage = 20 }
     methods: [...new Set(checked.map(row => row.ioa.method))]
   };
 }
+
+// ---------------------------------------------------------------------------
+// Behavior-reduction mastery: a baseline level and a configured percentage reduction
+// sustained across a defined number of days. Added for the analytics feedback round.
+// ---------------------------------------------------------------------------
+
+export const REDUCTION_BASELINE_SOURCES = [
+  { value: 'mean', label: 'Baseline mean' },
+  { value: 'median', label: 'Baseline median' },
+  { value: 'max', label: 'Highest baseline value' }
+];
+
+// The value the treated data must stay at or below.
+export function reductionCriterion(baselineValues = [], { reductionPercent = 80, baselineSource = 'mean' } = {}) {
+  const values = baselineValues.filter(value => Number.isFinite(value));
+  if (!values.length) return null;
+  const base = baselineSource === 'median' ? median(values) : baselineSource === 'max' ? Math.max(...values) : mean(values);
+  if (!Number.isFinite(base)) return null;
+  const percent = Math.min(100, Math.max(0, Number(reductionPercent) || 0));
+  return {
+    baseline: Math.round(base * 100) / 100,
+    baselineSource,
+    reductionPercent: percent,
+    value: Math.round(base * (1 - percent / 100) * 100) / 100,
+    label: `${percent}% below the ${baselineSource === 'max' ? 'highest' : baselineSource} baseline of ${Math.round(base * 100) / 100}`
+  };
+}
+
+// Evaluate the rule against the target's whole history: baseline window, then a run of
+// consecutive measured days inside the criterion.
+export function evaluateReductionMastery(rows = [], rule = {}, { startDate = null, sustainedDays = 14, reductionPercent = 80 } = {}) {
+  const config = {
+    reductionPercent: Number(rule.reductionPercent ?? reductionPercent),
+    sustainedDays: Number(rule.sustainedDays ?? sustainedDays),
+    baselineSource: rule.baselineSource || 'mean',
+    baselineFrom: rule.baselineFrom || null,
+    baselineTo: rule.baselineTo || null
+  };
+  const measured = rows
+    .filter(row => Number.isFinite(row?.value))
+    .sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  if (!measured.length) {
+    return { configured: true, met: false, criterion: null, baseline: null, current: null, sustained: 0, requiredDays: config.sustainedDays, firstMetDate: null, message: 'No measured behavior data in this range.' };
+  }
+  const baselineRows = measured.filter(row => {
+    const date = row.timestamp.slice(0, 10);
+    if (config.baselineFrom && date < config.baselineFrom) return false;
+    if (config.baselineTo && date > config.baselineTo) return false;
+    if (!config.baselineFrom && !config.baselineTo && startDate && date >= startDate) return false;
+    return true;
+  });
+  const baselineValues = (baselineRows.length ? baselineRows : measured.slice(0, Math.max(1, Math.min(5, measured.length)))).map(row => row.value);
+  const criterion = reductionCriterion(baselineValues, config);
+  if (!criterion) {
+    return { configured: true, met: false, criterion: null, baseline: null, current: null, sustained: 0, requiredDays: config.sustainedDays, firstMetDate: null, message: 'No baseline values are available for this target.' };
+  }
+  const treated = measured.filter(row => row.timestamp.slice(0, 10) >= (config.baselineTo || startDate || row_date(baselineRows.at(-1)) || measured[0].timestamp.slice(0, 10)));
+  const dayOf = row => row.timestamp.slice(0, 10);
+  // Walk backwards from the most recent measurement while every value stays inside the
+  // criterion; the run's span in days is what has to reach the configured duration.
+  let runStart = null;
+  for (let index = treated.length - 1; index >= 0; index -= 1) {
+    if (treated[index].value > criterion.value) break;
+    runStart = dayOf(treated[index]);
+  }
+  const lastDate = treated.length ? dayOf(treated.at(-1)) : null;
+  const runDays = runStart && lastDate ? Math.round((new Date(`${lastDate}T12:00:00Z`) - new Date(`${runStart}T12:00:00Z`)) / 86400000) : 0;
+  const met = Boolean(runStart) && runDays >= config.sustainedDays;
+  const currentReduction = criterion.baseline > 0 && treated.length ? 100 * (1 - treated.at(-1).value / criterion.baseline) : null;
+  const insideCount = treated.filter(row => row.value <= criterion.value).length;
+  return {
+    configured: true,
+    met,
+    criterion,
+    baseline: criterion.baseline,
+    current: treated.length ? treated.at(-1).value : null,
+    currentReductionPercent: currentReduction == null ? null : Math.round(currentReduction * 10) / 10,
+    sustained: runDays,
+    requiredDays: config.sustainedDays,
+    firstMetDate: met ? runStart : null,
+    since: runStart,
+    insideCount,
+    treatedCount: treated.length,
+    message: met
+      ? `Criterion sustained for ${runDays} days from ${runStart}.`
+      : runStart
+        ? `Below criterion since ${runStart} (${runDays} of ${config.sustainedDays} days).`
+        : 'No sustained reduction yet.'
+  };
+}
+
+function row_date(row) {
+  return row?.timestamp?.slice(0, 10) || null;
+}
+
+// Behaviour-reduction defaults come from the organisation's clinical standards, with a
+// per-target rule overriding them.
+export function reductionRuleFor(target, standards = null) {
+  const configured = target?.reductionRule || {};
+  const fallback = standards?.behaviorReduction || {};
+  return {
+    reductionPercent: Number(configured.reductionPercent ?? fallback.reductionPercent ?? 80),
+    sustainedDays: Number(configured.sustainedDays ?? fallback.sustainedDays ?? 14),
+    baselineSource: configured.baselineSource || fallback.baselineSource || 'mean',
+    baselineFrom: configured.baselineFrom || null,
+    baselineTo: configured.baselineTo || null,
+    source: target?.reductionRule ? 'Target rule' : 'Organisation standard'
+  };
+}
+
+export function describeReductionRule(rule) {
+  const source = rule.baselineSource === 'max' ? 'the highest baseline value' : `the ${rule.baselineSource} baseline`;
+  return `${rule.reductionPercent}% or greater reduction from ${source}, sustained for ${rule.sustainedDays} days`;
+}
