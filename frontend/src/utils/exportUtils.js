@@ -87,7 +87,15 @@ export function exportRawTrialDataCsv(records, clientName = 'Client') {
     'Occurrence Count',
     'Lesson Duration (Min)',
     'Qualitative Entry',
-    'Missing Data Mode'
+    'Missing Data Mode',
+    'Trial Sequence',
+    'Interval Scores',
+    'Episode Durations (Seconds)',
+    'Error Count',
+    'IOA (%)',
+    'IOA Method',
+    'IOA Observer',
+    'Service Session'
   ];
 
   const rows = records.map(r => [
@@ -105,7 +113,15 @@ export function exportRawTrialDataCsv(records, clientName = 'Client') {
     r.occurrenceCount !== null && r.occurrenceCount !== undefined ? r.occurrenceCount : '',
     r.lessonDurationMinutes || '',
     r.qualitativeEntry || '',
-    r.missingDataMode || 'Tracked'
+    r.missingDataMode || 'Tracked',
+    r.trialSequence || '',
+    r.intervalScores || '',
+    (r.episodeDurations || []).join(' '),
+    r.errorCount ?? '',
+    r.ioa?.percent ?? '',
+    r.ioa?.method || '',
+    r.ioa?.observer || '',
+    r.serviceSessionId || ''
   ]);
 
   const csvContent = [headers.join(','), ...rows.map(csvRow)].join('\n');
@@ -124,7 +140,8 @@ export function exportAbcDataCsv(entries, clientName = 'Client') {
     'Location',
     'Notes',
     'Intensity',
-    'Duration (Min)'
+    'Duration (Min)',
+    'Setting Events'
   ];
 
   const rows = entries.map(e => [
@@ -136,7 +153,8 @@ export function exportAbcDataCsv(entries, clientName = 'Client') {
     e.location || '',
     e.notes || '',
     e.intensity ?? '',
-    e.durationMinutes ?? ''
+    e.durationMinutes ?? '',
+    (e.settingEvents || []).join('; ')
   ]);
 
   const csvContent = [headers.join(','), ...rows.map(csvRow)].join('\n');

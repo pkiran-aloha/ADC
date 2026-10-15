@@ -1353,9 +1353,11 @@ def build_calendar(client):
     for session in sessions:
         if session["status"] == "Completed" and session["role"] == "RBT":
             by_week.setdefault(session["_day"].isocalendar()[:2], []).append(session)
+    supervised_minutes = {}
     for index, (_, week) in enumerate(sorted(by_week.items())):
         supervisors = SUPERVISORS[client["id"]]
-        chosen = [week[0]]
+        month = week[0]["_day"].strftime("%Y-%m")
+        chosen = [min(week, key=lambda s: (supervised_minutes.get((month, s["therapistName"]), 0), s["_day"], s["_begin"]))]
         if any(s["therapistName"] == LEO for s in week) and rng.chance(0.7):
             chosen.append(next(s for s in week if s["therapistName"] == LEO))
         elif len(week) > 3 and rng.chance(0.3):
@@ -1366,6 +1368,8 @@ def build_calendar(client):
             supervisor = supervisors[(index + pick) % len(supervisors)]
             minutes = min(session["minutes"], rng.choice([45, 60, 60, 90]))
             session["supervision"] = {"supervisor": supervisor, "minutes": minutes}
+            key = (session["_day"].strftime("%Y-%m"), session["therapistName"])
+            supervised_minutes[key] = supervised_minutes.get(key, 0) + minutes
             total = rng.choice([20, 22, 24, 25])
             therapist = session["therapistName"]
             if therapist == LEO:

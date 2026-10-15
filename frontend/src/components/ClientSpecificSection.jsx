@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useRef } from 'react';
-import { RotateCw, TrendingUp, Plus, Trash2, Edit3, CheckSquare, Square, UserCheck, ChevronLeft, ChevronRight } from './ui/Icons';
+import { useState, useMemo, useRef } from 'react';
+import { RotateCw, TrendingUp, Plus, Trash2, Edit3, CheckSquare, Square, UserCheck, ChevronLeft, ChevronRight, Settings2 } from './ui/Icons';
 import { exportSvgElement, exportPngFromSvg, exportRawTrialDataCsv, exportStructuredZip } from '../utils/exportUtils';
 import ProgramDetails from './ProgramDetails';
 import SectionHeader from './ui/SectionHeader';
@@ -7,15 +7,46 @@ import ExportMenu from './ui/ExportMenu';
 import Popover from './ui/Popover';
 import SegmentedControl from './ui/SegmentedControl';
 import EmptyState from './ui/EmptyState';
+import TargetChart from './analysis/TargetChart';
+import ObservationInspector from './analysis/ObservationInspector';
+import AnalysisPanel from './analysis/AnalysisPanel';
+import { PromptLevelChart, CelerationChart, TimelineBrush } from './analysis/SpecialCharts';
 import { MEASUREMENT_LABELS } from '../utils/formValidation';
-import { seriesColor, formatChartDate, chartMarkerInk, CHART_GRID, CHART_MUTED, CHART_INK } from '../utils/chartTheme';
+import { seriesColor, formatChartDate } from '../utils/chartTheme';
 import { getMinDate, processAggregation, getObservationKey, sortObservationKeys, chartStatistics } from '../utils/analyticsMetrics';
+import { median, mean } from '../utils/stats';
+import {
+  splitMiddle, stabilityEnvelope, movingAverage, compareConditions, segmentByBoundaries, celeration,
+  forecastLinear, projectThresholdDate, evaluateMastery, ioaSummary
+} from '../utils/visualAnalysis';
+import { weekdayOf } from '../utils/abcAnalytics';
+import {
+  conditionBoundaries, firstConditionLabel, therapeuticDirection, goalInView, serviceIndex, rowValue,
+  projectedKeys, unitLabel
+} from '../utils/targetAnalytics';
+import { buildInsights } from '../utils/insights';
+
+const FUNCTION_OPTIONS = [
+  { key: 'median', label: 'Median line', hint: 'Central tendency that resists outliers' },
+  { key: 'movingAverage', label: 'Moving average (3 points)', hint: 'Smooths session-to-session variability' },
+  { key: 'envelope', label: 'Stability envelope', hint: '±25% of the current condition’s median (Lane & Gast, 2014)' },
+  { key: 'phaseMeans', label: 'Condition means', hint: 'Mean level for each phase or procedure change' },
+  { key: 'goal', label: 'Mastery criterion line', hint: 'Shown when the rule matches the chart’s unit' },
+  { key: 'forecast', label: 'Projection (80% band)', hint: 'Linear projection of the current condition' },
+  { key: 'ioa', label: 'IOA markers', hint: 'Rings mark sessions with a second observer; dashed when below 80%' },
+  { key: 'log', label: 'Ratio (log) scale', hint: 'Equal ratios look equal, as on a celeration chart' }
+];
 
 export default function ClientSpecificSection({
   client,
   programs = [],
   sessions = [],
+  serviceSessions = [],
+  abcEntries = [],
+  templates = [],
+  standards = null,
   annotations = { phaseLines: [], phaseRanges: [], graphNotes: [] },
+  initialFocus = null,
   onAddPhaseLineClick,
   onAddPhaseRangeClick,
   onAddGraphNoteClick,
@@ -26,43 +57,26 @@ export default function ClientSpecificSection({
   onEditAnnotation,
   onRecordClick
 }) {
-  // Program / Behavior selection (Section 6.1 & 6.2)
-  const [activeCategoryTab, setActiveCategoryTab] = useState('SkillAcquisition'); // 'SkillAcquisition' or 'Behavior'
-  const [selectedProgramId, setSelectedProgramId] = useState(() => programs.find(program => program.category === 'SkillAcquisition')?.id || '');
-  const [selectedBehaviorIds, setSelectedBehaviorIds] = useState(() => { const first = programs.find(program => program.category === 'BehaviorReduction')?.targets[0]?.id; return first ? [first] : []; }); // multi-selection support (Section 19)
-
-  // Target Type Tab state (Section 7 & 9.4)
-  const [requestedTargetType, setActiveTargetType] = useState('');
-
-  // Target Visibility Control (Section 12.1)
-  const [hiddenTargetIds, setHiddenTargetIds] = useState(new Set());
-
-  // Duration filter (Section 7.3)
-  const [durationFilter, setDurationFilter] = useState('1 month');
-
-  // Aggregation view (Section 18)
-  const [aggregation, setAggregation] = useState('Per Day'); // 'Per Day', 'Per Session', 'Weekly', 'Monthly'
+  const [activeCategoryTab, setActiveCategoryTab] = useState(initialFocus?.category || 'SkillAcquisition');
+  const [selectedProgramId, setSelectedProgramId] = useState(() => initialFocus?.programId || programs.find(program => program.category === 'SkillAcquisition')?.id || '');
+  const [selectedBehaviorIds, setSelectedBehaviorIds] = useState(() => {
+    if (initialFocus?.behaviorIds) return initialFocus.behaviorIds;
+    const first = programs.find(program => program.category === 'BehaviorReduction')?.targets[0]?.id;
+    return first ? [first] : [];
+  });
+  const [requestedTargetType, setActiveTargetType] = useState(initialFocus?.targetType || '');
+  const [hiddenTargetIds, setHiddenTargetIds] = useState(() => new Set(initialFocus?.hiddenTargetIds || []));
+  const [durationFilter, setDurationFilter] = useState(initialFocus?.durationFilter || '1 month');
+  const [aggregation, setAggregation] = useState(initialFocus?.aggregation || 'Per Day');
   const [sessionPage, setSessionPage] = useState(1);
-
-  // Duration target view options (Section 15)
-  const [durationView, setDurationView] = useState('Total Duration'); // 'Total Duration', 'Total Count', 'Average Duration'
-
-  // Fluency / Rate target view options (Section 6)
-  const [rateView, setRateView] = useState('Rate per Day'); // 'Rate per Day', 'Rate per Minute', 'Rate per Hour'
-
-  // Frequency view: Raw vs Rate
-  const [frequencyView, setFrequencyView] = useState('Raw Frequency'); // 'Raw Frequency', 'Rate per Minute', 'Rate per Hour'
-
-  // Split Data by Therapist (Section 17)
+  const [durationView, setDurationView] = useState('Total Duration');
+  const [rateView, setRateView] = useState('Rate per Day');
+  const [frequencyView, setFrequencyView] = useState('Raw Frequency');
   const [splitByTherapist, setSplitByTherapist] = useState(false);
   const [hiddenTherapists, setHiddenTherapists] = useState(new Set());
-
-  // Overlays: Average Line & Trend Line (Section 13 & 14)
   const [showAverageLine, setShowAverageLine] = useState(false);
   const [showTrendLine, setShowTrendLine] = useState(false);
-  const [useRegressionTrend, setUseRegressionTrend] = useState(true);
-
-  // Chart customization (Section 10.1, 10.2, 10.3)
+  const [trendMethod, setTrendMethod] = useState('regression');
   const [customTitles, setCustomTitles] = useState({});
   const [draftTitle, setDraftTitle] = useState('');
   const [titleError, setTitleError] = useState('');
@@ -70,68 +84,44 @@ export default function ClientSpecificSection({
   const [annotationTargetId, setAnnotationTargetId] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showGridlines, setShowGridlines] = useState(true);
-  const [colorMode, setColorMode] = useState('System'); // 'System' vs 'BlackAndWhite'
-
-  // Behavior reduction missing data handling (Section 8.5)
+  const [colorMode, setColorMode] = useState('System');
   const [behaviorZeroOut, setBehaviorZeroOut] = useState(true);
   const [showEmptyDates, setShowEmptyDates] = useState(true);
+  // Analytical functions and drill-down state.
+  const [functions, setFunctions] = useState(() => new Set());
+  const [chartView, setChartView] = useState('standard');
+  const [selectedKey, setSelectedKey] = useState(initialFocus?.selectedKey || null);
+  const [analysisTargetId, setAnalysisTargetId] = useState(initialFocus?.analysisTargetId || '');
+  const [analysisTab, setAnalysisTab] = useState('comparison');
+  const [comparisonIndex, setComparisonIndex] = useState(null);
+  const [cdcOnChart, setCdcOnChart] = useState(false);
+  const [contextDimension, setContextDimension] = useState('clinician');
+  const [highlightGroup, setHighlightGroup] = useState(null);
+  const [zoom, setZoom] = useState(null);
 
-  // Export menus & SVG ref
   const svgRef = useRef(null);
-
-  // Filter programs by category
+  const services = useMemo(() => serviceIndex(serviceSessions), [serviceSessions]);
   const skillPrograms = useMemo(() => programs.filter(p => p.category === 'SkillAcquisition'), [programs]);
   const behaviorPrograms = useMemo(() => programs.filter(p => p.category === 'BehaviorReduction'), [programs]);
-
-  // All behavior targets across behavior programs
-  const allBehaviors = useMemo(() => {
-    const list = [];
-    behaviorPrograms.forEach(p => {
-      p.targets.forEach(t => list.push({ ...t, programName: p.name }));
-    });
-    return list;
-  }, [behaviorPrograms]);
-
-  // Currently selected program object
-  const currentSelectedProgram = useMemo(() => {
-    if (activeCategoryTab === 'SkillAcquisition') {
-      return skillPrograms.find(p => p.id === selectedProgramId) || null;
-    }
-    return null;
-  }, [activeCategoryTab, selectedProgramId, skillPrograms]);
-
-  // Active targets based on current selection
-  const activeTargets = useMemo(() => {
-    if (activeCategoryTab === 'SkillAcquisition') {
-      return currentSelectedProgram ? currentSelectedProgram.targets : [];
-    } else {
-      return allBehaviors.filter(b => selectedBehaviorIds.includes(b.id));
-    }
-  }, [activeCategoryTab, currentSelectedProgram, allBehaviors, selectedBehaviorIds]);
-
+  const allBehaviors = useMemo(() => behaviorPrograms.flatMap(p => p.targets.map(t => ({ ...t, programName: p.name }))), [behaviorPrograms]);
+  const currentSelectedProgram = useMemo(() => activeCategoryTab === 'SkillAcquisition' ? skillPrograms.find(p => p.id === selectedProgramId) || null : null,
+    [activeCategoryTab, selectedProgramId, skillPrograms]);
+  const activeTargets = useMemo(() => activeCategoryTab === 'SkillAcquisition'
+    ? (currentSelectedProgram ? currentSelectedProgram.targets : [])
+    : allBehaviors.filter(b => selectedBehaviorIds.includes(b.id)), [activeCategoryTab, currentSelectedProgram, allBehaviors, selectedBehaviorIds]);
   const detailPrograms = useMemo(() => activeCategoryTab === 'SkillAcquisition'
     ? (currentSelectedProgram ? [currentSelectedProgram] : [])
-    : behaviorPrograms.filter(p => p.targets.some(t => selectedBehaviorIds.includes(t.id))),
-  [activeCategoryTab, currentSelectedProgram, behaviorPrograms, selectedBehaviorIds]);
-
+    : behaviorPrograms.filter(p => p.targets.some(t => selectedBehaviorIds.includes(t.id))), [activeCategoryTab, currentSelectedProgram, behaviorPrograms, selectedBehaviorIds]);
   const visibleTargetIds = useMemo(() => new Set(activeTargets.filter(target => !hiddenTargetIds.has(target.id)).map(target => target.id)), [activeTargets, hiddenTargetIds]);
 
-  // Determine available target types for the selection (Section 7 & 9.4)
   const availableTargetTypes = useMemo(() => {
-    if (activeTargets.length === 0) return [];
-
-    // A pending target (or one with only DataNotTracked records) has no data tab.
+    if (!activeTargets.length) return [];
     const typesWithData = new Set();
     activeTargets.forEach(tgt => {
-      const hasData = sessions.some(s => s.clientId === client?.id &&
-        s.targetId === tgt.id && s.missingDataMode !== 'DataNotTracked');
-      if (hasData) typesWithData.add(tgt.type);
+      if (sessions.some(s => s.clientId === client?.id && s.targetId === tgt.id && s.missingDataMode !== 'DataNotTracked')) typesWithData.add(tgt.type);
     });
-
-    const standardOrder = ['TrialByTrial', 'Duration', 'Frequency', 'IntervalData', 'Anecdotal', 'FluencyRate'];
-    return standardOrder.filter(type => typesWithData.has(type));
+    return ['TrialByTrial', 'Duration', 'Frequency', 'IntervalData', 'Anecdotal', 'FluencyRate'].filter(type => typesWithData.has(type));
   }, [activeTargets, sessions, client]);
-
   const activeTargetType = availableTargetTypes.includes(requestedTargetType) ? requestedTargetType : availableTargetTypes[0] || '';
 
   const titleContext = `${client?.id}-${activeCategoryTab}-${selectedProgramId}-${selectedBehaviorIds.join(',')}`;
@@ -147,146 +137,255 @@ export default function ClientSpecificSection({
     setIsEditingTitle(false);
     setTitleError('');
     setHiddenTherapists(new Set());
+    setSelectedKey(null);
+    setComparisonIndex(null);
+    setCdcOnChart(false);
+    setHighlightGroup(null);
+    setZoom(null);
+    setChartView('standard');
     if (resetTargets) {
       setHiddenTargetIds(new Set());
       setActiveTargetType('');
       setAnnotationTargetId('');
+      setAnalysisTargetId('');
     }
   }
 
-  // Targets in the currently selected target type tab
-  const tabTargets = useMemo(() => {
-    return activeTargets.filter(t => t.type === activeTargetType && visibleTargetIds.has(t.id));
-  }, [activeTargets, activeTargetType, visibleTargetIds]);
+  const tabTargets = useMemo(() => activeTargets.filter(t => t.type === activeTargetType && visibleTargetIds.has(t.id)), [activeTargets, activeTargetType, visibleTargetIds]);
 
-  // Filter raw sessions based on duration, client, and targets
   const filteredSessions = useMemo(() => {
-    if (!client || activeTargets.length === 0) return [];
-
-    const targetIdList = activeTargets.map(t => t.id);
-    let list = sessions.filter(s => s.clientId === client.id &&
-      targetIdList.includes(s.targetId) && s.missingDataMode !== 'DataNotTracked');
-
-    list = list.filter(s => new Date(s.timestamp) >= getMinDate(durationFilter));
+    if (!client || !activeTargets.length) return [];
+    const ids = new Set(activeTargets.map(t => t.id));
+    const minDate = getMinDate(durationFilter);
+    let list = sessions.filter(s => s.clientId === client.id && ids.has(s.targetId) && s.missingDataMode !== 'DataNotTracked' && new Date(s.timestamp) >= minDate);
     list.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-    // Behavior Reduction missing data handling (Section 8.3)
-    if (activeCategoryTab === 'Behavior') {
-      if (!behaviorZeroOut) {
-        list = list.filter(s => s.missingDataMode !== 'ZeroOut');
-      }
-    }
-
+    if (activeCategoryTab === 'Behavior' && !behaviorZeroOut) list = list.filter(s => s.missingDataMode !== 'ZeroOut');
     return list;
   }, [client, activeTargets, sessions, durationFilter, activeCategoryTab, behaviorZeroOut]);
 
-  // Extract all unique therapists for the selected targets
-  const allTherapistsForTarget = useMemo(() => {
-    const set = new Set();
-    filteredSessions.filter(session => tabTargets.some(target => target.id === session.targetId)).forEach(s => {
-      if (s.therapistName) set.add(s.therapistName);
-    });
-    return Array.from(set);
-  }, [filteredSessions, tabTargets]);
-
+  const allTherapistsForTarget = useMemo(() => [...new Set(filteredSessions.filter(session => tabTargets.some(target => target.id === session.targetId)).map(s => s.therapistName).filter(Boolean))], [filteredSessions, tabTargets]);
   const visibleTherapists = useMemo(() => new Set(allTherapistsForTarget.filter(name => !hiddenTherapists.has(name))), [allTherapistsForTarget, hiddenTherapists]);
+  const view = useMemo(() => ({ targetType: activeTargetType, durationView, rateView, frequencyView }), [activeTargetType, durationView, rateView, frequencyView]);
 
-  // Process data points for Graph based on Aggregation and Target Type
   const chartSeriesData = useMemo(() => {
-    if (tabTargets.length === 0 || filteredSessions.length === 0) return [];
-
-
-    // If Split by Therapist is enabled (Section 17) - only applies when single target is selected
+    if (!tabTargets.length || !filteredSessions.length) return [];
     if (splitByTherapist && tabTargets.length === 1) {
       const tgt = tabTargets[0];
-      return allTherapistsForTarget
-        .filter(th => visibleTherapists.has(th))
-        .map(therapist => {
-          const thSessions = filteredSessions.filter(s => s.targetId === tgt.id && s.therapistName === therapist);
-          const points = processAggregation(thSessions, aggregation, activeTargetType, durationView, rateView, frequencyView);
-          return {
-            id: `th-${therapist}`,
-            name: therapist,
-            color: seriesColor(allTherapistsForTarget.indexOf(therapist), colorMode === 'BlackAndWhite'),
-            points
-          };
-        });
+      return allTherapistsForTarget.filter(th => visibleTherapists.has(th)).map(therapist => ({
+        id: `th-${therapist}`, name: therapist, color: seriesColor(allTherapistsForTarget.indexOf(therapist), colorMode === 'BlackAndWhite'),
+        points: processAggregation(filteredSessions.filter(s => s.targetId === tgt.id && s.therapistName === therapist), aggregation, activeTargetType, durationView, rateView, frequencyView)
+      }));
     }
+    return tabTargets.map(tgt => ({
+      id: tgt.id, name: tgt.name, color: seriesColor(activeTargets.findIndex(target => target.id === tgt.id), colorMode === 'BlackAndWhite'),
+      points: processAggregation(filteredSessions.filter(s => s.targetId === tgt.id), aggregation, activeTargetType, durationView, rateView, frequencyView)
+    }));
+  }, [tabTargets, filteredSessions, splitByTherapist, allTherapistsForTarget, visibleTherapists, aggregation, activeTargetType, durationView, rateView, frequencyView, colorMode, activeTargets]);
 
-    // Default: one series per target
-    return tabTargets.map(tgt => {
-      const tgtSessions = filteredSessions.filter(s => s.targetId === tgt.id);
-      const points = processAggregation(tgtSessions, aggregation, activeTargetType, durationView, rateView, frequencyView);
-      const defaultColor = seriesColor(activeTargets.findIndex(target => target.id === tgt.id), colorMode === 'BlackAndWhite');
-
-      return {
-        id: tgt.id,
-        name: tgt.name,
-        color: defaultColor,
-        points
-      };
-    });
-  }, [
-    tabTargets,
-    filteredSessions,
-    splitByTherapist,
-    allTherapistsForTarget,
-    visibleTherapists,
-    aggregation,
-    activeTargetType,
-    durationView,
-    rateView,
-    frequencyView,
-    colorMode,
-    activeTargets
-  ]);
-
-  const contextualXKeys = showEmptyDates && activeCategoryTab === 'Behavior'
+  const contextualXKeys = useMemo(() => showEmptyDates && activeCategoryTab === 'Behavior'
     ? sessions.filter(session => session.clientId === client?.id && tabTargets.some(target => target.id === session.targetId) &&
       new Date(session.timestamp) >= getMinDate(durationFilter)).map(session => getObservationKey(session, aggregation))
-    : [];
-  const allChartKeys = sortObservationKeys(new Set([...contextualXKeys, ...chartSeriesData.flatMap(series => series.points.map(point => point.xKey))]), aggregation);
+    : [], [showEmptyDates, activeCategoryTab, sessions, client, tabTargets, durationFilter, aggregation]);
+  const allChartKeys = useMemo(() => sortObservationKeys(new Set([...contextualXKeys, ...chartSeriesData.flatMap(series => series.points.map(point => point.xKey))]), aggregation),
+    [contextualXKeys, chartSeriesData, aggregation]);
   const totalPages = Math.max(1, Math.ceil(allChartKeys.length / 12));
   const currentPage = Math.min(sessionPage, totalPages);
-  const pageKeys = aggregation === 'Per Session' ? allChartKeys.slice((currentPage - 1) * 12, currentPage * 12) : allChartKeys;
-  const displaySeriesData = aggregation === 'Per Session'
-    ? chartSeriesData.map(series => ({ ...series, points: series.points.filter(point => pageKeys.includes(point.xKey)) })) : chartSeriesData;
+  const zoomSignature = `${aggregation}|${durationFilter}|${activeTargetType}|${allChartKeys.length}|${allChartKeys[0]}`;
+  const zoomRange = aggregation !== 'Per Session' && zoom?.signature === zoomSignature ? zoom : { start: 0, end: Math.max(0, allChartKeys.length - 1) };
+  const pageKeys = useMemo(() => aggregation === 'Per Session'
+    ? allChartKeys.slice((currentPage - 1) * 12, currentPage * 12)
+    : allChartKeys.slice(zoomRange.start, zoomRange.end + 1), [aggregation, allChartKeys, currentPage, zoomRange.start, zoomRange.end]);
+  const pageKeySet = new Set(pageKeys);
+  const displaySeriesData = chartSeriesData.map(series => ({ ...series, points: series.points.filter(point => pageKeySet.has(point.xKey)) }));
   const { averageValue, trendlinePoints, regressionPoints, regressionParams } = chartStatistics(displaySeriesData, aggregation, pageKeys);
   const annotationTarget = tabTargets.find(target => target.id === annotationTargetId) || tabTargets[0];
 
-  // Target-specific annotations (Section 10 & 11)
-  // Hide when multiple behaviors are selected per Section 19.2
   const activeAnnotations = useMemo(() => {
-    if (activeCategoryTab === 'Behavior' && selectedBehaviorIds.length > 1) {
-      return { phaseLines: [], phaseRanges: [], graphNotes: [] };
-    }
+    if (activeCategoryTab === 'Behavior' && selectedBehaviorIds.length > 1) return { phaseLines: [], phaseRanges: [], graphNotes: [] };
     const currentTargetId = annotationTarget?.id;
     if (!currentTargetId) return { phaseLines: [], phaseRanges: [], graphNotes: [] };
     return {
-      phaseLines: (annotations.phaseLines || []).filter(p => !currentTargetId || p.targetId === currentTargetId),
-      phaseRanges: (annotations.phaseRanges || []).filter(p => !currentTargetId || p.targetId === currentTargetId),
-      graphNotes: (annotations.graphNotes || []).filter(p => !currentTargetId || p.targetId === currentTargetId)
+      phaseLines: (annotations.phaseLines || []).filter(p => p.targetId === currentTargetId),
+      phaseRanges: (annotations.phaseRanges || []).filter(p => p.targetId === currentTargetId),
+      graphNotes: (annotations.graphNotes || []).filter(p => p.targetId === currentTargetId)
     };
   }, [annotations, annotationTarget, activeCategoryTab, selectedBehaviorIds]);
 
-  const handleExport = (type) => {
-    if (type === 'svg') {
-      return exportSvgElement(svgRef.current, `${chartTitle.replace(/\s+/g, '_')}.svg`);
-    } else if (type === 'png') {
-      return exportPngFromSvg(svgRef.current, `${chartTitle.replace(/\s+/g, '_')}.png`);
-    } else if (type === 'raw-csv') {
-      // Unlike the graph, the raw export includes DataNotTracked and zero-out dates.
-      const ids = new Set(tabTargets.map(t => t.id));
-      const raw = sessions.filter(s => s.clientId === client?.id && ids.has(s.targetId) &&
-        new Date(s.timestamp) >= getMinDate(durationFilter));
-      return exportRawTrialDataCsv(raw.map(record => ({ ...record, targetName: tabTargets.find(target => target.id === record.targetId)?.name || record.targetId })), client?.name);
-    } else if (type === 'zip') {
-      return exportStructuredZip({ clientName: client?.name || 'Client', programs, allRawRecords: sessions });
+  // ---------------- Analysis target, overlays and visual analysis ----------------
+  const analysisTarget = tabTargets.find(target => target.id === analysisTargetId) || tabTargets[0] || null;
+  const programCategory = activeCategoryTab === 'Behavior' ? 'BehaviorReduction' : 'SkillAcquisition';
+  const isBehavior = programCategory === 'BehaviorReduction';
+  const keyIndex = useMemo(() => new Map(pageKeys.map((key, index) => [key, index])), [pageKeys]);
+  const analysisRows = useMemo(() => analysisTarget ? filteredSessions.filter(row => row.targetId === analysisTarget.id) : [], [filteredSessions, analysisTarget]);
+  const rowsByGroup = useMemo(() => {
+    const groups = new Map();
+    for (const row of filteredSessions) {
+      if (!tabTargets.some(target => target.id === row.targetId)) continue;
+      const key = `${row.targetId}|${getObservationKey(row, aggregation)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
     }
+    return groups;
+  }, [filteredSessions, tabTargets, aggregation]);
+  const analysisPoints = useMemo(() => {
+    if (!analysisTarget || activeTargetType === 'Anecdotal') return [];
+    return processAggregation(analysisRows, aggregation, activeTargetType, durationView, rateView, frequencyView)
+      .filter(point => keyIndex.has(point.xKey))
+      .map(point => {
+        const rows = rowsByGroup.get(`${analysisTarget.id}|${point.xKey}`) || [];
+        return { ...point, x: keyIndex.get(point.xKey), y: point.val, key: `${analysisTarget.id}|${point.xKey}`,
+          afterBreak: rows.some(row => services.get(row.serviceSessionId)?.settingEvents?.includes('Schedule change')) };
+      });
+  }, [analysisTarget, analysisRows, aggregation, activeTargetType, durationView, rateView, frequencyView, keyIndex, rowsByGroup, services]);
+
+  const segments = useMemo(() => analysisTarget ? segmentByBoundaries(analysisPoints, conditionBoundaries(analysisTarget, annotations.phaseLines), firstConditionLabel(analysisTarget)) : [], [analysisPoints, analysisTarget, annotations.phaseLines]);
+  const comparisonOptions = segments.slice(1).map((segment, index) => ({
+    id: `${segments[index].label}-${segment.label}-${segment.start}`, before: segments[index].label, after: segment.label,
+    label: `${segments[index].label} → ${segment.label} (from ${formatChartDate(segment.start)})`, A: segments[index], B: segment
+  }));
+  const defaultComparison = Math.max(0, comparisonOptions.findIndex(option => option.before === 'Baseline'));
+  const chosenComparison = comparisonIndex != null && comparisonIndex < comparisonOptions.length ? comparisonIndex : (comparisonOptions.length ? (comparisonOptions.some(option => option.before === 'Baseline') ? defaultComparison : comparisonOptions.length - 1) : 0);
+  const direction = therapeuticDirection(analysisTarget, programCategory);
+  const comparison = useMemo(() => {
+    const option = comparisonOptions[chosenComparison];
+    return option ? compareConditions(option.A.points, option.B.points, { direction }) : null;
+  }, [comparisonOptions, chosenComparison, direction]);
+
+  const percentType = activeTargetType === 'TrialByTrial' || activeTargetType === 'IntervalData';
+  const goal = goalInView(analysisTarget, view, aggregation);
+  const currentSegment = segments.at(-1);
+  const forecast = useMemo(() => {
+    if (!functions.has('forecast') || !currentSegment || currentSegment.points.length < 4 || (aggregation === 'Per Session' && currentPage < totalPages)) return null;
+    const lastPoint = currentSegment.points.at(-1);
+    const projected = forecastLinear(currentSegment.points, { horizon: 4, step: 1, minimum: 0, maximum: percentType ? 100 : Infinity });
+    if (!projected) return null;
+    const gap = median(currentSegment.points.slice(1).map((point, index) => (new Date(point.date) - new Date(currentSegment.points[index].date)) / 86400000).filter(value => value > 0)) || 2;
+    const keys = projectedKeys(lastPoint.xKey, aggregation, projected.length, gap);
+    return { from: { xKey: lastPoint.xKey, y: lastPoint.y }, points: projected.map((point, index) => ({ ...point, xKey: keys[index] })) };
+  }, [functions, currentSegment, aggregation, currentPage, totalPages, percentType]);
+
+  const ioaKeys = useMemo(() => {
+    if (!functions.has('ioa')) return null;
+    const map = new Map();
+    for (const [key, rows] of rowsByGroup) {
+      const checks = rows.filter(row => row.ioa).map(row => row.ioa.percent);
+      if (checks.length) map.set(key, Math.min(...checks));
+    }
+    return map;
+  }, [functions, rowsByGroup]);
+
+  const contextRows = analysisRows.filter(row => keyIndex.has(getObservationKey(row, aggregation)));
+  const contextGroups = useMemo(() => {
+    const groups = new Map();
+    const labelsFor = row => {
+      const service = services.get(row.serviceSessionId);
+      switch (contextDimension) {
+        case 'clinician': return [row.therapistName];
+        case 'setting': return [service?.setting || 'Not recorded'];
+        case 'time': return [service ? (Number(service.start.slice(0, 2)) < 12 ? 'Morning' : 'Afternoon') : 'Not recorded'];
+        case 'weekday': return [weekdayOf(row.timestamp)];
+        default: return service?.settingEvents?.length ? service.settingEvents : ['No setting events'];
+      }
+    };
+    for (const row of contextRows) {
+      const value = rowValue(row, view);
+      if (!Number.isFinite(value)) continue;
+      for (const label of labelsFor(row)) {
+        if (!groups.has(label)) groups.set(label, { label, values: [], keys: new Set() });
+        groups.get(label).values.push(value);
+        groups.get(label).keys.add(`${row.targetId}|${getObservationKey(row, aggregation)}`);
+      }
+    }
+    const order = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return [...groups.values()].map(group => ({ ...group, n: group.values.length, mean: mean(group.values) }))
+      .sort((a, b) => contextDimension === 'weekday' ? order.indexOf(a.label) - order.indexOf(b.label) : b.n - a.n);
+  }, [contextRows, contextDimension, services, view, aggregation]);
+  const highlightKeys = analysisTab === 'context' && highlightGroup ? contextGroups.find(group => group.label === highlightGroup)?.keys || null : null;
+
+  const overlays = {
+    analysisSeriesId: splitByTherapist ? null : analysisTarget?.id,
+    median: functions.has('median') && analysisPoints.length ? median(analysisPoints.map(point => point.y)) : null,
+    movingAverage: functions.has('movingAverage') && analysisPoints.length > 2 ? movingAverage(analysisPoints, 3).map(point => ({ xKey: point.xKey, y: point.y })) : null,
+    envelope: functions.has('envelope') && currentSegment?.points.length >= 3 ? stabilityEnvelope(currentSegment.points) : null,
+    envelopeRange: currentSegment?.points.length ? [currentSegment.points[0].xKey, currentSegment.points.at(-1).xKey] : null,
+    phaseMeans: functions.has('phaseMeans') ? segments.map(segment => ({ startKey: segment.points[0].xKey, endKey: segment.points.at(-1).xKey, mean: mean(segment.points.map(point => point.y)), label: segment.label })) : null,
+    goal: functions.has('goal') ? goal : null,
+    forecast: forecast?.points || null,
+    forecastFrom: forecast?.from || null,
+    ioaKeys,
+    logScale: functions.has('log'),
+    cdc: cdcOnChart && comparison?.cdc ? {
+      meanLine: comparison.cdc.meanLine, trendLine: comparison.cdc.trendLine,
+      startKey: comparisonOptions[chosenComparison].B.points[0].xKey, endKey: comparisonOptions[chosenComparison].B.points.at(-1).xKey,
+      beyondKeys: comparison.cdc.beyondKeys
+    } : null
+  };
+  const splitLine = showTrendLine && trendMethod === 'split-middle' && analysisPoints.length >= 4 ? splitMiddle(analysisPoints) : null;
+  const shownTrend = !showTrendLine ? null : trendMethod === 'regression' ? regressionPoints : trendMethod === 'directional' ? trendlinePoints
+    : splitLine ? { start: { xKey: pageKeys[analysisPoints[0].x], val: splitLine.predict(analysisPoints[0].x) }, end: { xKey: pageKeys[analysisPoints.at(-1).x], val: splitLine.predict(analysisPoints.at(-1).x) }, label: 'Split-middle line of progress' } : null;
+
+  // Progress, mastery and data quality for the analysis target.
+  const allTargetRows = useMemo(() => analysisTarget ? sessions.filter(row => row.clientId === client?.id && row.targetId === analysisTarget.id).sort((a, b) => a.timestamp.localeCompare(b.timestamp)) : [], [sessions, client, analysisTarget]);
+  const acquisitionStart = analysisTarget?.phaseHistory?.find(entry => entry.phase === 'Acquisition')?.date;
+  const evaluation = useMemo(() => analysisTarget?.masteryRule && acquisitionStart ? evaluateMastery(allTargetRows.filter(row => row.value != null), analysisTarget.masteryRule, { startDate: acquisitionStart }) : null, [allTargetRows, analysisTarget, acquisitionStart]);
+  const ioa = useMemo(() => ioaSummary(analysisRows, { minimumAgreement: standards?.ioa?.minimumAgreementPercent ?? 80, minimumCoverage: standards?.ioa?.minimumCoveragePercent ?? 20 }), [analysisRows, standards]);
+  const projection = goal && currentSegment ? projectThresholdDate(currentSegment.points, goal.value, goal.comparison) : null;
+  const rateCeleration = (activeTargetType === 'FluencyRate' && rateView !== 'Rate per Day') || (activeTargetType === 'Frequency' && frequencyView !== 'Raw Frequency')
+    ? celeration(analysisPoints.map(point => ({ date: point.date, y: point.y }))) : null;
+  const template = templates.find(item => item.id === analysisTarget?.promptHierarchyId);
+  const insights = analysisTarget ? buildInsights({
+    target: analysisTarget, isBehavior, points: analysisPoints, rows: analysisRows, evaluation, comparison, template, ioa, projection,
+    scale: percentType ? 100 : Math.max(1, ...analysisPoints.map(point => point.y)), standards
+  }) : [];
+  const qualityServices = [...new Set(analysisRows.map(row => row.serviceSessionId).filter(Boolean))].map(id => services.get(id)).filter(Boolean);
+  const fidelityValues = qualityServices.filter(service => service.fidelity).map(service => service.fidelity.percent);
+  const observerMap = new Map();
+  analysisRows.filter(row => row.ioa).forEach(row => {
+    if (!observerMap.has(row.ioa.observer)) observerMap.set(row.ioa.observer, []);
+    observerMap.get(row.ioa.observer).push(row.ioa.percent);
+  });
+  const untrackedInRange = analysisTarget ? sessions.filter(row => row.clientId === client?.id && row.targetId === analysisTarget.id && row.missingDataMode === 'DataNotTracked' && new Date(row.timestamp) >= getMinDate(durationFilter)).length : 0;
+
+  // Drill-down selection.
+  const selectableKeys = pageKeys.filter(key => displaySeriesData.some(series => series.points.some(point => point.xKey === key)));
+  const shownSelection = selectedKey && selectableKeys.includes(selectedKey) ? selectedKey : null;
+  const selectionRows = shownSelection ? filteredSessions.filter(row => tabTargets.some(target => target.id === row.targetId) && getObservationKey(row, aggregation) === shownSelection) : [];
+  const targetMap = useMemo(() => new Map(activeTargets.map(target => [target.id, target])), [activeTargets]);
+  const clientAbc = useMemo(() => abcEntries.filter(entry => entry.clientId === client?.id), [abcEntries, client]);
+  const stepSelection = step => {
+    const index = selectableKeys.indexOf(shownSelection);
+    const next = selectableKeys[index + step];
+    if (next) setSelectedKey(next);
+  };
+
+  const handleExport = (type) => {
+    if (type === 'svg') return exportSvgElement(svgRef.current, `${chartTitle.replace(/\s+/g, '_')}.svg`);
+    if (type === 'png') return exportPngFromSvg(svgRef.current, `${chartTitle.replace(/\s+/g, '_')}.png`);
+    if (type === 'raw-csv') {
+      // Unlike the graph, the raw export includes DataNotTracked and zero-out dates.
+      const order = new Map(tabTargets.map((target, index) => [target.id, index]));
+      const raw = sessions.filter(s => s.clientId === client?.id && order.has(s.targetId) && new Date(s.timestamp) >= getMinDate(durationFilter))
+        .sort((a, b) => order.get(a.targetId) - order.get(b.targetId) || a.timestamp.localeCompare(b.timestamp));
+      return exportRawTrialDataCsv(raw.map(record => ({ ...record, targetName: tabTargets.find(target => target.id === record.targetId)?.name || record.targetId })), client?.name);
+    }
+    if (type === 'zip') return exportStructuredZip({ clientName: client?.name || 'Client', programs, allRawRecords: sessions });
   };
 
   const hasChart = activeTargetType !== 'Anecdotal' && displaySeriesData.some(series => series.points.length);
   const chartDataRows = displaySeriesData.flatMap(series => series.points.map(point => ({ ...point, series: series.name })));
+  const enabledFunctions = FUNCTION_OPTIONS.filter(option => functions.has(option.key)).length;
+  const viewOptions = activeTargetType === 'TrialByTrial' ? [{ value: 'standard', label: 'Accuracy' }, { value: 'prompts', label: 'Prompt levels' }]
+    : activeTargetType === 'FluencyRate' ? [{ value: 'standard', label: 'Timeline' }, { value: 'celeration', label: 'Celeration' }] : null;
+  const shownChartView = viewOptions?.some(option => option.value === chartView) ? chartView : 'standard';
+  const unit = unitLabel(view);
+  const brushValues = allChartKeys.map(key => analysisTarget ? (chartSeriesData.find(series => series.id === analysisTarget.id) || chartSeriesData[0])?.points.find(point => point.xKey === key)?.val : null);
+  function toggleFunction(key, enabled) {
+    setFunctions(previous => {
+      const next = new Set(previous);
+      if (enabled) next.add(key); else next.delete(key);
+      return next;
+    });
+  }
   function saveTitle(event) {
     event.preventDefault();
     if (!draftTitle.trim()) { setTitleError('Enter a chart title before saving.'); return; }
@@ -295,10 +394,15 @@ export default function ClientSpecificSection({
     setTitleError('');
     requestAnimationFrame(() => titleButtonRef.current?.focus());
   }
+  const caption = showTrendLine && trendMethod === 'regression' && regressionParams
+    ? `Regression: y = ${regressionParams.slope}x + ${regressionParams.intercept}. x is the ordered observation group.`
+    : showTrendLine && trendMethod === 'split-middle' && splitLine
+      ? `Split-middle line of progress for ${analysisTarget?.name}: ${splitLine.slope >= 0 ? '+' : ''}${splitLine.slope.toFixed(2)} ${unit} per observation group.`
+      : `${MEASUREMENT_LABELS[activeTargetType]} · ${chartDataRows.length} plotted observations${shownSelection ? '' : ' · select a point for details'}`;
 
   return <section id="target-analysis" className="panel" aria-labelledby="target-analysis-title" tabIndex={-1}>
-    <SectionHeader id="target-analysis-title" title="Target analysis" description="Compare observations across programs and measurement tools."
-      help="Choose a program or behavior, then select a measurement type. Only tools with recorded observations appear. Measured zeros count; unobserved records never become zeros."
+    <SectionHeader id="target-analysis-title" title="Target analysis" description="Compare observations across programs and measurement tools, then drill into sessions and trials."
+      help="Choose a program or behavior, then select a measurement type. Only tools with recorded observations appear. Select any plotted point to drill down to its sessions and trials. Measured zeros count; unobserved records never become zeros."
       actions={<>
         <ExportMenu label="Export targets" onExport={handleExport} formats={[
           { id: 'svg', label: 'Vector chart · SVG', disabled: !hasChart },
@@ -322,12 +426,12 @@ export default function ClientSpecificSection({
           <p className="popover-label">Select one or more behaviors</p>
           {allBehaviors.map(behavior => <label key={behavior.id} className="popover-option">
             <input type="checkbox" checked={selectedBehaviorIds.includes(behavior.id)} onChange={event => { setSelectedBehaviorIds(previous => event.target.checked ? [...previous, behavior.id] : previous.filter(id => id !== behavior.id)); resetView(); }} />
-            <span>{behavior.name}<small className="block text-slate-500">{MEASUREMENT_LABELS[behavior.type]}</small></span>
+            <span>{behavior.name}<small className="block text-slate-500">{MEASUREMENT_LABELS[behavior.type]} · {behavior.functionHypothesis} function</small></span>
           </label>)}
         </Popover>
       </div>}
-      <div className="control-field"><label htmlFor="target-date-range">Date range</label><select id="target-date-range" value={durationFilter} onChange={event => setDurationFilter(event.target.value)}>
-        {['3 days','5 days','7 days','2 weeks','1 month','3 months','6 months','1 year','2 years'].map(value => <option key={value} value={value}>{value}</option>)}
+      <div className="control-field"><label htmlFor="target-date-range">Date range</label><select id="target-date-range" value={durationFilter} onChange={event => { setDurationFilter(event.target.value); setSelectedKey(null); setZoom(null); }}>
+        {['3 days', '5 days', '7 days', '2 weeks', '1 month', '3 months', '6 months', '1 year', '2 years'].map(value => <option key={value} value={value}>{value}</option>)}
       </select></div>
     </div>
     <ProgramDetails programs={detailPrograms} />
@@ -336,8 +440,9 @@ export default function ClientSpecificSection({
         {availableTargetTypes.map(type => <button type="button" key={type} aria-pressed={activeTargetType === type} onClick={() => { setActiveTargetType(type); resetView(false); }}>{MEASUREMENT_LABELS[type]}</button>)}
       </div>
       <div className="view-controls">
-        {activeTargetType !== 'Anecdotal' && <><label htmlFor="target-grouping">Group by</label><select id="target-grouping" value={aggregation} onChange={event => { setAggregation(event.target.value); setSessionPage(1); }}>
-          {['Per Day','Per Session','Weekly','Monthly'].map(value => <option key={value} value={value}>{value === 'Per Day' ? 'Day' : value === 'Per Session' ? 'Session' : value}</option>)}
+        {viewOptions && <SegmentedControl label="Chart view" value={shownChartView} onChange={value => { setChartView(value); setSelectedKey(null); }} options={viewOptions} className="chart-view-control" />}
+        {activeTargetType !== 'Anecdotal' && <><label htmlFor="target-grouping">Group by</label><select id="target-grouping" value={aggregation} onChange={event => { setAggregation(event.target.value); setSessionPage(1); setSelectedKey(null); setZoom(null); }}>
+          {['Per Day', 'Per Session', 'Weekly', 'Monthly'].map(value => <option key={value} value={value}>{value === 'Per Day' ? 'Day' : value === 'Per Session' ? 'Session' : value}</option>)}
         </select></>}
         {activeTargetType === 'Duration' && <select aria-label="Duration measure" value={durationView} onChange={event => setDurationView(event.target.value)}>
           <option value="Total Duration">Total duration</option><option value="Total Count">Occurrence count</option><option value="Average Duration">Average duration</option>
@@ -362,7 +467,19 @@ export default function ClientSpecificSection({
       <div className="chart-options">
         <label className="toggle-control"><input type="checkbox" checked={showAverageLine} disabled={averageValue === null} onChange={event => setShowAverageLine(event.target.checked)} />Average</label>
         <label className="toggle-control"><input type="checkbox" checked={showTrendLine} disabled={!trendlinePoints} onChange={event => setShowTrendLine(event.target.checked)} /><TrendingUp size={15} />Trend</label>
-        {showTrendLine && <select aria-label="Trend calculation" className="toggle-control" value={useRegressionTrend ? 'regression' : 'directional'} onChange={event => setUseRegressionTrend(event.target.value === 'regression')}><option value="regression">Linear regression</option><option value="directional">First-to-last direction</option></select>}
+        {showTrendLine && <select aria-label="Trend calculation" className="toggle-control" value={trendMethod} onChange={event => setTrendMethod(event.target.value)}>
+          <option value="regression">Linear regression</option><option value="directional">First-to-last direction</option><option value="split-middle">Split-middle (line of progress)</option>
+        </select>}
+        <Popover label={`Chart functions (${enabledFunctions})`} icon={Settings2} className="functions-popover">
+          <p className="popover-label">Analytical functions for {analysisTarget?.name || 'the plotted target'}</p>
+          {FUNCTION_OPTIONS.map(option => {
+            const unavailable = (option.key === 'goal' && !goal) || (option.key === 'log' && percentType) || (shownChartView !== 'standard');
+            return <label key={option.key} className="popover-option function-option">
+              <input type="checkbox" checked={functions.has(option.key)} disabled={unavailable} onChange={event => toggleFunction(option.key, event.target.checked)} />
+              <span>{option.label}<small className="block text-slate-500">{option.key === 'goal' && !goal ? 'Not comparable with this unit or grouping' : option.hint}</small></span>
+            </label>;
+          })}
+        </Popover>
         <button type="button" className="toggle-control" aria-pressed={showGridlines} onClick={() => setShowGridlines(value => !value)}>Gridlines</button>
         <button type="button" className="toggle-control" aria-pressed={colorMode === 'BlackAndWhite'} onClick={() => setColorMode(value => value === 'System' ? 'BlackAndWhite' : 'System')}>Monochrome</button>
         {activeCategoryTab === 'Behavior' && <><label className="toggle-control"><input type="checkbox" checked={behaviorZeroOut} onChange={event => setBehaviorZeroOut(event.target.checked)} />Include measured zeros</label><label className="toggle-control"><input type="checkbox" checked={showEmptyDates} onChange={event => setShowEmptyDates(event.target.checked)} />Show missing dates</label></>}
@@ -378,21 +495,42 @@ export default function ClientSpecificSection({
     <div className="panel-body">
       {activeTargets.length === 0 ? <EmptyState title={activeCategoryTab === 'Behavior' ? 'Choose a behavior to compare.' : 'Choose a program to begin.'} description="The controls above keep this view focused on one client’s records." />
         : availableTargetTypes.length === 0 ? <EmptyState title="No observations for this program yet." description="Record a fictional observation to begin its timeline. Program definitions are still available above." action={{ label: 'Record an observation', onClick: () => onRecordClick(activeTargets[0]) }} />
-        : activeTargetType === 'Anecdotal' ? <AnecdotalTableView key={selectedProgramId} targets={activeTargets.filter(target => target.type === 'Anecdotal' && visibleTargetIds.has(target.id))}
-          sessions={filteredSessions.filter(session => session.qualitativeEntry && visibleTargetIds.has(session.targetId))} />
-        : <>
-          <QuantitativeSvgChart ref={svgRef} seriesData={displaySeriesData} targetType={activeTargetType} durationView={durationView} rateView={rateView} frequencyView={frequencyView}
-            showAverageLine={showAverageLine} averageValue={averageValue} showTrendLine={showTrendLine} trendlinePoints={useRegressionTrend ? regressionPoints : trendlinePoints}
-            regressionParams={useRegressionTrend ? regressionParams : null} showGridlines={showGridlines} annotations={activeAnnotations} aggregation={aggregation} extraXKeys={pageKeys}
-            hasVisibleSeries={tabTargets.length > 0 && (!splitByTherapist || !allTherapistsForTarget.length || visibleTherapists.size > 0)}
-            onChangeDateRange={() => document.getElementById('target-date-range')?.focus()} />
-          {hasChart && <div className="chart-caption"><span>{showTrendLine && useRegressionTrend && regressionParams ? `Regression: y = ${regressionParams.slope}x + ${regressionParams.intercept}. x is the ordered observation group.` : `${MEASUREMENT_LABELS[activeTargetType]} · ${chartDataRows.length} plotted observations`}</span><span className="scroll-hint">Scroll to see the full chart →</span></div>}
-          {aggregation === 'Per Session' && totalPages > 1 && <div className="pagination" aria-label="Session chart pagination"><span>Page {currentPage} of {totalPages}</span><button type="button" className="icon-button icon-button--bordered" aria-label="Previous session page" disabled={currentPage <= 1} onClick={() => setSessionPage(currentPage - 1)}><ChevronLeft size={18} /></button><button type="button" className="icon-button icon-button--bordered" aria-label="Next session page" disabled={currentPage >= totalPages} onClick={() => setSessionPage(currentPage + 1)}><ChevronRight size={18} /></button></div>}
-          {chartDataRows.length > 0 && <details className="chart-data"><summary>View plotted data table ({chartDataRows.length})</summary><div className="data-table-scroll" tabIndex={0} role="region" aria-label="Plotted target observations">
-            <table className="data-table"><caption className="sr-only">Values plotted for {chartTitle}. Filters and grouping match the chart.</caption><thead><tr><th scope="col">{aggregation === 'Per Session' ? 'Session' : 'Date group'}</th><th scope="col">Target / clinician</th><th scope="col">Measurement</th><th scope="col">Recording clinician</th></tr></thead>
-              <tbody>{chartDataRows.map((row, index) => <tr key={`${row.series}-${row.xKey}-${index}`}><td>{formatChartDate(row.xKey, aggregation)}</td><td>{row.series}</td><td>{row.displayVal}</td><td>{row.therapist}</td></tr>)}</tbody>
-            </table></div></details>}
-        </>}
+          : activeTargetType === 'Anecdotal' ? <AnecdotalTableView key={selectedProgramId} targets={activeTargets.filter(target => target.type === 'Anecdotal' && visibleTargetIds.has(target.id))}
+            sessions={filteredSessions.filter(session => session.qualitativeEntry && visibleTargetIds.has(session.targetId))} />
+            : <>
+              {shownChartView === 'prompts' && analysisTarget ? <PromptLevelChart ref={svgRef} keys={pageKeys} aggregation={aggregation} template={template} targetName={analysisTarget.name}
+                rowsByKey={new Map(pageKeys.map(key => [key, rowsByGroup.get(`${analysisTarget.id}|${key}`) || []]))} selectedKey={shownSelection} onSelect={setSelectedKey} />
+                : shownChartView === 'celeration' && analysisTarget ? <CelerationChart ref={svgRef} rows={analysisRows.filter(row => keyIndex.has(getObservationKey(row, aggregation)))} targetName={analysisTarget.name}
+                  phaseLines={activeAnnotations.phaseLines} aim={analysisTarget.masteryRule?.measure === 'correctPerMinute' ? analysisTarget.masteryRule.threshold : null} />
+                  : <TargetChart ref={svgRef} seriesData={displaySeriesData} targetType={activeTargetType} durationView={durationView} rateView={rateView} frequencyView={frequencyView}
+                    showAverageLine={showAverageLine} averageValue={averageValue} showTrendLine={Boolean(shownTrend)} trendlinePoints={shownTrend}
+                    regressionParams={trendMethod === 'regression' ? regressionParams : null} showGridlines={showGridlines} annotations={activeAnnotations} aggregation={aggregation} extraXKeys={pageKeys}
+                    hasVisibleSeries={tabTargets.length > 0 && (!splitByTherapist || !allTherapistsForTarget.length || visibleTherapists.size > 0)}
+                    onChangeDateRange={() => document.getElementById('target-date-range')?.focus()}
+                    overlays={overlays} selectedKey={shownSelection} highlightKeys={highlightKeys} onSelect={key => setSelectedKey(current => current === key ? null : key)} />}
+              {hasChart && <div className="chart-caption"><span>{caption}</span><span className="scroll-hint">Scroll to see the full chart →</span></div>}
+              {aggregation === 'Per Session' && totalPages > 1 && <div className="pagination" aria-label="Session chart pagination"><span>Page {currentPage} of {totalPages}</span><button type="button" className="icon-button icon-button--bordered" aria-label="Previous session page" disabled={currentPage <= 1} onClick={() => setSessionPage(currentPage - 1)}><ChevronLeft size={18} /></button><button type="button" className="icon-button icon-button--bordered" aria-label="Next session page" disabled={currentPage >= totalPages} onClick={() => setSessionPage(currentPage + 1)}><ChevronRight size={18} /></button></div>}
+              {hasChart && aggregation !== 'Per Session' && <TimelineBrush keys={allChartKeys} values={brushValues} start={zoomRange.start} end={zoomRange.end} aggregation={aggregation}
+                onChange={(start, end) => setZoom({ signature: zoomSignature, start, end })} />}
+              {shownSelection && selectionRows.length > 0 && <ObservationInspector key={`${shownSelection}-${aggregation}`} selection={{ key: shownSelection, aggregation }} rows={selectionRows}
+                targets={targetMap} templates={templates} services={services} abcEntries={clientAbc} view={view} onClose={() => setSelectedKey(null)}
+                canStep={step => Boolean(selectableKeys[selectableKeys.indexOf(shownSelection) + step])} onStep={stepSelection} />}
+              {hasChart && analysisTarget && <AnalysisPanel tab={analysisTab} onTabChange={setAnalysisTab} unit={unit}
+                targetOptions={tabTargets} analysisTargetId={analysisTarget.id} onAnalysisTargetChange={id => { setAnalysisTargetId(id); setComparisonIndex(null); setHighlightGroup(null); }}
+                comparison={{ options: comparisonOptions, index: chosenComparison, onIndexChange: setComparisonIndex, result: comparison }}
+                onShowFullHistory={() => { setDurationFilter('1 year'); setZoom(null); }} cdcOnChart={cdcOnChart} onToggleCdc={setCdcOnChart}
+                progress={{ target: analysisTarget, evaluation, insights, celeration: rateCeleration, phaseSince: analysisTarget.phaseEnteredDate }}
+                quality={{ ioa, observers: [...observerMap.entries()].map(([name, values]) => ({ name, n: values.length, mean: mean(values) })).sort((a, b) => b.n - a.n),
+                  lowIoa: analysisRows.filter(row => row.ioa && row.ioa.percent < 80), fidelity: { mean: mean(fidelityValues), n: fidelityValues.length, below: fidelityValues.filter(value => value < (standards?.fidelity?.minimumPercent ?? 85)).length },
+                  untracked: untrackedInRange, substitutes: qualityServices.filter(service => service.settingEvents?.includes('Substitute staff')).length,
+                  events: qualityServices.filter(service => service.settingEvents?.length).length, standards }}
+                onInspectRow={row => { setSelectedKey(getObservationKey(row, aggregation)); requestAnimationFrame(() => document.getElementById('inspector-title')?.scrollIntoView({ block: 'nearest' })); }}
+                context={{ dimension: contextDimension, onDimensionChange: value => { setContextDimension(value); setHighlightGroup(null); }, groups: contextGroups, highlighted: highlightGroup, onHighlight: setHighlightGroup }} />}
+              {chartDataRows.length > 0 && <details className="chart-data"><summary>View plotted data table ({chartDataRows.length})</summary><div className="data-table-scroll" tabIndex={0} role="region" aria-label="Plotted target observations">
+                <table className="data-table"><caption className="sr-only">Values plotted for {chartTitle}. Filters and grouping match the chart.</caption><thead><tr><th scope="col">{aggregation === 'Per Session' ? 'Session' : 'Date group'}</th><th scope="col">Target / clinician</th><th scope="col">Measurement</th><th scope="col">Recording clinician</th></tr></thead>
+                  <tbody>{chartDataRows.map((row, index) => <tr key={`${row.series}-${row.xKey}-${index}`}><td>{formatChartDate(row.xKey, aggregation)}</td><td>{row.series}</td><td>{row.displayVal}</td><td>{row.therapist}</td></tr>)}</tbody>
+                </table></div></details>}
+            </>}
     </div>
 
     {activeTargets.length > 0 && activeTargetType && <footer className="chart-footer">
@@ -410,7 +548,7 @@ export default function ClientSpecificSection({
         ].map(([kind, title, records, remove]) => <div className="annotation-group" key={kind}><h3>{title} ({records.length})</h3>
           {!records.length && <p className="annotation-empty">None added for this target.</p>}
           {records.map(record => <div className="annotation-item" key={record.id}><div>
-            <p>{record.label || record.noteText}</p><small>{kind === 'range' ? `${record.startDate} – ${record.endDate}` : record.date}{record.staffName ? ` · ${record.staffName}` : ''}</small>
+            <p>{record.label || record.noteText}</p><small>{kind === 'range' ? `${record.startDate} – ${record.endDate}` : record.date}{record.staffName ? ` · ${record.staffName}` : ''}{record.isAutomated ? ' · automated' : ''}</small>
           </div><button type="button" className="icon-button" aria-label={`Edit ${record.label || 'graph note'}`} onClick={() => onEditAnnotation(kind, record, annotationTarget)}><Edit3 size={16} /></button><button type="button" className="icon-button delete-button" aria-label={`Delete ${record.label || 'graph note'}`} onClick={() => remove(record.id)}><Trash2 size={16} /></button></div>)}
         </div>)}</div>
       </div>}
@@ -422,417 +560,7 @@ function Swatch({ color }) {
   return <span className="legend-swatch" aria-hidden="true"><svg viewBox="0 0 12 12"><rect width="12" height="12" rx="2" fill={color} /></svg></span>;
 }
 
-// ----------------------------------------------------
-// Subcomponent: Quantitative SVG Chart Engine
-// ----------------------------------------------------
-const QuantitativeSvgChart = React.forwardRef(function QuantitativeSvgChart({
-  seriesData = [],
-  targetType,
-  durationView,
-  rateView,
-  frequencyView,
-  showAverageLine,
-  averageValue,
-  showTrendLine,
-  trendlinePoints,
-  regressionParams,
-  showGridlines,
-  annotations,
-  aggregation,
-  extraXKeys = [],
-  hasVisibleSeries = true,
-  onChangeDateRange
-}, ref) {
-
-  if (!hasVisibleSeries) return <EmptyState title="No series are visible." description="Show a target or clinician in the legend below to bring the chart back." />;
-
-  // Dimensions
-  const width = 850;
-  const height = 355;
-  const padding = { top: 35, right: 35, bottom: 60, left: 65 };
-  const graphWidth = width - padding.left - padding.right;
-  const graphHeight = height - padding.top - padding.bottom;
-
-  // Collect all unique X categories (dates or sessions)
-  const allXKeysSet = new Set();
-  seriesData.forEach(s => s.points.forEach(p => allXKeysSet.add(p.xKey)));
-  extraXKeys.forEach(key => allXKeysSet.add(key));
-  const sortedXKeys = sortObservationKeys(allXKeysSet, aggregation);
-
-  if (!sortedXKeys.length || !seriesData.some(series => series.points.length)) return <EmptyState title="No measured observations in this range." description="Try a longer date range. Unobserved records aren’t plotted as zeros." action={{ label: 'Change date range', onClick: onChangeDateRange }} />;
-
-  // Calculate Y Max
-  let maxY = 10;
-  if (targetType === 'TrialByTrial' || targetType === 'IntervalData') {
-    maxY = 100;
-  } else {
-    let observedMax = 0;
-    seriesData.forEach(s => {
-      s.points.forEach(p => {
-        if (p.val > observedMax) observedMax = p.val;
-      });
-    });
-    maxY = Math.max(10, Math.ceil(observedMax * 1.15));
-  }
-
-  // Coordinate mapper
-  const getX = (xKey) => {
-    const idx = sortedXKeys.indexOf(xKey);
-    if (idx === -1) return padding.left;
-    return padding.left + (sortedXKeys.length > 1 ? (idx / (sortedXKeys.length - 1)) * graphWidth : graphWidth / 2);
-  };
-
-  const getAnnotationX = (date, clamp = false) => {
-    if (aggregation === 'Per Session') {
-      const point = seriesData.flatMap(series => series.points).find(item => item.date === date);
-      return point ? getX(point.xKey) : null;
-    }
-    const key = getObservationKey({ timestamp: `${date}T12:00:00` }, aggregation);
-    if (sortedXKeys.includes(key)) return getX(key);
-    if (key < sortedXKeys[0]) return clamp ? padding.left : null;
-    if (key > sortedXKeys.at(-1)) return clamp ? width - padding.right : null;
-    const next = sortedXKeys.findIndex(item => item > key);
-    if (next < 1) return null;
-    const toTime = value => new Date(`${value.length === 7 ? `${value}-01` : value}T12:00:00Z`).getTime();
-    const fraction = (toTime(key) - toTime(sortedXKeys[next - 1])) / (toTime(sortedXKeys[next]) - toTime(sortedXKeys[next - 1]));
-    return getX(sortedXKeys[next - 1]) + fraction * (getX(sortedXKeys[next]) - getX(sortedXKeys[next - 1]));
-  };
-
-  const getY = (val) => {
-    return padding.top + graphHeight - (Math.max(0, Math.min(val, maxY)) / maxY) * graphHeight;
-  };
-
-  // Keep units explicit without changing the underlying seconds/counts/rates.
-  const durationInMinutes = targetType === 'Duration' && durationView !== 'Total Count' && maxY >= 120;
-  const rateLabel = view => view === 'Rate per Minute' ? 'Occurrences per minute' : 'Occurrences per hour';
-  const averageLabel = targetType === 'Duration' && durationView !== 'Total Count'
-    ? `${durationInMinutes ? Math.round(averageValue / 6) / 10 : averageValue}${durationInMinutes ? 'm' : 's'}` : averageValue;
-  const getYAxisLabel = () => {
-    if (targetType === 'TrialByTrial') return 'Correct responses (%)';
-    if (targetType === 'IntervalData') return 'Intervals scored (%)';
-    if (targetType === 'Duration') return durationView === 'Total Count' ? 'Occurrence count'
-      : `${durationView === 'Total Duration' ? 'Total duration' : 'Average duration'} (${durationInMinutes ? 'minutes' : 'seconds'})`;
-    if (targetType === 'FluencyRate') return rateView === 'Rate per Day'
-      ? (aggregation === 'Per Day' ? 'Occurrences per day' : 'Occurrence count') : rateLabel(rateView);
-    if (targetType === 'Frequency') return frequencyView === 'Raw Frequency' ? 'Occurrence count' : rateLabel(frequencyView);
-    return 'Value';
-  };
-
-  return (
-    <div className="chart-scroll" tabIndex={0} role="region" aria-label="Target analysis chart. Scroll horizontally for the full timeline.">
-      <div className="chart-inner chart-inner--quantitative">
-        <svg
-          ref={ref}
-          viewBox={`0 0 ${width} ${height}`}
-          className="chart-svg" role="img" aria-label={`${getYAxisLabel()} across ${sortedXKeys.length} observation groups. Read the plotted data table below for exact values.`}
-        >
-          <title>Target observations</title><desc>One labeled series per target or clinician. The data table below provides all plotted measurements.</desc>
-          {/* Phase Ranges (Shaded vertical bands - Section 10.8) */}
-          {(annotations?.phaseRanges || []).map((range, idx) => {
-            if (aggregation !== 'Per Session' && (getObservationKey({ timestamp: range.endDate }, aggregation) < sortedXKeys[0] || getObservationKey({ timestamp: range.startDate }, aggregation) > sortedXKeys.at(-1))) return null;
-            const startX = getAnnotationX(range.startDate, true);
-            const endX = getAnnotationX(range.endDate, true);
-            if (startX == null || endX == null) return null;
-            const bandWidth = Math.max(12, Math.abs(endX - startX));
-            return (
-              <g key={range.id || idx}>
-                <rect
-                  x={Math.min(startX, endX)}
-                  y={padding.top}
-                  width={bandWidth}
-                  height={graphHeight}
-                  fill={range.color || '#71957f33'}
-                />
-                <text
-                  x={Math.min(startX, endX) + bandWidth / 2}
-                  y={padding.top + 14}
-                  textAnchor="middle"
-                  fontSize="13"
-                  fontWeight="500"
-                  fill={CHART_INK}
-                  fontFamily="Geist, sans-serif"
-                >
-                  {range.label}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Gridlines & Y-Axis Scale (Section 10.2) */}
-          {[0, Math.round(maxY * 0.25), Math.round(maxY * 0.5), Math.round(maxY * 0.75), maxY].map((val, idx) => {
-            const y = getY(val);
-            return (
-              <g key={idx}>
-                {showGridlines && (
-                  <line
-                    x1={padding.left}
-                    y1={y}
-                    x2={width - padding.right}
-                    y2={y}
-                    stroke={CHART_GRID}
-                    strokeDasharray="3 3"
-                  />
-                )}
-                <text
-                  x={padding.left - 8}
-                  y={y + 3.5}
-                  textAnchor="end"
-                  fontSize="13"
-                  fill={CHART_MUTED}
-                  fontFamily="Geist, sans-serif"
-                >
-                  {durationInMinutes ? Math.round(val / 6) / 10 : val}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Y-Axis Label */}
-          <text
-            x={-(padding.top + graphHeight / 2)}
-            y="18"
-            transform="rotate(-90)"
-            textAnchor="middle"
-            fontSize="13"
-            fontWeight="500"
-            fill={CHART_INK}
-            fontFamily="Geist, sans-serif"
-          >
-            {getYAxisLabel()}
-          </text>
-
-          {/* Average Line Overlay (Section 13) */}
-          {showAverageLine && averageValue !== null && (
-            <g className="transition-opacity">
-              <line
-                x1={padding.left}
-                y1={getY(averageValue)}
-                x2={width - padding.right}
-                y2={getY(averageValue)}
-                stroke="#34634c"
-                strokeWidth="2"
-                strokeDasharray="5 3"
-              />
-              <rect
-                x={width - padding.right - 100}
-                y={getY(averageValue) - 18}
-                width="95"
-                height="20"
-                rx="3"
-                fill="#34634c"
-              />
-              <text
-                x={width - padding.right - 52}
-                y={getY(averageValue) - 6}
-                textAnchor="middle"
-                fontSize="11"
-                fontWeight="500"
-                fill="#FFFFFF"
-                fontFamily="Geist, sans-serif"
-              >
-                Avg: {averageLabel}
-              </text>
-              <title>Average value: {averageValue}</title>
-            </g>
-          )}
-
-          {/* Trend Line Overlay (Section 14 & Future Scope) */}
-          {showTrendLine && trendlinePoints && (
-            <g>
-              <line
-                x1={getX(trendlinePoints.start.xKey)}
-                y1={getY(trendlinePoints.start.val)}
-                x2={getX(trendlinePoints.end.xKey)}
-                y2={getY(trendlinePoints.end.val)}
-                stroke="#697b96"
-                strokeWidth="2"
-                strokeDasharray="6 4"
-              />
-              <title>{regressionParams ? `Linear regression: y = ${regressionParams.slope}x + ${regressionParams.intercept}` : 'Direction from first to last observation'}</title>
-            </g>
-          )}
-
-          {/* Phase Change Lines (Section 10.4 & 11) */}
-          {(annotations?.phaseLines || []).map((line, idx) => {
-            const lx = getAnnotationX(line.date);
-            if (lx == null) return null;
-            return (
-              <g key={line.id || idx}>
-                <line
-                  x1={lx}
-                  y1={padding.top}
-                  x2={lx}
-                  y2={padding.top + graphHeight}
-                  stroke={line.color || '#34634c'}
-                  strokeWidth="2.5"
-                  strokeDasharray={line.style === 'Dotted' ? '4 3' : undefined}
-                />
-                <rect
-                  x={Math.min(lx - 4, width - padding.right - 150)}
-                  y={padding.top + 2}
-                  width="150"
-                  height="20"
-                  rx="3"
-                  fill="#294f3d"
-                  opacity="0.85"
-                />
-                <text
-                  x={Math.min(lx + 2, width - padding.right - 144)}
-                  y={padding.top + 16}
-                  fontSize="11"
-                  fontWeight="500"
-                  fill="#FFFFFF"
-                  fontFamily="Geist, sans-serif"
-                >
-                  {line.label.length > 22 ? `${line.label.slice(0, 21)}…` : line.label}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Plot Data Series Lines and Points */}
-          {seriesData.map((series) => {
-            // Check for phase line visual breaks if solid phase lines exist (Future Scope #2)
-            const solidPhaseDates = (annotations?.phaseLines || [])
-              .filter(p => p.style === 'Solid')
-              .map(p => p.date);
-
-            // Break series into segments if visual breaks apply
-            const segments = [];
-            let currentSegment = [];
-
-            series.points.forEach((p) => {
-              if (solidPhaseDates.includes(p.xKey) && currentSegment.length > 0) {
-                segments.push(currentSegment);
-                currentSegment = [p];
-              } else {
-                currentSegment.push(p);
-              }
-            });
-            if (currentSegment.length > 0) segments.push(currentSegment);
-
-            return (
-              <g key={series.id}>
-                {/* Connecting Lines */}
-                {segments.map((seg, sIdx) => {
-                  const dPath = seg.map((p, idx) => {
-                    const px = getX(p.xKey);
-                    const py = getY(p.val);
-                    return `${idx === 0 ? 'M' : 'L'} ${px} ${py}`;
-                  }).join(' ');
-
-                  return (
-                    <path
-                      key={sIdx}
-                      d={dPath}
-                      fill="none"
-                      stroke={series.color}
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  );
-                })}
-
-                {/* Data Points (Square Shape per Future Scope #3 standardized rule) */}
-                {series.points.map((p, idx) => {
-                  const px = getX(p.xKey);
-                  const py = getY(p.val);
-                  return (
-                    <g key={idx} className="chart-point">
-                      <rect
-                        x={px - 4.5}
-                        y={py - 4.5}
-                        width="9"
-                        height="9"
-                        fill="#FFFFFF"
-                        stroke={series.color}
-                        strokeWidth="2"
-
-                      />
-
-                      {/* Tooltip text showing fractional badge e.g. 100% (5/5) */}
-                      <title>
-                        {`Target: ${series.name}\n${aggregation === 'Per Session' ? 'Session' : 'Date'}: ${p.xKey}\nValue: ${p.displayVal}\nTherapist: ${p.therapist || 'Recorded'}`}
-                      </title>
-                    </g>
-                  );
-                })}
-              </g>
-            );
-          })}
-
-          {/* Graph Notes Annotations (Section 10.6) */}
-          {(annotations?.graphNotes || []).map((note, idx) => {
-            const nx = getAnnotationX(note.date);
-            if (nx == null) return null;
-            return (
-              <g key={note.id || idx} className="chart-point">
-                <circle
-                  cx={nx}
-                  cy={height - padding.bottom + 12}
-                  r="8"
-                  fill={note.color || '#34634c'}
-                  stroke="#FFFFFF"
-                  strokeWidth="1.5"
-                />
-                <text
-                  x={nx}
-                  y={height - padding.bottom + 15.5}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fontWeight="600"
-                  fontFamily="Geist, sans-serif"
-                  fill={chartMarkerInk(note.color || '#34634c')}
-                >
-                  N
-                </text>
-                <title>{`Note by ${note.staffName} (${note.date}):\n${note.noteText}`}</title>
-              </g>
-            );
-          })}
-
-          {/* X-Axis Labels */}
-          {sortedXKeys.map((xKey, idx) => {
-            const px = getX(xKey);
-            // Show every 1-2 labels if many keys
-            if (sortedXKeys.length > 15 && idx % 2 !== 0) return null;
-            return (
-              <text
-                key={idx}
-                x={px}
-                y={height - padding.bottom + 36}
-                textAnchor="middle"
-                fontSize="12"
-                fill={CHART_MUTED}
-                fontFamily="Geist, sans-serif"
-              >
-                {formatChartDate(xKey, aggregation)}
-              </text>
-            );
-          })}
-
-          {/* X-Axis Dimension Title */}
-          <text
-            x={padding.left + graphWidth / 2}
-            y={height - 8}
-            textAnchor="middle"
-            fontSize="13"
-            fontWeight="500"
-            fill={CHART_INK}
-            fontFamily="Geist, sans-serif"
-          >
-            {aggregation === 'Per Session' ? 'Session timeline' : 'Observation date'}
-          </text>
-        </svg>
-      </div>
-    </div>
-  );
-});
-
-// ----------------------------------------------------
-// Subcomponent: Anecdotal Qualitative Table (Section 5)
-// ----------------------------------------------------
+// Anecdotal (qualitative) observations are grouped by target in a table.
 function AnecdotalTableView({ targets = [], sessions = [] }) {
   const [selectedTargetId, setSelectedTargetId] = useState('All');
   const filter = targets.some(target => target.id === selectedTargetId) ? selectedTargetId : 'All';

@@ -259,13 +259,17 @@ test('the simulated seed contains the clinical patterns the analytics claim to s
   const effects = settingEventEffects(seed.sessionData, sessions, brIds);
   const sleep = effects.find(effect => effect.event === 'Poor sleep reported');
   assert.ok(sleep && sleep.ratio > 1.15, JSON.stringify(sleep));
-  // Treatment reduced screaming: a reliable (CDC) decrease from baseline to intervention.
+  // Treatment reduced screaming: the latest treatment data show a reliable (CDC) decrease
+  // from baseline with strong nonoverlap; early treatment includes an extinction burst.
   const start = vocal.phaseHistory.find(entry => entry.phase === 'Acquisition').date;
   const rows = seed.sessionData.filter(row => row.targetId === 'br-vocal' && row.value != null)
     .map((row, index) => ({ x: index, y: (60 * row.occurrenceCount) / row.lessonDurationMinutes, date: row.timestamp.slice(0, 10), key: row.id }));
-  const comparison = compareConditions(rows.filter(row => row.date < start), rows.filter(row => row.date >= start).slice(0, 20), { direction: 'decrease' });
+  const baseline = rows.filter(row => row.date < start);
+  const treatment = rows.filter(row => row.date >= start);
+  const comparison = compareConditions(baseline, treatment.slice(-20), { direction: 'decrease' });
   assert.equal(comparison.cdc.met, true);
-  assert.ok(comparison.overlap.nap >= 0.66);
+  assert.ok(comparison.overlap.nap >= 0.9, String(comparison.overlap.nap));
+  assert.ok(mean(treatment.slice(0, 3).map(row => row.y)) > mean(baseline.map(row => row.y)), 'Extinction burst at the start of treatment');
   // The next-session forecast is evaluated on later sessions only and recovers the
   // planted motivating-operation effect of poor sleep (rate ratio > 1).
   const dataset = buildSessionDataset({ sessions, rows: seed.sessionData, target: vocal, primarySetting: 'Clinic', since: start });
