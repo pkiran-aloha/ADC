@@ -954,3 +954,85 @@ test('service and data quality summarize dosage, IOA, fidelity and supervision',
   await expect(section).toContainText('IOA coverage');
   await accessible(page);
 });
+
+async function visibleTrigger(page, name) {
+  return page.getByRole('button', { name, exact: true }).filter({ visible: true }).first();
+}
+
+test('reports build a print-ready multi-graph document and a target list by status', async ({ page }) => {
+  await open(page);
+  const reports = page.locator('#reports');
+  await expect(reports.getByRole('heading', { name: 'Reports', level: 2 })).toBeVisible();
+  await expect(reports.getByLabel('Template')).toHaveValue('clinical-review');
+  await reports.getByLabel('Template').selectOption('reassessment');
+  await expect(reports.getByLabel('Date range')).toHaveValue('3 months');
+  const roster = reports.locator('table.data-table');
+  expect(await roster.locator('tbody tr').count()).toBeGreaterThan(0);
+  // The roster carries introduction and mastery dates for acquisition-rate reporting.
+  await expect(roster.locator('thead')).toContainText('Introduced');
+  await expect(roster.locator('thead')).toContainText('Mastered');
+  const report = page.waitForEvent('download');
+  await reports.getByRole('button', { name: 'Download report', exact: true }).click();
+  const html = await report;
+  expect(html.suggestedFilename()).toMatch(/\.html$/);
+  expect((await read(await html.path())).toString()).toContain('<svg');
+  const csv = page.waitForEvent('download');
+  await reports.getByRole('button', { name: 'Export CSV', exact: true }).click();
+  expect((await csv).suggestedFilename()).toMatch(/^Target_roster_.*\.csv$/);
+  await accessible(page);
+});
+
+test('view-only analytics access keeps reading and exporting but blocks every change', async ({ page }, testInfo) => {
+  await page.addInitScript(() => window.localStorage.setItem('welina_access_level', 'view'));
+  await open(page);
+  await expect(page.locator('.view-only-notice').first()).toContainText('View-only analytics access');
+  await expect(page.getByRole('button', { name: 'Record observation', exact: true })).toBeDisabled();
+  await expect(page.locator('#target-analysis .annotation-actions button').first()).toBeDisabled();
+  await expect((await visibleTrigger(page, 'Add data'))).toBeDisabled();
+  // Reading, analysis and exports stay available.
+  await expect(page.getByRole('heading', { name: 'Visual analysis' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Export targets', exact: true })).toBeEnabled();
+  await accessible(page);
+  if (testInfo.project.name === 'desktop') {
+    // Switching back to full access takes effect without a reload.
+    await page.getByLabel('Access', { exact: true }).selectOption('full');
+    await expect(page.locator('.view-only-notice')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Record observation', exact: true })).toBeEnabled();
+  }
+});
+
+test('the live session activity panel reports today without opening a session note', async ({ page }) => {
+  await open(page);
+  const activity = page.locator('.live-activity');
+  await expect(activity.getByRole('heading', { name: /Session activity/ })).toBeVisible();
+  await expect(activity).toContainText('Appointments today');
+  await expect(activity).toContainText('Documentation');
+  await expect(activity.getByRole('table', { name: /Appointments on/ })).toBeVisible();
+  await expect(activity.locator('.week-strip > div')).toHaveCount(7);
+  await accessible(page);
+});
+
+test('event timestamps read as a time-of-day scatterplot in the ABC patterns', async ({ page }) => {
+  await open(page);
+  const abc = page.locator('#abc-observations');
+  await abc.getByRole('button', { name: 'Patterns', exact: true }).click();
+  await expect(abc.getByRole('heading', { name: 'Time of day' })).toBeVisible();
+  await expect(page.getByRole('region', { name: /Scatterplot of event timestamps/ })).toBeVisible();
+  await accessible(page);
+});
+
+test('manual entry and spreadsheet import record where the data came from', async ({ page }, testInfo) => {
+  await open(page);
+  if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: 'Open workspace navigation' }).click();
+  await (await visibleTrigger(page, 'Add data')).click();
+  const dialog = page.getByRole('dialog', { name: 'Add or import data' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel('Where the data came from')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Import spreadsheet', exact: true }).click();
+  await expect(dialog.getByLabel('Or paste rows from the spreadsheet')).toBeVisible();
+  await dialog.getByLabel('Or paste rows from the spreadsheet').fill(`Date,Target,Correct,Total\n2026-10-01,${skillProgram.targets[0].name},8,10`);
+  await expect(dialog.getByRole('region', { name: 'Import preview rows' })).toContainText('Ready');
+  await dialog.getByRole('button', { name: /^Import 1 row$/ }).click();
+  // The rows land on the graph without a lesson note; the dialog reports what it added.
+  await expect(dialog.getByText(/Imported 1 observation/)).toBeVisible();
+});

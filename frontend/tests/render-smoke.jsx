@@ -1,0 +1,105 @@
+// Server-side render of the analytics sections. Playwright cannot install its browser in
+// every environment, so this script catches the runtime errors a type-check or a bundle
+// cannot: wrong prop shapes, missing data fields and helpers that throw while rendering.
+// Run it with:  npm run smoke
+import './dom-stub.js';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import seed from '../../data/clinicalSeed.json' with { type: 'json' };
+import { CLINICAL_STANDARDS, PROMPT_HIERARCHY_TEMPLATES, SEED_AS_OF_DATE } from '../src/data/mockData.js';
+import ClientSpecificSection from '../src/components/ClientSpecificSection.jsx';
+import AbcDataSection from '../src/components/AbcDataSection.jsx';
+import ServiceQualitySection from '../src/components/ServiceQualitySection.jsx';
+import ReportsSection from '../src/components/ReportsSection.jsx';
+import OverallMasterySection from '../src/components/OverallMasterySection.jsx';
+import ProgressHeatmap from '../src/components/overview/ProgressHeatmap.jsx';
+import DataEntryModal from '../src/components/Modals/DataEntryModal.jsx';
+import RecordSessionModal from '../src/components/Modals/RecordSessionModal.jsx';
+import PhaseLineModal from '../src/components/Modals/PhaseLineModal.jsx';
+import App from '../src/App.jsx';
+import { supervisorObservations } from '../src/utils/observations.js';
+
+const client = seed.clients[0];
+const programs = seed.programs.filter(program => program.clientId === client.id);
+const sessions = seed.sessionData;
+const serviceSessions = seed.serviceSessions.filter(session => session.clientId === client.id);
+const abcEntries = seed.abcEntries;
+const behaviorTargets = programs.filter(program => program.category === 'BehaviorReduction').flatMap(program => program.targets);
+const behaviorRows = sessions.filter(row => behaviorTargets.some(target => target.id === row.targetId));
+const annotations = { phaseLines: seed.phaseLines, phaseRanges: seed.phaseRanges, graphNotes: seed.graphNotes };
+const supervisionRecords = supervisorObservations(serviceSessions, sessions, {
+  targetNameById: new Map(programs.flatMap(program => program.targets).map(target => [target.id, target.name]))
+});
+const noop = () => {};
+
+// The dialogs render through createPortal, which the server renderer refuses, so they are
+// only exercised when this script runs with a DOM available (Playwright covers them in CI).
+const portalCases = [
+  ['DataEntryModal', DataEntryModal, {
+    isOpen: true, onClose: noop, client, programs, sessions,
+    onAddPoint: noop, onImportPoints: noop, canEdit: true
+  }, ['data point']],
+  ['RecordSessionModal', RecordSessionModal, {
+    isOpen: true, onClose: noop, programs, selectedClientId: client.id,
+    sessions, serviceSessions, onSaveSession: noop
+  }, ['Record']],
+  ['PhaseLineModal', PhaseLineModal, {
+    isOpen: true, onClose: noop, onSave: noop,
+    target: programs[0].targets[0], scopeTargets: programs[0].targets.map(target => ({ id: target.id, name: target.name, phase: target.phase }))
+  }, ['phase line']]
+];
+
+const cases = [
+  ['App (whole workspace)', App, {}, ['Progress overview', 'Target analysis', 'Reports']],
+  ['ClientSpecificSection', ClientSpecificSection, {
+    client, programs, sessions, serviceSessions, abcEntries, annotations,
+    templates: PROMPT_HIERARCHY_TEMPLATES, standards: CLINICAL_STANDARDS,
+    onAddPhaseLineClick: noop, onAddPhaseRangeClick: noop, onAddGraphNoteClick: noop,
+    onDeletePhaseLine: noop, onDeletePhaseRange: noop, onDeleteGraphNote: noop,
+    onRefresh: noop, onEditAnnotation: noop, onRecordClick: noop, onManualEntryClick: noop,
+    onCorrectObservation: noop, onDeleteObservation: noop, onProgramStatusChange: noop,
+    canEdit: true, supervisionRecords
+  }, ['Visual analysis', 'record']],
+  ['ClientSpecificSection (view only)', ClientSpecificSection, {
+    client, programs, sessions, serviceSessions, abcEntries, annotations,
+    templates: PROMPT_HIERARCHY_TEMPLATES, standards: CLINICAL_STANDARDS,
+    onRefresh: noop, onEditAnnotation: noop, canEdit: false, viewOnlyReason: 'View-only analytics access.', supervisionRecords
+  }, ['View-only analytics access']],
+  ['AbcDataSection', AbcDataSection, {
+    client, abcEntries, abcConfiguration: seed.abcConfigurations[0], behaviorTargets,
+    serviceSessions, sessionRows: behaviorRows, onRefresh: noop
+  }, ['ABC']],
+  ['ServiceQualitySection', ServiceQualitySection, {
+    client, serviceSessions, sessions: sessions.filter(row => row.clientId === client.id),
+    standards: CLINICAL_STANDARDS, asOfDate: SEED_AS_OF_DATE
+  }, ['Session activity', 'supervision']],
+  ['ReportsSection', ReportsSection, {
+    client, programs, sessions, serviceSessions, annotations, standards: CLINICAL_STANDARDS
+  }, ['Report']],
+  ['OverallMasterySection', OverallMasterySection, {
+    programs, selectedProgramId: programs.find(program => program.category === 'SkillAcquisition')?.id,
+    onSelectProgram: noop
+  }, ['Mastery']],
+  ['ProgressHeatmap', ProgressHeatmap, {
+    programs, sessions, asOfDate: SEED_AS_OF_DATE, onOpen: noop
+  }, ['Progress']],
+];
+
+let failures = 0;
+const hasDom = typeof document !== 'undefined';
+for (const [name, Component, props, expected] of [...cases, ...(hasDom ? portalCases : [])]) {
+  try {
+    const html = renderToStaticMarkup(createElement(Component, props));
+    if (!html.length) throw new Error('rendered nothing');
+    const missing = (expected || []).filter(text => !html.toLowerCase().includes(text.toLowerCase()));
+    if (missing.length) throw new Error(`missing expected text: ${missing.join(', ')}`);
+    console.log(`ok   ${name} (${html.length.toLocaleString()} characters)`);
+  } catch (error) {
+    failures += 1;
+    console.error(`FAIL ${name}: ${error.message}`);
+    if (process.env.SMOKE_STACK) console.error(error.stack);
+  }
+}
+if (!hasDom) console.log(`skip ${portalCases.length} dialogs (they render through a portal and need a browser)`);
+console.log(failures ? `\n${failures} section(s) failed to render` : '\nAll sections rendered.');
+process.exit(failures ? 1 : 0);

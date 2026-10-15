@@ -1,4 +1,4 @@
-import { csvRow } from './csvUtils';
+import { csvRow } from './csvUtils.js';
 
 // Helper to trigger browser file download
 export function downloadFile(content, fileName, mimeType = 'text/plain') {
@@ -70,11 +70,21 @@ export function exportMasteryCsv(data, programName = 'Program') {
   downloadFile(csvContent, `Mastery_${safeName}_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
 }
 
-// Export Raw Data (Section 21) - trial level non-aggregated CSV
-export function exportRawTrialDataCsv(records, clientName = 'Client') {
+// Export Raw Data (Section 21) - trial level non-aggregated CSV.
+// `serviceSessions` adds the lesson/session context each point was collected in, so a
+// reviewer reading the spreadsheet can see the appointment without opening the platform.
+export function rawTrialCsv(records, serviceSessions = []) {
+  const sessionsById = new Map(serviceSessions.map(session => [session.id, session]));
   const headers = [
     'Timestamp',
     'Session Number',
+    'Session Date',
+    'Session Context',
+    'Service Code',
+    'Setting',
+    'Session Therapist',
+    'Session Status',
+    'Data Source',
     'Target Name',
     'Therapist Name',
     'Value',
@@ -98,9 +108,21 @@ export function exportRawTrialDataCsv(records, clientName = 'Client') {
     'Service Session'
   ];
 
-  const rows = records.map(r => [
+  const rows = records.map(r => {
+    const service = sessionsById.get(r.serviceSessionId) || null;
+    const context = service
+      ? [service.setting, service.serviceCode, service.role ? `${service.therapistName} (${service.role})` : service.therapistName].filter(Boolean).join(' · ')
+      : (r.enteredManually ? 'Outside a session · not linked to a lesson note' : '');
+    return [
     r.timestamp || '',
     r.sessionNumber || 1,
+    service?.date || (r.timestamp || '').slice(0, 10),
+    context,
+    service?.serviceCode || '',
+    service?.setting || '',
+    service?.therapistName || r.therapistName || '',
+    service?.status || '',
+    r.enteredManually ? r.collectionContext || 'Manual entry' : 'Session recording',
     r.targetName || r.targetId || '',
     r.therapistName || '',
     r.value !== null && r.value !== undefined ? r.value : '',
@@ -122,11 +144,14 @@ export function exportRawTrialDataCsv(records, clientName = 'Client') {
     r.ioa?.method || '',
     r.ioa?.observer || '',
     r.serviceSessionId || ''
-  ]);
+  ]; });
 
-  const csvContent = [headers.join(','), ...rows.map(csvRow)].join('\n');
+  return [headers.join(','), ...rows.map(csvRow)].join('\n');
+}
+
+export function exportRawTrialDataCsv(records, clientName = 'Client', serviceSessions = []) {
   const safeName = clientName.replace(/[^a-zA-Z0-9_-]/g, '_');
-  downloadFile(csvContent, `Raw_Trials_${safeName}_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
+  downloadFile(rawTrialCsv(records, serviceSessions), `Raw_Trials_${safeName}_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
 }
 
 // Export ABC Raw Data (Section 24.9)

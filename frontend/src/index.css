@@ -304,6 +304,8 @@
 .dialog--sheet { width: 32rem; max-height: 100dvh; height: 100dvh; max-width: min(32rem, 100%); margin: 0 0 0 auto; border-radius: 1rem 0 0 1rem; }
 .dialog--navigation { width: 18rem; height: 100dvh; max-height: 100dvh; max-width: calc(100vw - 3rem); margin: 0 auto 0 0; border-radius: 0 1rem 1rem 0; }
 .dialog--confirmation { width: 29rem; }
+/* Wide dialogs for work that needs a table or two columns (data entry and import). */
+.dialog--workspace { width: min(58rem, calc(100vw - 2rem)); height: auto; max-height: calc(100dvh - 2rem); margin: auto; }
 .dialog-header { display: flex; align-items: flex-start; gap: 1rem; justify-content: space-between; padding: 1.5rem; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; z-index: 1; }
 .dialog-title-row { display: flex; gap: 0.6rem; align-items: center; }
 .dialog-title { font-family: var(--font-display); font-size: 1.5rem; font-weight: 500; letter-spacing: -0.025em; line-height: 1.2; }
@@ -785,4 +787,100 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 @media (max-width: 639px) {
   .record-session-head, .record-fields, .record-tracking-options { grid-template-columns: minmax(0, 1fr); }
   .axis-popover .popover-content { width: min(18rem, calc(100vw - 3rem)); }
+}
+
+/* Access level, view-only notices and the manual entry / import dialog. */
+.access-level { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--color-slate-600); }
+.access-level label { font-size: 0.75rem; font-weight: 500; }
+.access-level select { min-height: 2.5rem; padding: 0 0.5rem; border: 1px solid var(--color-slate-300); border-radius: 0.5rem; background: #fff; font-size: 0.8125rem; }
+.view-only-notice { display: flex; align-items: flex-start; gap: 0.5rem; margin: 0 0 1rem; padding: 0.7rem 0.9rem; border: 1px solid var(--color-amber-200); border-left: 3px solid var(--color-amber-400); border-radius: 0.5rem; background: var(--color-amber-50); color: var(--color-amber-800); font-size: 0.8125rem; }
+.data-entry, .data-import { display: grid; gap: 1rem; }
+.data-entry .form-row, .data-import .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; }
+.entry-measurement { display: grid; gap: 0.75rem; padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--color-slate-50); }
+.entry-measurement .record-fields { grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); }
+.entry-saved { list-style: none; display: grid; gap: 0.35rem; margin-top: 0.75rem; font-size: 0.8125rem; color: var(--color-brand-700); }
+.entry-saved li { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.import-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.import-summary { display: grid; gap: 0.5rem; padding: 0.85rem 1rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--color-slate-50); font-size: 0.8125rem; }
+.import-summary strong { font-size: 0.9375rem; }
+.import-summary ul { list-style: none; display: grid; gap: 0.25rem; }
+.quick-picks { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chip-button { min-height: 2.25rem; padding: 0.3rem 0.7rem; border: 1px solid var(--color-slate-300); border-radius: 999px; background: #fff; font-size: 0.75rem; color: var(--color-slate-700); }
+.chip-button:hover:not(:disabled) { border-color: var(--color-brand-400); background: var(--color-brand-50); }
+
+/* Reports: builder on the left, roster on the right. */
+.reports-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 1rem; }
+.reports-builder, .reports-roster { display: grid; gap: 0.9rem; align-content: start; padding: 1.1rem 1.2rem 1.25rem; border: 1px solid var(--line); border-radius: 0.75rem; background: #fff; }
+.reports-builder h3, .reports-roster h3 { font-family: var(--font-display); font-size: 1.0625rem; font-weight: 500; }
+.scope-list { display: grid; gap: 0.35rem; max-height: 15rem; overflow-y: auto; padding: 0.6rem 0.7rem; border: 1px solid var(--line); border-radius: 0.6rem; background: var(--color-slate-50); }
+.scope-list label { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.8125rem; }
+.report-includes, .report-scope, .roster-actions, .roster-filter { display: grid; gap: 0.6rem; }
+.roster-actions .form-row, .reports-builder .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.75rem; }
+@container (max-width: 60rem) { .reports-layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* Program status, milestones and target progress inside visual analysis. */
+.progress-view { display: grid; gap: 1rem; }
+.program-status { display: grid; gap: 0.5rem; padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--color-slate-50); }
+.program-status h4 { font-size: 0.875rem; font-weight: 600; }
+.milestone-list { display: grid; gap: 0.4rem; }
+.milestone-list h4 { font-size: 0.8125rem; font-weight: 600; }
+.milestone-list ul { list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.milestone-list li { display: grid; padding: 0.4rem 0.7rem; border: 1px solid var(--line); border-radius: 0.5rem; background: #fff; font-size: 0.75rem; }
+.milestone-list li.is-current { border-color: var(--color-brand-300); background: var(--color-brand-50); }
+.milestone-list li span { color: var(--muted); }
+.program-progress { color: var(--muted); font-size: 0.75rem; }
+
+/* Inspector: correction, deletion, audit and supervision blocks. */
+.inspector-actions-block, .observation-edit, .observation-delete { display: grid; gap: 0.6rem; padding: 0.85rem 1rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--color-slate-50); }
+.observation-delete { border-color: var(--color-red-300); background: var(--color-red-50); }
+.observation-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.65rem; }
+.inspector-edit-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.inspector-detail-labels { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.inspector-audit, .inspector-supervision { display: grid; gap: 0.4rem; padding: 0.8rem 0.95rem; border: 1px solid var(--line); border-radius: 0.75rem; }
+.inspector-supervision { background: var(--color-slate-50); }
+.inspector-audit h5, .inspector-supervision h5 { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8125rem; font-weight: 600; }
+.inspector-audit ul, .inspector-supervision ul { list-style: none; display: grid; gap: 0.4rem; font-size: 0.8125rem; }
+.inspector-audit li, .inspector-supervision li { display: grid; gap: 0.1rem; }
+.inspector-audit li span, .inspector-supervision li span { color: var(--muted); font-size: 0.75rem; }
+.status-label--excluded, .status-label--billed { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.6875rem; font-weight: 500; }
+.status-label--excluded { background: var(--color-slate-100); color: var(--color-slate-600); }
+.status-label--billed { background: var(--color-amber-100); color: var(--color-amber-800); }
+
+/* Legend grouping, pending charts and the flipped-orientation note. */
+.legend-group { display: grid; gap: 0.3rem; }
+.legend-group-label { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--color-slate-500); }
+.chart-pending { padding: 0.6rem 0.75rem; border: 1px dashed var(--color-slate-300); border-radius: 0.5rem; background: var(--color-slate-50); color: var(--muted); font-size: 0.8125rem; }
+.chart-note-label { font-size: 0.6875rem; fill: var(--color-slate-600); }
+.chart-title-static { font-size: 1rem; font-weight: 500; }
+.chart-view-control { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.graph-view-popover .popover-content { width: 21rem; }
+
+/* Live session activity strip. */
+.live-activity { display: grid; gap: 0.75rem; margin-bottom: 1rem; }
+.quality-kpis--compact { margin-bottom: 0; }
+.week-strip { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; align-items: end; gap: 0.35rem; height: 5.5rem; }
+.week-strip > div { display: grid; align-content: end; justify-items: center; gap: 0.2rem; height: 100%; }
+.week-strip-bar { width: 100%; max-width: 2.25rem; border-radius: 0.25rem 0.25rem 0 0; background: var(--color-brand-400); }
+.week-strip small { font-size: 0.625rem; color: var(--muted); }
+
+/* Writing one annotation and applying it across a program's targets. */
+.annotation-scope { display: grid; gap: 0.4rem; padding: 0.8rem 0.95rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--color-slate-50); }
+.annotation-scope legend { font-size: 0.8125rem; font-weight: 600; padding: 0 0.25rem; }
+.annotation-scope-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.annotation-scope-list { list-style: none; display: grid; gap: 0.2rem; max-height: 11rem; overflow-y: auto; }
+.annotation-scope-item { display: flex; align-items: center; gap: 0.5rem; min-height: 2.25rem; font-size: 0.8125rem; }
+.annotation-scope-item small { color: var(--muted); font-size: 0.6875rem; }
+.annotation-scope-item--primary { font-weight: 500; }
+.view-only-notice strong { font-weight: 600; }
+.view-only-notice .button--tertiary { margin-left: 0.5rem; min-height: 2.25rem; padding: 0.2rem 0.6rem; font-size: 0.75rem; }
+
+/* Sidebar data actions (the compact phone header hides the duplicate buttons). */
+.sidebar-actions { display: grid; gap: 0.5rem; padding: 0.9rem 1rem; border-top: 1px solid var(--line); }
+.sidebar-actions > strong { font-size: 0.8125rem; }
+.sidebar-action-buttons { display: grid; gap: 0.4rem; }
+.sidebar-action-buttons .button { justify-content: flex-start; width: 100%; }
+.sidebar--collapsed .sidebar-actions { display: none; }
+@media (max-width: 639px) {
+  /* The phone header keeps one primary action; data entry and access move to the drawer. */
+  .header-entry, .header-import, .header-controls .access-level { display: none; }
 }

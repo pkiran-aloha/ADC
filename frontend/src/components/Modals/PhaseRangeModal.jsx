@@ -5,17 +5,19 @@ import { Field, FormFeedback } from '../ui/Field';
 import { useFormValidation } from '../../utils/useFormValidation';
 import { validateAnnotation } from '../../utils/formValidation';
 import { SEED_AS_OF_DATE } from '../../data/mockData';
+import AnnotationScope from '../ui/AnnotationScope';
 
-export default function PhaseRangeModal({ isOpen, onClose, onSave, target, initialData }) {
+export default function PhaseRangeModal({ isOpen, onClose, onSave, target, initialData, scopeTargets = [] }) {
   const [startDate, setStartDate] = useState(initialData?.startDate || SEED_AS_OF_DATE);
   const [endDate, setEndDate] = useState(initialData?.endDate || SEED_AS_OF_DATE);
   const [label, setLabel] = useState(initialData?.label || '');
   const [color, setColor] = useState(initialData?.color?.slice(0, 7) || '#71957f');
   const { errors, formRef, validate } = useFormValidation();
+  const [applyToIds, setApplyToIds] = useState([]);
   function submit(event) {
     event.preventDefault();
     if (!validate(validateAnnotation({ startDate, endDate, label, color }, 'range'))) return;
-    onSave({ ...initialData, targetId: target.id, startDate, endDate, label: label.trim(), color: `${color}${initialData?.color?.length === 9 ? initialData.color.slice(7) : '33'}` });
+    onSave({ ...initialData, targetId: target.id, startDate, endDate, label: label.trim(), color: `${color}${initialData?.color?.length === 9 ? initialData.color.slice(7) : '33'}`, applyToIds });
     onClose();
   }
   return <Dialog isOpen={isOpen} onClose={onClose} title={initialData ? 'Edit phase range' : 'Add phase range'} icon={Layers}
@@ -28,6 +30,7 @@ export default function PhaseRangeModal({ isOpen, onClose, onSave, target, initi
       </div>
       <Field id="range-label" label="Range label" error={errors.label}><input type="text" required maxLength={80} placeholder="For example, prompt fading" value={label} onChange={event => setLabel(event.target.value)} /></Field>
       <Field id="range-color" label="Highlight color" error={errors.color} hint="The chart applies a translucent tint so observations stay readable."><input type="color" value={color} onChange={event => setColor(event.target.value)} /></Field>
+      <AnnotationScope targets={scopeTargets} primaryId={target?.id} selectedIds={applyToIds} onChange={setApplyToIds} />
       <div className="form-actions"><button type="button" className="button button--secondary" onClick={onClose}>Cancel</button><button type="submit" className="button button--primary">Save phase range</button></div>
     </form>
   </Dialog>;

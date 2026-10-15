@@ -2,6 +2,14 @@
 // analysis tools always use the same units as the graph the clinician is reading.
 import { calculateMetricPoint, getObservationKey } from './analyticsMetrics.js';
 import { addDays, dayNumber } from './stats.js';
+import { eligibleChartRows } from './graphPreferences.js';
+
+// Sessions a graph may plot for one target, honouring the organisation's minimum trial
+// rule and the low-trial preference. Returns what was held back so the interface can
+// explain any gap.
+export function graphRowsForTarget(rows = [], target, preferences = {}, standards = null) {
+  return eligibleChartRows(rows, target, preferences, standards);
+}
 
 export const PROMPT_COLORS = {
   I: '#2f5d46', G: '#7fa58c', S: '#7fa58c', M: '#c7a35a', P: '#b97a5c', V: '#8e4a3a', F: '#8e4a3a'
@@ -176,4 +184,102 @@ export function unitLabel(view) {
   if (targetType === 'FluencyRate') return rateView === 'Rate per Minute' ? 'per minute' : rateView === 'Rate per Hour' ? 'per hour' : 'count';
   if (targetType === 'Frequency') return frequencyView === 'Rate per Minute' ? 'per minute' : frequencyView === 'Rate per Hour' ? 'per hour' : 'count';
   return '';
+}
+
+// ---------------------------------------------------------------------------
+// Target milestones, program progress and graph-view filtering.
+// Added for the analytics feedback round: clinicians asked to see when a target was
+// introduced, mastered or moved to maintenance without opening each program, and to
+// prioritise current acquisition targets in the selectors.
+// ---------------------------------------------------------------------------
+
+const MILESTONE_LABELS = {
+  Baseline: { kind: 'Baseline', label: 'Baseline started' },
+  Acquisition: { kind: 'Introduced', label: 'Teaching introduced' },
+  Maintenance: { kind: 'Mastered', label: 'Moved to maintenance' },
+  Generalization: { kind: 'Generalized', label: 'Generalization phase' },
+  Completed: { kind: 'Completed', label: 'Completed' },
+  OnHold: { kind: 'OnHold', label: 'Placed on hold' },
+  Discontinued: { kind: 'Discontinued', label: 'Discontinued' },
+  Pending: { kind: 'Pending', label: 'Pending start' }
+};
+
+// Every dated change in a target's phase history, in the order it happened.
+export function targetMilestones(target) {
+  const history = [...(target?.phaseHistory || [])].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  if (!history.length) return [];
+  return history.map((entry, index) => {
+    const meta = MILESTONE_LABELS[entry.phase] || { kind: entry.phase, label: `${entry.phase}` };
+    return {
+      ...meta,
+      phase: entry.phase,
+      date: entry.date,
+      firstDate: index === 0,
+      current: index === history.length - 1
+    };
+  });
+}
+
+export function milestoneOn(target, predicate) {
+  return targetMilestones(target).find(predicate) || null;
+}
+
+export function introducedOn(target) {
+  return milestoneOn(target, milestone => ['Baseline', 'Introduced', 'Pending'].includes(milestone.kind))?.date || null;
+}
+
+export function masteredOn(target) {
+  return milestoneOn(target, milestone => ['Mastered', 'Generalized', 'Completed'].includes(milestone.kind))?.date || null;
+}
+
+export function daysBetween(start, end) {
+  if (!start || !end) return null;
+  return Math.round((dayNumber(end) - dayNumber(start)));
+}
+
+// Acquisition-rate reporting: how long the target took from introduction to mastery.
+export function acquisitionRate(target) {
+  const start = introducedOn(target);
+  const mastered = masteredOn(target);
+  const days = daysBetween(start, mastered);
+  return { start, mastered, days };
+}
+
+// Program-level progress, so the selector can show how a program is going without
+// opening every target.
+export function programProgress(program, sessions = []) {
+  const targets = program?.targets || [];
+  const mastered = targets.filter(target => ['Maintenance', 'Generalization', 'Completed'].includes(target.phase));
+  const current = targets.filter(target => ['Baseline', 'Acquisition', 'Generalization'].includes(target.phase));
+  const ids = new Set(targets.map(target => target.id));
+  const rows = sessions.filter(row => ids.has(row.targetId) && row.missingDataMode !== 'DataNotTracked');
+  const lastDataDate = rows.map(row => row.timestamp.slice(0, 10)).sort().at(-1) || null;
+  const introduced = targets.map(target => introducedOn(target)).filter(Boolean).sort();
+  const dates = [...new Set(rows.map(row => row.timestamp.slice(0, 10)))].sort();
+  const recentCount = dates.slice(-4).length;
+  const previousCount = Math.max(1, dates.slice(-8, -4).length);
+  return {
+    id: program?.id,
+    name: program?.name,
+    targets: targets.length,
+    mastered: mastered.length,
+    current: current.length,
+    percentMastered: targets.length ? Math.round((100 * mastered.length) / targets.length) : 0,
+    lastDataDate,
+    firstIntroduced: introduced[0] || null,
+    lastIntroduced: introduced.at(-1) || null,
+    dataPoints: rows.length,
+    recentSessions: recentCount,
+    trend: recentCount > previousCount ? 'more data' : recentCount < previousCount ? 'less data' : 'steady'
+  };
+}
+
+export function programProgressLabel(progress) {
+  if (!progress || !progress.targets) return 'No targets';
+  const last = progress.lastDataDate ? ` · last data ${formatCompactDate(progress.lastDataDate)}` : ' · no data yet';
+  return `${progress.mastered}/${progress.targets} mastered${last}`;
+}
+
+function formatCompactDate(date) {
+  return new Date(`${String(date).slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-US', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }

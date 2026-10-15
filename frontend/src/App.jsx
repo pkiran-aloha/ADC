@@ -9,7 +9,9 @@ import RecordSessionModal from './components/Modals/RecordSessionModal';
 import Dialog from './components/ui/Dialog';
 import { AnalyticsSkeleton } from './components/ui/EmptyState';
 import { useFeedback } from './utils/useFeedback';
-import { User, Calendar, ChartLineUp, Target, Notebook, CheckCircle2, ArrowRight, ArrowCounterClockwise, AlertTriangle } from './components/ui/Icons';
+import { readAccessLevel, writeAccessLevel, viewOnlyNotice } from './utils/permissions';
+import { supervisorObservations } from './utils/observations';
+import { User, Calendar, ChartLineUp, Target, Notebook, CheckCircle2, ArrowRight, ArrowCounterClockwise, AlertTriangle, ShieldCheck } from './components/ui/Icons';
 import { apiService } from './services/apiService';
 import { SEED_AS_OF_DATE, PROMPT_HIERARCHY_TEMPLATES, CLINICAL_STANDARDS } from './data/mockData';
 
@@ -17,12 +19,15 @@ const ClientSpecificSection = lazy(() => import('./components/ClientSpecificSect
 const AbcDataSection = lazy(() => import('./components/AbcDataSection'));
 const ProgressHeatmap = lazy(() => import('./components/overview/ProgressHeatmap'));
 const ServiceQualitySection = lazy(() => import('./components/ServiceQualitySection'));
+const ReportsSection = lazy(() => import('./components/ReportsSection'));
+const DataEntryModal = lazy(() => import('./components/Modals/DataEntryModal'));
 const initials = name => name.split(' ').map(part => part[0]).slice(0, 2).join('');
 const snapshotDate = new Date(`${SEED_AS_OF_DATE}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 export default function App() {
   const [selectedClientId, setSelectedClientId] = useState('cli-liam');
-  const data = useSyncExternalStore(apiService.subscribe, apiService.getSnapshot);
+  // The third argument lets the workspace be server-rendered (npm run smoke) without a browser store.
+  const data = useSyncExternalStore(apiService.subscribe, apiService.getSnapshot, apiService.getSnapshot);
   const [masterySelections, setMasterySelections] = useState({});
   const [recordOpen, setRecordOpen] = useState(false);
   const [recordTargetId, setRecordTargetId] = useState('');
@@ -32,6 +37,11 @@ export default function App() {
   // target analysis focused on a program, target and week.
   const [focusRequest, setFocusRequest] = useState(null);
   const [navigationOpen, setNavigationOpen] = useState(false);
+  // Access level and data entry are workspace-level concerns: a view-only clinician can
+  // read and export every analytics view, and anyone with edit access can add probe,
+  // school, paper and imported records without leaving the analytics workflow.
+  const [accessLevel, setAccessLevelState] = useState(() => readAccessLevel());
+  const [entryTab, setEntryTab] = useState(null);
   const [activeSection, setActiveSection] = useState('overview');
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('welina_navigation_collapsed') === 'true'; } catch { return false; }
@@ -60,6 +70,12 @@ export default function App() {
   const clientSessions = sessions.filter(session => session.clientId === selectedClientId);
   const skillTargets = skillPrograms.flatMap(program => program.targets);
   const masteredCount = skillTargets.filter(target => ['Maintenance', 'Generalization', 'Completed'].includes(target.phase)).length;
+  const canEdit = accessLevel === 'full';
+  const viewOnlyReason = viewOnlyNotice(accessLevel);
+  // Supervision and IOA observations belong to the appointment, not to the learner's chart.
+  const supervisionRecords = useMemo(() => supervisorObservations(serviceSessions, sessions, {
+    targetNameById: new Map(programs.flatMap(program => program.targets).map(target => [target.id, target.name]))
+  }), [serviceSessions, sessions, programs]);
 
   useEffect(() => {
     // Measure all sections together: intersection callbacks only include changed
@@ -69,7 +85,7 @@ export default function App() {
       frame = null;
       const threshold = (document.querySelector('.app-header')?.getBoundingClientRect().height || 0) + 40;
       let current = 'overview';
-      for (const id of ['overview', 'target-analysis', 'abc-observations', 'service-quality']) {
+      for (const id of ['overview', 'target-analysis', 'abc-observations', 'service-quality', 'reports']) {
         const section = document.getElementById(id);
         if (section && section.getBoundingClientRect().top <= threshold) current = id;
       }
@@ -108,16 +124,36 @@ export default function App() {
   }
   function openAnnotation(kind, target, initialData = null) {
     if (!target) return;
-    setAnnotationEditor({ kind, target, initialData });
+    const program = programs.find(item => item.id === target.programId) || programs.find(item => item.targets.some(entry => entry.id === target.id));
+    const scopeTargets = program
+      ? program.targets.map(entry => ({ id: entry.id, name: entry.name, phase: entry.phase }))
+      : [{ id: target.id, name: target.name }];
+    setAnnotationEditor({ kind, target, initialData, scopeTargets });
   }
+  // Writing an annotation once and applying it across a program's targets: each target
+  // keeps its own copy so the graph, tables and exports stay self-contained, and the
+  // service reports how many were skipped as duplicates.
   function saveAnnotation(kind, data) {
+    const { applyToIds = [], ...record } = data;
+    const bulk = {
+      line: targetIds => apiService.addPhaseLinesBulk(targetIds.map(targetId => ({ ...record, targetId }))),
+      range: targetIds => apiService.addPhaseRangesBulk(targetIds.map(targetId => ({ ...record, targetId }))),
+      note: targetIds => apiService.addGraphNotesBulk(targetIds.map(targetId => ({ ...record, targetId })))
+    };
     const operations = {
-      line: [() => apiService.addPhaseLine(data), () => apiService.updatePhaseLine(data.id, data), 'Phase line saved.'],
-      range: [() => apiService.addPhaseRange(data), () => apiService.updatePhaseRange(data.id, data), 'Phase range saved.'],
-      note: [() => apiService.addGraphNote(data), () => apiService.updateGraphNote(data.id, data), 'Graph note saved.']
+      line: [() => apiService.addPhaseLine(record), () => apiService.updatePhaseLine(record.id, record), 'Phase line saved.'],
+      range: [() => apiService.addPhaseRange(record), () => apiService.updatePhaseRange(record.id, record), 'Phase range saved.'],
+      note: [() => apiService.addGraphNote(record), () => apiService.updateGraphNote(record.id, record), 'Graph note saved.']
     };
     const [add, update, message] = operations[kind];
-    if (data.id) update(); else add();
+    if (record.id) { update(); saved(message); return; }
+    const targetIds = [record.targetId, ...applyToIds.filter(id => id !== record.targetId)];
+    if (targetIds.length > 1) {
+      const { created, skipped } = bulk[kind](targetIds);
+      saved(`${message.replace(/ saved\.$/, '')} on ${created.length} target${created.length === 1 ? '' : 's'}${skipped.length ? ` · ${skipped.length} already had it` : ''}.`);
+      return;
+    }
+    add();
     saved(message);
   }
   function resetData() {
@@ -137,6 +173,34 @@ export default function App() {
       section?.focus({ preventScroll: true });
     }));
   }
+  function changeAccessLevel(level) {
+    setAccessLevelState(level);
+    writeAccessLevel(level);
+    notify(level === 'full' ? 'Full access: you can record, correct and configure the graphs.' : 'View-only access: graphs, tables and exports stay available; changes are disabled.');
+  }
+  function addPoint(point) {
+    const created = apiService.addObservation(point);
+    saved(apiService.storageError ? 'Added for this session only. Your browser couldn’t save changes.' : 'Data point saved. It is on the graph now.');
+    return created;
+  }
+  function importPoints(points) {
+    const created = apiService.addObservations(points);
+    saved(`Imported ${created.length} data point${created.length === 1 ? '' : 's'}. They are on the graphs now.`);
+    return created;
+  }
+  function correctObservation(id, patch, audit) {
+    apiService.updateObservation(id, patch, audit);
+    saved('Correction saved with its reason in the change history.');
+  }
+  function deleteObservation(id, audit) {
+    const result = apiService.deleteObservation(id, audit);
+    saved('Observation removed. The removal is documented in the change history.');
+    return result;
+  }
+  function changeProgramStatus(programId, status, options = {}) {
+    apiService.updateProgramStatus(programId, status, { ...options, asOf: SEED_AS_OF_DATE });
+    saved(`Program status updated to ${status}.`);
+  }
   function openRecorder(target = null) {
     setRecordTargetId(target?.id || '');
     setRecordOpen(true);
@@ -152,18 +216,28 @@ export default function App() {
 
   const sidebarProps = {
     activeSection, hasClient: Boolean(selectedClientId), onNavigate: navigate,
-    onResetData: () => { setNavigationOpen(false); setResetOpen(true); }
+    onResetData: () => { setNavigationOpen(false); setResetOpen(true); },
+    canEdit, viewOnlyReason, accessLevel, onAccessLevelChange: changeAccessLevel,
+    onOpenManualEntry: () => { setNavigationOpen(false); setEntryTab('entry'); },
+    onOpenImport: () => { setNavigationOpen(false); setEntryTab('import'); }
   };
 
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">Skip to analytics</a>
     <Header clients={clients} selectedClientId={selectedClientId} onSelectClient={setSelectedClientId}
       onOpenRecordModal={() => openRecorder()} onResetData={() => setResetOpen(true)}
-      onOpenNavigation={() => setNavigationOpen(true)} navigationOpen={navigationOpen} />
+      onOpenNavigation={() => setNavigationOpen(true)} navigationOpen={navigationOpen}
+      onOpenManualEntry={() => setEntryTab('entry')} onOpenImport={() => setEntryTab('import')}
+      accessLevel={accessLevel} onAccessLevelChange={changeAccessLevel} canEdit={canEdit} />
     <div className={`shell-layout${collapsed ? ' shell-layout--collapsed' : ''}`}>
       <Sidebar {...sidebarProps} collapsed={collapsed} onToggle={toggleNavigation} />
       <main className="app-main" id="main-content" tabIndex={-1}>
         <div className="workspace-content">
+          {!canEdit && <p className="view-only-notice" role="status">
+            <ShieldCheck size={18} aria-hidden="true" />
+            <span><strong>View-only analytics access.</strong> {viewOnlyReason || 'Graphs, tables and exports stay available; phase lines, notes, axis settings, program status and data entry are disabled.'}
+              <button type="button" className="button button--tertiary" onClick={() => changeAccessLevel('full')}>Switch to full access</button></span>
+          </p>}
           {storageError && <div className="storage-warning" role="alert">
             <AlertTriangle size={21} /><div><strong>Changes aren’t being saved.</strong>
               <p>Your browser’s storage is unavailable or full. You can explore this session, but changes may disappear when you reload. Download records before leaving.</p></div>
@@ -221,7 +295,10 @@ export default function App() {
                 onDeletePhaseRange={id => { apiService.deletePhaseRange(id); saved('Phase range removed.'); }}
                 onDeleteGraphNote={id => { apiService.deleteGraphNote(id); saved('Graph note removed.'); }}
                 onRefresh={() => { refreshAll(); notify('Target analysis refreshed from this browser.'); }}
-                onRecordClick={openRecorder} />
+                onRecordClick={openRecorder} onManualEntryClick={() => setEntryTab('entry')}
+                onCorrectObservation={correctObservation} onDeleteObservation={deleteObservation}
+                onProgramStatusChange={changeProgramStatus}
+                canEdit={canEdit} viewOnlyReason={viewOnlyReason} supervisionRecords={supervisionRecords} />
             </Suspense>
             <Suspense fallback={<AnalyticsSkeleton />}>
               <AbcDataSection key={selectedClientId} client={currentClient} abcEntries={abcEntries}
@@ -232,6 +309,11 @@ export default function App() {
             <Suspense fallback={<AnalyticsSkeleton />}>
               <ServiceQualitySection key={selectedClientId} client={currentClient} serviceSessions={serviceSessions} sessions={clientSessions}
                 standards={CLINICAL_STANDARDS} asOfDate={SEED_AS_OF_DATE} />
+            </Suspense>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <ReportsSection key={`reports-${selectedClientId}`} client={currentClient} programs={programs} sessions={sessions}
+                serviceSessions={serviceSessions} annotations={annotations} standards={CLINICAL_STANDARDS}
+                canEdit={canEdit} viewOnlyReason={viewOnlyReason} />
             </Suspense>
           </>}
           <footer className="workspace-footer">
@@ -252,14 +334,19 @@ export default function App() {
     </Dialog>
     <PhaseLineModal key={`line-${annotationEditor?.initialData?.id || annotationEditor?.target.id || 'closed'}`}
       isOpen={annotationEditor?.kind === 'line'} onClose={() => setAnnotationEditor(null)} onSave={data => saveAnnotation('line', data)}
-      target={annotationEditor?.target} initialData={annotationEditor?.initialData} />
+      target={annotationEditor?.target} initialData={annotationEditor?.initialData} scopeTargets={annotationEditor?.scopeTargets} />
     <PhaseRangeModal key={`range-${annotationEditor?.initialData?.id || annotationEditor?.target.id || 'closed'}`}
       isOpen={annotationEditor?.kind === 'range'} onClose={() => setAnnotationEditor(null)} onSave={data => saveAnnotation('range', data)}
-      target={annotationEditor?.target} initialData={annotationEditor?.initialData} />
+      target={annotationEditor?.target} initialData={annotationEditor?.initialData} scopeTargets={annotationEditor?.scopeTargets} />
     <GraphNoteModal key={`note-${annotationEditor?.initialData?.id || annotationEditor?.target.id || 'closed'}`}
       isOpen={annotationEditor?.kind === 'note'} onClose={() => setAnnotationEditor(null)} onSave={data => saveAnnotation('note', data)}
-      target={annotationEditor?.target} initialData={annotationEditor?.initialData} />
+      target={annotationEditor?.target} initialData={annotationEditor?.initialData} scopeTargets={annotationEditor?.scopeTargets} />
     {recordOpen && <RecordSessionModal isOpen onClose={() => setRecordOpen(false)} programs={programs} selectedClientId={selectedClientId} initialTargetId={recordTargetId}
       sessions={clientSessions} serviceSessions={serviceSessions} onSaveSession={saveSession} />}
+    <Suspense fallback={null}>
+      <DataEntryModal key={entryTab || 'closed'} isOpen={entryTab !== null} initialTab={entryTab || 'entry'} onClose={() => setEntryTab(null)}
+        client={currentClient} programs={programs} sessions={clientSessions} onAddPoint={addPoint} onImportPoints={importPoints}
+        canEdit={canEdit} viewOnlyReason={viewOnlyReason} />
+    </Suspense>
   </div>;
 }

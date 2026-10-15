@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import SegmentedControl from '../ui/SegmentedControl';
-import { formatNumber, formatLongDate } from '../../utils/targetAnalytics';
-import { describeRule } from '../../utils/visualAnalysis';
+import { formatNumber, formatLongDate, targetMilestones } from '../../utils/targetAnalytics';
+import { describeRule, describeReductionRule } from '../../utils/visualAnalysis';
 
 const TABS = [
   { value: 'comparison', label: 'Phase comparison' },
@@ -99,16 +100,61 @@ function ComparisonView({ comparison, unit, onShowFullHistory, cdcOnChart, onTog
   </div>;
 }
 
+const PROGRAM_STATUSES = ['Teaching', 'Maintaining', 'Generalizing', 'Baselining', 'OnHold', 'Completed', 'Discontinued'];
+
+// Reviewing the data is the moment a clinician knows whether a program should continue,
+// pause or move on, so the status can be changed here instead of opening every program.
+function ProgramStatusControl({ program, canEdit, onProgramStatusChange }) {
+  const [status, setStatus] = useState(program?.status || 'Teaching');
+  const [reason, setReason] = useState('');
+  const [message, setMessage] = useState('');
+  if (!program) return null;
+  const history = program.statusHistory || [];
+  return <div className="program-status">
+    <h4>Program status · {program.name}</h4>
+    <p className="field-hint">Current status: <strong>{program.status}</strong>{history.length ? ` · last changed ${formatLongDate(history.at(-1).date)} (${history.at(-1).status})` : ''}</p>
+    {canEdit ? <>
+      <div className="form-row">
+        <div className="control-field"><label htmlFor="program-status">Update status after reviewing this data</label>
+          <select id="program-status" value={status} onChange={event => setStatus(event.target.value)}>
+            {PROGRAM_STATUSES.map(value => <option key={value} value={value}>{value}</option>)}
+          </select></div>
+        <div className="control-field"><label htmlFor="program-status-reason">Reason</label>
+          <input id="program-status-reason" type="text" maxLength={120} value={reason} onChange={event => setReason(event.target.value)} placeholder="For example: criterion met, moving to maintenance" /></div>
+      </div>
+      <button type="button" className="button button--secondary" onClick={() => {
+        onProgramStatusChange?.(program.id, status, { reason });
+        setMessage(`Program status set to ${status}.`);
+        setReason('');
+      }}>Update program status</button>
+      {message && <p className="field-hint" role="status">{message}</p>}
+    </> : <p className="field-hint">View-only access: program status can be reviewed here but not changed.</p>}
+  </div>;
+}
+
 function ProgressView({ progress, unit }) {
-  const { target, evaluation, insights, celeration, phaseSince } = progress;
+  const { target, evaluation, insights, celeration, phaseSince, program, canEdit, onProgramStatusChange, reduction } = progress;
   if (!target) return <p className="field-hint">Choose a target to review progress.</p>;
+  const milestones = targetMilestones(target);
   return <div className="progress-view">
     <div className="kpi-row">
       <div className="kpi"><span>Current phase</span><strong>{target.phase}</strong><small>since {formatLongDate(phaseSince || target.phaseEnteredDate)}</small></div>
       <div className="kpi"><span>Mastery rule</span><strong className="kpi-text">{target.masteryRule ? describeRule(target.masteryRule) : target.masteryCriteria}</strong><small>{target.masterySettings === 'Automatic' ? 'Automatic promotion' : 'Supervisor review'}</small></div>
       {evaluation && <div className="kpi"><span>{evaluation.met ? 'Sessions to criterion' : 'Current streak'}</span><strong>{evaluation.met ? evaluation.sessionsToCriterion : `${evaluation.streak} / ${evaluation.required}`}</strong><small>{evaluation.met ? `${evaluation.trialsToCriterion ? `${evaluation.trialsToCriterion} trials · ` : ''}${evaluation.daysToCriterion ?? '–'} days` : `latest ${formatNumber(evaluation.latest)} ${unit}`}</small></div>}
       {celeration && <div className="kpi"><span>Celeration</span><strong>{celeration.label}</strong><small>bounce ×{formatNumber(celeration.bounce, 1)}</small></div>}
+      {reduction && <div className="kpi"><span>Reduction criterion</span>
+        <strong>{reduction.met ? 'Met' : `${reduction.sustained}/${reduction.requiredDays} days`}</strong>
+        <small>{reduction.criterion ? `Criterion ≤ ${formatNumber(reduction.criterion.value)} (${describeReductionRule({ ...reduction.rule })})` : 'No baseline available'}</small>
+        <span className={`stat-chip stat-chip--${reduction.met ? 'positive' : 'attention'}`}>{reduction.met ? `Sustained from ${reduction.firstMetDate}` : reduction.message}</span></div>}
     </div>
+    {milestones.length > 0 && <div className="milestone-list">
+      <h4>Target timeline</h4>
+      <ul>{milestones.map(milestone => <li key={`${milestone.kind}-${milestone.date}`} className={milestone.current ? 'is-current' : undefined}>
+        <strong>{milestone.label}</strong><span>{formatLongDate(milestone.date)}</span>
+      </li>)}</ul>
+      <p className="field-hint">Introduction and mastery dates support acquisition-rate reporting; the same markers appear on the graph.</p>
+    </div>}
+    <ProgramStatusControl program={program} canEdit={canEdit} onProgramStatusChange={onProgramStatusChange} />
     {insights.length ? <ul className="insight-list">
       {insights.map(insight => <li key={insight.title} className={`insight insight--${insight.tone}`}>
         <strong>{insight.title}</strong><p>{insight.detail}</p><small>{insight.reference}</small>

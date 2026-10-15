@@ -13,6 +13,7 @@ import {
   SEED_VERSION,
   SEED_AS_OF_DATE
 } from '../data/mockData.js';
+import { applyObservationEdit, deletionAudit } from '../utils/observations.js';
 
 const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
 
@@ -33,6 +34,7 @@ const STORAGE_KEYS = {
   PHASE_RANGES: 'welina_phase_ranges',
   GRAPH_NOTES: 'welina_graph_notes',
   ABC_ENTRIES: 'welina_abc_entries',
+  DELETION_AUDIT: 'welina_deletion_audit',
   SEED_VERSION: 'welina_seed_version'
 };
 
@@ -72,6 +74,8 @@ class AnalyticsService {
       this.graphNotes = getStored(STORAGE_KEYS.GRAPH_NOTES, cloneSeed(INITIAL_GRAPH_NOTES));
       this.abcEntries = getStored(STORAGE_KEYS.ABC_ENTRIES, cloneSeed(INITIAL_ABC_ENTRIES));
     }
+    // Removed observations keep an audit entry so a post-billing correction stays traceable.
+    this.deletedRecords = getStored(STORAGE_KEYS.DELETION_AUDIT, []);
     this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
     this.serviceSessions = SERVICE_SESSIONS;
     this.staff = STAFF;
@@ -91,7 +95,8 @@ class AnalyticsService {
     this.snapshot = {
       clients: [...this.clients], programs: [...this.programs], sessions: [...this.sessions],
       abcEntries: [...this.abcEntries], phaseLines: [...this.phaseLines], phaseRanges: [...this.phaseRanges],
-      graphNotes: [...this.graphNotes], serviceSessions: SERVICE_SESSIONS, storageError: Boolean(this.storageError)
+      graphNotes: [...this.graphNotes], serviceSessions: SERVICE_SESSIONS, deletedRecords: [...this.deletedRecords],
+      storageError: Boolean(this.storageError)
     };
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(new Event('welina-data-change'));
@@ -109,6 +114,7 @@ class AnalyticsService {
       [STORAGE_KEYS.PHASE_RANGES]: this.phaseRanges,
       [STORAGE_KEYS.GRAPH_NOTES]: this.graphNotes,
       [STORAGE_KEYS.ABC_ENTRIES]: this.abcEntries,
+      [STORAGE_KEYS.DELETION_AUDIT]: this.deletedRecords,
       [STORAGE_KEYS.SEED_VERSION]: SEED_VERSION
     };
     this.failedKeys = this.failedKeys || new Set();
@@ -133,6 +139,7 @@ class AnalyticsService {
     this.phaseRanges = cloneSeed(INITIAL_PHASE_RANGES);
     this.graphNotes = cloneSeed(INITIAL_GRAPH_NOTES);
     this.abcEntries = cloneSeed(INITIAL_ABC_ENTRIES);
+    this.deletedRecords = [];
     this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
     this.saveAll();
   }
@@ -394,6 +401,101 @@ class AnalyticsService {
     return target;
   }
 
+  // ---- Round 2: manual entry, import, correction and program updates -----------------
+
+  // Manually entered data (probe, school, paper, assessment) is stored exactly like a
+  // recorded observation, with the collection context kept for the raw export.
+  addObservation(point) {
+    const [created] = this.recordTrials([{ observationType: 'Primary', ...point }]);
+    return created;
+  }
+
+  addObservations(points = []) {
+    return this.recordTrials(points.map(point => ({ observationType: 'Primary', ...point })));
+  }
+
+  findObservation(id) {
+    return this.sessions.find(row => row.id === id) || null;
+  }
+
+  // Correction of an existing observation, with the previous measurement kept in the
+  // record's edit history so a billed appointment does not need releasing and rebilling.
+  updateObservation(id, patch, audit = {}) {
+    const index = this.sessions.findIndex(row => row.id === id);
+    if (index === -1) return null;
+    const updated = applyObservationEdit(this.sessions[index], { ...patch, ...audit });
+    this.sessions[index] = updated;
+    this.saveAll([STORAGE_KEYS.SESSIONS]);
+    return updated;
+  }
+
+  // Deletion removes the observation from the data but keeps an audit entry.
+  deleteObservation(id, audit = {}) {
+    const index = this.sessions.findIndex(row => row.id === id);
+    if (index === -1) return null;
+    const [removed] = this.sessions.splice(index, 1);
+    const entry = { ...deletionAudit(removed, audit), clientId: removed.clientId, targetId: removed.targetId };
+    this.deletedRecords = [entry, ...(this.deletedRecords || [])].slice(0, 500);
+    this.saveAll([STORAGE_KEYS.SESSIONS, STORAGE_KEYS.DELETION_AUDIT]);
+    return { removed, entry };
+  }
+
+  getDeletionAudit(clientId = null) {
+    return (this.deletedRecords || []).filter(entry => !clientId || entry.clientId === clientId);
+  }
+
+  // ---- Annotations applied across several targets ------------------------------------
+
+  // A phase line, range or note created once can be applied to every target in a program,
+  // to the visible targets, or to every behavior target. Duplicates are skipped so the
+  // refresh after saving never produces two lines on the same date.
+  addPhaseLinesBulk(lines = []) {
+    const { created, skipped } = this.#bulkInsert(this.phaseLines, 'pcl', lines, line => `${line.targetId}|${line.date}|${line.label}`);
+    if (created.length) this.saveAll([STORAGE_KEYS.PHASE_LINES]);
+    return { created, skipped };
+  }
+
+  addPhaseRangesBulk(ranges = []) {
+    const { created, skipped } = this.#bulkInsert(this.phaseRanges, 'pr', ranges, range => `${range.targetId}|${range.startDate}|${range.endDate}|${range.label}`);
+    if (created.length) this.saveAll([STORAGE_KEYS.PHASE_RANGES]);
+    return { created, skipped };
+  }
+
+  addGraphNotesBulk(notes = []) {
+    const { created, skipped } = this.#bulkInsert(this.graphNotes, 'gn', notes, note => `${note.targetId}|${note.date}|${note.noteText}`);
+    if (created.length) this.saveAll([STORAGE_KEYS.GRAPH_NOTES]);
+    return { created, skipped };
+  }
+
+  #bulkInsert(collection, prefix, records, keyOf) {
+    // Duplicate protection: a line, range or note that already exists for that target is
+    // reported as skipped rather than added twice.
+    const existing = new Set(collection.map(keyOf));
+    const stamp = Date.now();
+    const created = [];
+    const skipped = [];
+    records.forEach((record, index) => {
+      const key = keyOf(record);
+      if (existing.has(key)) { skipped.push(record); return; }
+      existing.add(key);
+      const entry = { ...record, id: record.id || `${prefix}-${stamp}-${index}` };
+      collection.push(entry);
+      created.push(entry);
+    });
+    return { created, skipped };
+  }
+
+  // A clinician reviewing the data can move the program forward without leaving analytics.
+  updateProgramStatus(programId, status, { reason = '', staffName = '', asOf = null, note = '' } = {}) {
+    const program = this.programs.find(item => item.id === programId);
+    if (!program || !status) return null;
+    const date = asOf || new Date().toISOString().slice(0, 10);
+    program.status = status;
+    program.statusHistory = [...(program.statusHistory || []), { status, date, reason, staffName, note: note || undefined }];
+    this.saveAll([STORAGE_KEYS.PROGRAMS]);
+    return program;
+  }
+
   recordTrial(data) {
     const [newPoint] = this.recordTrials([data]);
     return newPoint;
@@ -421,3 +523,4 @@ class AnalyticsService {
 }
 
 export const apiService = new AnalyticsService();
+

@@ -285,3 +285,76 @@ export function pareto(entries, field) {
     return { label, count, share: total ? count / total : 0, cumulative: total ? running / total : 0 };
   });
 }
+
+// ---------------------------------------------------------------------------
+// Time-of-day patterns. Clinicians asked to record event timestamps and read them as a
+// clock-time scatterplot (toileting and behavior-reduction analysis), so events can be
+// compared across the day rather than only across dates.
+// ---------------------------------------------------------------------------
+
+export function clockMinutes(timestamp) {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(timestamp || '')) return null;
+  return Number(timestamp.slice(11, 13)) * 60 + Number(timestamp.slice(14, 16));
+}
+
+// One point per event: date for the x-axis, clock time for the y-axis.
+export function timeOfDayPattern(entries = [], { binMinutes = 60, behaviors = [] } = {}) {
+  const points = [];
+  for (const entry of entries) {
+    const minutes = clockMinutes(entry.timestamp);
+    if (minutes == null) continue;
+    const names = (entry.behaviors || []).filter(name => !behaviors.length || behaviors.includes(name));
+    if (!names.length && behaviors.length) continue;
+    points.push({
+      id: entry.id,
+      date: entry.timestamp.slice(0, 10),
+      timestamp: entry.timestamp,
+      minutes,
+      block: Math.floor(minutes / binMinutes) * binMinutes,
+      intensity: entry.intensity ?? null,
+      durationMinutes: entry.durationMinutes ?? null,
+      behavior: names[0] || 'Behavior',
+      behaviors: names,
+      antecedents: entry.antecedents || [],
+      consequences: entry.consequences || []
+    });
+  }
+  const bins = new Map();
+  for (const point of points) {
+    const bin = bins.get(point.block) || { block: point.block, label: `${clockLabel(point.block)}–${clockLabel(point.block + binMinutes)}`, count: 0, intensityTotal: 0, intensityCount: 0, behaviors: new Map() };
+    bin.count += 1;
+    if (Number.isFinite(point.intensity)) { bin.intensityTotal += point.intensity; bin.intensityCount += 1; }
+    bin.behaviors.set(point.behavior, (bin.behaviors.get(point.behavior) || 0) + 1);
+    bins.set(point.block, bin);
+  }
+  const ordered = [...bins.values()].sort((a, b) => a.block - b.block).map(bin => ({
+    ...bin,
+    meanIntensity: bin.intensityCount ? Math.round((bin.intensityTotal / bin.intensityCount) * 10) / 10 : null,
+    behaviors: [...bin.behaviors.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }))
+  }));
+  const total = points.length;
+  const peak = ordered.reduce((best, bin) => (!best || bin.count > best.count ? bin : best), null);
+  const earliest = points.reduce((best, point) => (!best || point.minutes < best.minutes ? point : best), null);
+  const latest = points.reduce((best, point) => (!best || point.minutes > best.minutes ? point : best), null);
+  return {
+    points,
+    bins: ordered.map(bin => ({ ...bin, share: total ? bin.count / total : 0 })),
+    total,
+    peak,
+    earliest: earliest?.minutes ?? null,
+    latest: latest?.minutes ?? null,
+    dateRange: points.length ? { from: points.map(point => point.date).sort()[0], to: points.map(point => point.date).sort().at(-1) } : null
+  };
+}
+
+// Events by hour of the day, split into morning / afternoon / evening, for the summary
+// sentence above the scatterplot.
+export function timeOfDayShares(pattern) {
+  const buckets = [{ id: 'morning', label: 'Morning (06:00–12:00)', count: 0 }, { id: 'afternoon', label: 'Afternoon (12:00–17:00)', count: 0 }, { id: 'evening', label: 'Evening (17:00–22:00)', count: 0 }, { id: 'other', label: 'Outside 06:00–22:00', count: 0 }];
+  for (const point of pattern.points || []) {
+    const bucket = point.minutes >= 360 && point.minutes < 720 ? buckets[0] : point.minutes >= 720 && point.minutes < 1020 ? buckets[1] : point.minutes >= 1020 && point.minutes <= 1320 ? buckets[2] : buckets[3];
+    bucket.count += 1;
+  }
+  const total = pattern.total || 0;
+  return buckets.map(bucket => ({ ...bucket, share: total ? bucket.count / total : 0 }));
+}
