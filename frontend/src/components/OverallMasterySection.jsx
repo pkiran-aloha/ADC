@@ -71,7 +71,8 @@ export default function OverallMasterySection({ programs = [], selectedProgramId
                     <stop offset="0%" stopColor="#34634c" stopOpacity="0.14" /><stop offset="100%" stopColor="#34634c" stopOpacity="0.02" />
                   </linearGradient></defs>
                   <path d={`${pathD} L ${points.at(-1).x} ${padding.top + graphHeight} L ${points[0].x} ${padding.top + graphHeight} Z`} fill="url(#mastery-fill)" />
-                  <path d={pathD} fill="none" stroke="#34634c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path className="mastery-trend-line" d={pathD} pathLength="1" strokeDasharray="1" strokeDashoffset="0"
+                    fill="none" stroke="#34634c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                   {points.map(point => <g key={point.date}>
                     <circle cx={point.x} cy={point.y} r="5" fill="#fff" stroke="#34634c" strokeWidth="2.5" />
                     <text x={point.x} y={point.y - 14} textAnchor="middle" fontSize="14" fontWeight="600" fill="#294f3d" fontFamily="Geist, sans-serif">{point.cumulativeCount}</text>

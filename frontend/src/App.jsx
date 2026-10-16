@@ -40,7 +40,7 @@ function whenSectionReady(id, callback, tries = 240) {
 // One tab panel per workflow. Panels mount on first visit and stay mounted (hidden)
 // afterwards so charts, filters and drill-down state survive a workflow switch.
 function WorkflowPanel({ id, active, children }) {
-  return <div className="workflow-panel" role="tabpanel" id={`workflow-panel-${id}`}
+  return <div className={`workflow-panel${active ? ' workflow-panel--active' : ''}`} role="tabpanel" id={`workflow-panel-${id}`}
     aria-labelledby={`workflow-tab-${id}`} hidden={!active} tabIndex={-1}>{children}</div>;
 }
 
@@ -303,11 +303,11 @@ export default function App() {
                 </div>
                 <dl className="metrics-strip" aria-label={`${currentClient.name}'s demo data summary`}>
                   {[
-                    { label: 'Programs', value: programs.length, note: `${skillPrograms.length} skill · ${programs.length - skillPrograms.length} behavior`, icon: Target },
-                    { label: 'Targets mastered', value: `${masteredCount} / ${skillTargets.length}`, note: 'Across skill programs', icon: CheckCircle2 },
-                    { label: 'Session observations', value: clientSessions.length, note: 'All measurement types', icon: ChartLineUp },
-                    { label: 'ABC observations', value: abcEntries.length, note: 'Antecedent to consequence', icon: Notebook }
-                  ].map(metric => <div className="metric" key={metric.label}><dt><metric.icon size={15} />{metric.label}</dt><dd className="metric-number">{metric.value}</dd><dd className="metric-note">{metric.note}</dd></div>)}
+                    { id: 'programs', label: 'Programs', value: programs.length, note: `${skillPrograms.length} skill · ${programs.length - skillPrograms.length} behavior`, icon: Target },
+                    { id: 'mastery', label: 'Targets mastered', value: `${masteredCount} / ${skillTargets.length}`, note: 'Across skill programs', icon: CheckCircle2 },
+                    { id: 'sessions', label: 'Session observations', value: clientSessions.length, note: 'All measurement types', icon: ChartLineUp },
+                    { id: 'abc', label: 'ABC observations', value: abcEntries.length, note: 'Antecedent to consequence', icon: Notebook }
+                  ].map(metric => <div className={`metric metric--${metric.id}`} key={metric.label}><dt><span className="metric-icon" aria-hidden="true"><metric.icon size={16} /></span>{metric.label}</dt><dd className="metric-number">{metric.value}</dd><dd className="metric-note">{metric.note}</dd></div>)}
                 </dl>
                 <OverallMasterySection programs={programs} selectedProgramId={selectedMasteryProgId}
                   onSelectProgram={id => setMasterySelections(value => ({ ...value, [selectedClientId]: id }))} masteryData={masteryData} />
