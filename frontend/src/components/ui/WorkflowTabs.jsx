@@ -28,11 +28,11 @@ export default function WorkflowTabs({ activeId, onSelect, snapshotDate }) {
         {WORKFLOWS.map(workflow => {
           const Icon = workflow.icon;
           const selected = workflow.id === activeId;
-          return <button key={workflow.id} type="button" role="tab" className="workspace-tab"
+          return <button key={workflow.id} type="button" role="tab" className={`workspace-tab workspace-tab--${workflow.id}`}
             id={`workflow-tab-${workflow.id}`} aria-controls={`workflow-panel-${workflow.id}`}
             aria-selected={selected} tabIndex={selected ? 0 : -1} title={workflow.summary}
             onClick={() => onSelect(workflow.id)}>
-            <Icon size={17} aria-hidden="true" />
+            <span className="workspace-tab-icon" aria-hidden="true"><Icon size={17} /></span>
             <span>{workflow.label}</span>
           </button>;
         })}
