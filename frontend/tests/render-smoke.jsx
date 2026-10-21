@@ -115,7 +115,7 @@ const cases = [
   ['OverviewScopeControls', OverviewScopeControls, {
     programScope: 'all', rangeId: '90D', window: scopeWindow, counts: scopeCounts,
     onProgramScopeChange: noop, onRangeChange: noop
-  }, ['Progress overview scope', 'Program scope', 'Time range', '16 Jul 2026', 'programs in scope']],
+  }, ['Overview scope', 'Program scope', 'Time range', '16 Jul 2026', 'programs in scope']],
   ['InterventionTimeline (90-day feed)', InterventionTimeline, {
     programs: scopedPrograms, phaseLines: seed.phaseLines, phaseRanges: seed.phaseRanges, graphNotes: seed.graphNotes,
     asOfDate: SEED_AS_OF_DATE, windowStart: scopeWindow.start, programScope: 'all',

@@ -13,7 +13,7 @@ export default function OverviewScopeControls({
   const scope = programScopeById(programScope);
   const caption = scopeCaption(window, { programScope, counts });
   return <section className="overview-scope" aria-labelledby="overview-scope-title">
-    <h2 className="sr-only" id="overview-scope-title">Progress overview scope</h2>
+    <h2 className="sr-only" id="overview-scope-title">Overview scope</h2>
     <div className="overview-scope__field">
       <span className="overview-scope__label" aria-hidden="true">Programs</span>
       <SegmentedControl label="Program scope" value={programScope} onChange={onProgramScopeChange}
