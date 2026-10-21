@@ -810,6 +810,62 @@ test('workflow tabs show one screen at a time, sync the sidebar and keep deep li
   await expect(page.locator('#abc-observations')).toBeVisible();
 });
 
+test('documentation lazy-loads and its full page index stays scrollable', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === 'mobile';
+  await page.setViewportSize({ width: mobile ? 390 : 1280, height: 620 });
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  await page.route('**/assets/DocumentationSection*.js', async route => { await gate; await route.continue(); });
+  await page.goto('./#documentation', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#workflow-panel-documentation .analytics-skeleton')).toBeVisible();
+  release();
+
+  const navigation = page.getByRole('navigation', { name: 'Documentation sections' });
+  const techStack = navigation.getByRole('link', { name: 'Tech stack & architecture', exact: true });
+  await expect(page.getByRole('heading', { name: 'Start here', level: 1 })).toBeVisible();
+  await expect(navigation.getByRole('link')).toHaveCount(11);
+  if (mobile) {
+    const dimensions = await navigation.evaluate(element => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
+    expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.clientWidth);
+    await navigation.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+  } else {
+    const dimensions = await navigation.evaluate(element => ({
+      scrollHeight: element.scrollHeight, clientHeight: element.clientHeight, overflowY: getComputedStyle(element).overflowY
+    }));
+    expect(dimensions.overflowY).toBe('auto');
+    expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+    await navigation.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  }
+  await expect(techStack).toBeInViewport();
+  await techStack.click();
+  await expect(page.getByRole('heading', { name: 'Tech stack & architecture', level: 1 })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('doc')).toBe('tech-stack');
+  expect(new URL(page.url()).hash).toBe('#documentation');
+});
+
+test('workspace sidebar scrolls its lower items into view on short screens', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === 'mobile';
+  await page.setViewportSize({ width: mobile ? 390 : 1280, height: 520 });
+  await open(page);
+  let scrollArea;
+  let sidebar;
+  if (mobile) {
+    await page.getByRole('button', { name: 'Open workspace navigation' }).click();
+    sidebar = page.getByRole('dialog', { name: 'Workspace', exact: true });
+    scrollArea = sidebar.locator('.dialog-content');
+  } else {
+    sidebar = page.locator('.shell-layout > .sidebar');
+    scrollArea = sidebar;
+  }
+  const dimensions = await scrollArea.evaluate(element => ({ scrollHeight: element.scrollHeight, clientHeight: element.clientHeight }));
+  expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+  await scrollArea.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await expect(sidebar.getByRole('button', { name: 'Reset demo data' })).toBeInViewport();
+  const docsLink = sidebar.getByRole('link', { name: 'Documentation', exact: true });
+  await docsLink.scrollIntoViewIfNeeded();
+  await expect(docsLink).toBeInViewport();
+});
+
 test('returning to a workflow keeps its chart state instead of resetting the screen', async ({ page }) => {
   await open(page, 'Target analysis');
   await page.getByLabel('Group by').selectOption('Weekly');
