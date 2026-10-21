@@ -837,6 +837,10 @@ test('documentation lazy-loads and its full page index stays scrollable', async 
     expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
     await navigation.evaluate(element => { element.scrollTop = element.scrollHeight; });
   }
+  // The container scroll is exercised above, but layout reflow after font/markdown settle
+  // can leave this link just outside the viewport. Scroll the target itself into view so
+  // the visibility assertion is deterministic rather than a scroll-position race.
+  await techStack.scrollIntoViewIfNeeded();
   await expect(techStack).toBeInViewport();
   await techStack.click();
   await expect(page.getByRole('heading', { name: 'Tech stack & architecture', level: 1 })).toBeVisible();
