@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { ArrowLeft, Book } from '../ui/Icons';
-import { DOC_PAGES, pageById } from '../../data/docs/wikiPages';
+import { DOC_PAGES, PAGE_CONTENT, pageById } from '../../data/docs/wikiPages';
 import PageNav from './PageNav';
 import MarkdownPage from './MarkdownPage';
 
@@ -17,7 +17,7 @@ export default function DocumentationSection({ onClose }) {
   const [targetHeading, setTargetHeading] = useState(null);
 
   const page = useMemo(() => pageById(pageId), [pageId]);
-  const content = page ? page.content : '';
+  const content = useMemo(() => PAGE_CONTENT[pageId] ?? '', [pageId]);
 
   const navigate = useCallback(
     (id, heading) => {
