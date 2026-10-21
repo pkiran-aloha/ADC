@@ -13,6 +13,7 @@ import ServiceQualitySection from '../src/components/ServiceQualitySection.jsx';
 import ReportsSection from '../src/components/ReportsSection.jsx';
 import OverallMasterySection from '../src/components/OverallMasterySection.jsx';
 import ProgressHeatmap from '../src/components/overview/ProgressHeatmap.jsx';
+import PortfolioTriage from '../src/components/overview/PortfolioTriage.jsx';
 import DataEntryModal from '../src/components/Modals/DataEntryModal.jsx';
 import RecordSessionModal from '../src/components/Modals/RecordSessionModal.jsx';
 import PhaseLineModal from '../src/components/Modals/PhaseLineModal.jsx';
@@ -83,6 +84,9 @@ const cases = [
   ['ProgressHeatmap', ProgressHeatmap, {
     programs, sessions, asOfDate: SEED_AS_OF_DATE, onOpen: noop
   }, ['Progress']],
+  ['PortfolioTriage', PortfolioTriage, {
+    programs, sessions, asOfDate: SEED_AS_OF_DATE, onOpenTarget: noop, onUseInReport: noop
+  }, ['Clinical attention center', 'Target health matrix', 'Recent successes']],
 ];
 
 let failures = 0;

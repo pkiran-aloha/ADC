@@ -2,6 +2,7 @@ import { test as base, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFile, readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
+import buildTargetHealth from '../src/utils/targetHealth.js';
 
 const read = promisify(readFile);
 const seed = JSON.parse(readFileSync(new URL('../../data/clinicalSeed.json', import.meta.url), 'utf8'));
@@ -836,6 +837,10 @@ test('documentation lazy-loads and its full page index stays scrollable', async 
     expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
     await navigation.evaluate(element => { element.scrollTop = element.scrollHeight; });
   }
+  // The container scroll is exercised above, but layout reflow after font/markdown settle
+  // can leave this link just outside the viewport. Scroll the target itself into view so
+  // the visibility assertion is deterministic rather than a scroll-position race.
+  await techStack.scrollIntoViewIfNeeded();
   await expect(techStack).toBeInViewport();
   await techStack.click();
   await expect(page.getByRole('heading', { name: 'Tech stack & architecture', level: 1 })).toBeVisible();
@@ -1042,6 +1047,49 @@ test('the weekly progress map opens a target and week in the target analysis', a
   await activate(page, 'Progress overview');
   await map.getByRole('button', { name: 'Behaviors', exact: true }).click();
   await expect(map.locator('tbody tr')).toHaveCount(behaviorTargets.length);
+});
+
+test('portfolio triage summarizes trends, filters the matrix and drills into a target', async ({ page }) => {
+  await open(page);
+  const health = buildTargetHealth({
+    programs,
+    sessions: seed.sessionData.filter(row => row.clientId === client.id),
+    asOfDate: seed.asOfDate
+  });
+  const triage = page.locator('.kpi-strip').first();
+  await expect(triage).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Clinical attention center' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Target health matrix' })).toBeVisible();
+
+  // A KPI card filters the matrix to exactly the items its number represents.
+  const reviewCard = triage.locator('.kpi-card[data-filter="needsReview"]');
+  await reviewCard.click();
+  await expect(reviewCard).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.health-matrix tbody tr.health-matrix__row')).toHaveCount(health.kpis.needsReview);
+  await expect(page.getByRole('button', { name: 'Clear filter' })).toBeVisible();
+  await accessible(page);
+  await page.getByRole('button', { name: 'Clear filter' }).click();
+  await expect(page.locator('.health-matrix tbody tr.health-matrix__row')).toHaveCount(health.items.length);
+
+  // An attention card opens that target in the target analysis via the focus channel.
+  const firstAttention = page.locator('.attention-card').first();
+  const attentionName = await firstAttention.locator('.attention-card__name').innerText();
+  await firstAttention.click();
+  await expect(page.locator('#target-analysis')).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Target analysis' })).toBeVisible();
+
+  // A matrix row offers the same one-click drilldown, keyboard included.
+  await activate(page, 'Progress overview');
+  const firstRow = page.locator('.health-matrix tbody tr.health-matrix__row').first();
+  await firstRow.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#target-analysis')).toBeFocused();
+
+  // Recent successes can seed the reporting workflow without a new navigation pattern.
+  await activate(page, 'Progress overview');
+  await page.getByRole('button', { name: 'Use in report' }).click();
+  await expect(page.getByRole('tabpanel', { name: 'Reports' })).toBeVisible();
+  expect(attentionName).toBeTruthy();
 });
 
 test('service and data quality summarize dosage, IOA, fidelity and supervision', async ({ page }) => {

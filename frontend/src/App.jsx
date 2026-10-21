@@ -20,6 +20,7 @@ import { SEED_AS_OF_DATE, PROMPT_HIERARCHY_TEMPLATES, CLINICAL_STANDARDS } from 
 const ClientSpecificSection = lazy(() => import('./components/ClientSpecificSection'));
 const AbcDataSection = lazy(() => import('./components/AbcDataSection'));
 const ProgressHeatmap = lazy(() => import('./components/overview/ProgressHeatmap'));
+const PortfolioTriage = lazy(() => import('./components/overview/PortfolioTriage'));
 const ServiceQualitySection = lazy(() => import('./components/ServiceQualitySection'));
 const ReportsSection = lazy(() => import('./components/ReportsSection'));
 const DocumentationSection = lazy(() => import('./components/documentation/DocumentationSection'));
@@ -189,17 +190,26 @@ export default function App() {
     saved('Demo data restored. Your navigation preferences haven’t changed.');
     setResetOpen(false);
   }
-  function openTargetWeek({ program, target, week }) {
+  // One drilldown channel for every summary surface (progress map cell, attention card,
+  // health-matrix row). A week opens the observation inspector; a plain target focus lands
+  // on the chart. The focus-request contract consumed by ClientSpecificSection is unchanged.
+  function openTargetFocus({ program, target, week = null, aggregation = 'Per Day' }) {
     setFocusRequest({
       clientId: selectedClientId, nonce: Date.now(), category: program.category === 'BehaviorReduction' ? 'Behavior' : 'SkillAcquisition',
       programId: program.category === 'SkillAcquisition' ? program.id : undefined, behaviorIds: program.category === 'BehaviorReduction' ? [target.id] : undefined,
-      targetType: target.type, durationFilter: '3 months', aggregation: 'Weekly', selectedKey: week, analysisTargetId: target.id
+      targetType: target.type, durationFilter: '3 months', aggregation, selectedKey: week, analysisTargetId: target.id
     });
     activateWorkflow('target-analysis', { scrollToTop: false });
     whenSectionReady('target-analysis', section => {
       section.scrollIntoView({ block: 'start' });
       section.focus({ preventScroll: true });
     });
+  }
+  // Portfolio triage rows carry ids, so resolve them against the current client's programs.
+  function openHealthItem(item) {
+    const program = programs.find(entry => entry.id === item.programId);
+    const target = program?.targets.find(entry => entry.id === item.targetId);
+    if (program && target) openTargetFocus({ program, target });
   }
   function changeAccessLevel(level) {
     setAccessLevelState(level);
@@ -310,10 +320,15 @@ export default function App() {
                     { id: 'abc', label: 'ABC observations', value: abcEntries.length, note: 'Antecedent to consequence', icon: Notebook }
                   ].map(metric => <div className={`metric metric--${metric.id}`} key={metric.label}><dt><span className="metric-icon" aria-hidden="true"><metric.icon size={16} /></span>{metric.label}</dt><dd className="metric-number">{metric.value}</dd><dd className="metric-note">{metric.note}</dd></div>)}
                 </dl>
+                <Suspense fallback={<AnalyticsSkeleton />}>
+                  <PortfolioTriage key={`triage-${selectedClientId}`} programs={programs} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE}
+                    onOpenTarget={openHealthItem} onUseInReport={() => activateWorkflow('reports')} />
+                </Suspense>
                 <OverallMasterySection programs={programs} selectedProgramId={selectedMasteryProgId}
                   onSelectProgram={id => setMasterySelections(value => ({ ...value, [selectedClientId]: id }))} masteryData={masteryData} />
                 <Suspense fallback={<AnalyticsSkeleton />}>
-                  <ProgressHeatmap key={selectedClientId} programs={programs} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE} onOpen={openTargetWeek} />
+                  <ProgressHeatmap key={selectedClientId} programs={programs} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE}
+                    onOpen={focus => openTargetFocus({ ...focus, aggregation: 'Weekly' })} />
                 </Suspense>
               </>}
             </section>
