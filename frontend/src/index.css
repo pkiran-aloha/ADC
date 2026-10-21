@@ -998,3 +998,62 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 /* Chart note labels wrap to at most two lines; the SVG text is split by the component. */
 .chart-note-label rect { fill: #fffdf6; }
 .chart-note-label text { dominant-baseline: hanging; }
+
+/* Documentation viewer: clean reference for the wiki and tech stack. */
+.docs-section { display: flex; flex-direction: column; gap: 0; }
+.docs-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+.docs-back { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0 0.75rem; font-size: 0.8125rem; font-weight: 500; color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 0.625rem; background: #fff; cursor: pointer; transition: background-color 200ms, color 200ms; }
+.docs-back:hover { background: var(--color-slate-100); color: var(--ink); border-color: var(--line); }
+.docs-brand { display: flex; align-items: center; gap: 0.75rem; }
+.docs-brand h1 { margin: 0; font-family: var(--font-display); font-size: clamp(1.5rem, 2vw, 1.875rem); font-weight: 600; line-height: 1.12; letter-spacing: -0.04em; color: var(--ink); }
+.docs-eyebrow { margin: 0; font-size: 0.75rem; font-weight: 500; color: var(--muted); letter-spacing: 0.03em; }
+.docs-body { display: flex; gap: 1.5rem; }
+.docs-nav { flex: 0 0 17rem; min-width: 0; display: flex; flex-direction: column; gap: 0.75rem; padding-top: 0.25rem; }
+.docs-nav-section { display: flex; flex-direction: column; gap: 0.5rem; }
+.docs-nav-section-title { font-size: 0.6875rem; font-weight: 600; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; padding-left: 0.25rem; margin: 0; }
+.docs-nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.125rem; }
+.docs-nav-link { display: flex; align-items: center; gap: 0.5rem; min-height: 2.6rem; padding: 0.45rem 0.625rem; font-size: 0.875rem; font-weight: 500; color: var(--muted); text-decoration: none; border-radius: 0.5rem; transition: background-color 200ms, color 200ms; }
+.docs-nav-link:hover { background: var(--color-slate-100); color: var(--ink); }
+.docs-nav-link--active { color: var(--color-brand-800); background: var(--color-brand-50); }
+.docs-nav-link--active::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
+.docs-nav-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--color-slate-300); flex: 0 0 auto; opacity: 0.6; }
+.docs-content-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.docs-page { display: flex; gap: 1.75rem; }
+.docs-toc { flex: 0 0 15.5rem; min-width: 0; display: flex; flex-direction: column; gap: 0.75rem; padding-top: 0.3rem; border-left: 1px solid var(--line); padding-left: 1rem; margin-left: 1rem; }
+.docs-toc-title { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; font-weight: 600; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; margin: 0 0 0.25rem; }
+.docs-toc ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.docs-toc a { display: block; padding: 0.3rem 0.4rem; font-size: 0.875rem; color: var(--muted); text-decoration: none; border-radius: 0.375rem; transition: background-color 150ms, color 150ms; }
+.docs-toc a:hover { background: var(--color-slate-100); color: var(--ink); }
+.docs-content { flex: 1; min-width: 0; max-width: 68rem; }
+.docs-content p { margin: 0 0 1rem; line-height: 1.6; color: var(--ink); }
+.docs-content a { color: var(--color-brand-700); text-decoration: underline; text-underline-offset: 3px; }
+.docs-content a[target="_blank"] { padding-right: 1.2rem; }
+.docs-content h1, .docs-content h2, .docs-content h3 { color: var(--ink); font-weight: 600; line-height: 1.3; margin: 1.75rem 0 0.75rem; scroll-margin-top: 90px; }
+.docs-content h1 { font-family: var(--font-display); font-size: clamp(1.75rem, 2.5vw, 2.25rem); letter-spacing: -0.03em; margin-top: 0; }
+.docs-content h2 { font-size: clamp(1.25rem, 1.8vw, 1.5rem); border-bottom: 1px solid var(--line); padding-bottom: 0.35rem; }
+.docs-content h3 { font-size: 1rem; color: var(--color-slate-700); }
+.docs-content ul, .docs-content ol { margin: 0 0 1rem 1.25rem; padding: 0; line-height: 1.6; }
+.docs-content ul { list-style: disc; }
+.docs-content li { margin-bottom: 0.4rem; }
+.docs-content code { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 0.875rem; background: var(--color-slate-100); padding: 0.15rem 0.35rem; border-radius: 0.25rem; color: var(--color-brand-800); }
+.docs-content pre { background: var(--color-slate-100); padding: 0.875rem; border-radius: 0.5rem; overflow: auto; margin: 1rem 0; }
+.docs-content pre code { background: transparent; padding: 0; color: inherit; font-size: 0.85rem; }
+.docs-content blockquote { margin: 1rem 0; padding: 0.75rem 1rem; border-left: 3px solid var(--color-brand-300); background: var(--color-slate-50); color: var(--color-slate-700); font-style: italic; }
+.docs-content table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.875rem; }
+.docs-content th, .docs-content td { border: 1px solid var(--line); padding: 0.5rem 0.75rem; text-align: left; vertical-align: top; }
+.docs-content th { background: var(--color-slate-50); font-weight: 600; color: var(--color-slate-700); }
+.docs-content tr:nth-child(even) td { background: #fbfbfd; }
+.docs-content hr { border: 0; border-top: 1px solid var(--line); margin: 1.5rem 0; }
+
+/* Keep the docs content readable on narrower screens. */
+@media (max-width: 900px) {
+  .docs-body { flex-direction: column; }
+  .docs-nav { flex: 1; flex-direction: row; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; scrollbar-width: none; }
+  .docs-nav-section { flex-direction: row; gap: 0.5rem; }
+  .docs-nav-section-title { display: none; }
+  .docs-nav ul { flex-direction: row; gap: 0.375rem; }
+  .docs-nav-link { white-space: nowrap; }
+  .docs-toc { display: none; }
+  .docs-page { flex-direction: column; gap: 1rem; }
+  .docs-content { max-width: none; }
+}

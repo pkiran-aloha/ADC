@@ -19,7 +19,7 @@ export default function Sidebar({
       {WORKFLOWS.map(workflow => {
         const Icon = workflow.icon;
         const content = <><span className="nav-icon"><Icon size={19} /></span><span className="nav-label">{workflow.label}</span><span className="nav-tooltip" aria-hidden="true">{workflow.label}</span></>;
-        return !hasClient && workflow.id !== 'overview'
+        return !hasClient && !['overview', 'documentation'].includes(workflow.id)
           ? <button key={workflow.id} type="button" className={`nav-item nav-item--${workflow.id}`} disabled title="Choose a client to view analytics">{content}</button>
           : <a key={workflow.id} className={`nav-item nav-item--${workflow.id}`} href={`#${workflow.id}`}
             aria-current={activeSection === workflow.id ? 'location' : undefined}
