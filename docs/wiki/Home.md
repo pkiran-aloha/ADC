@@ -685,6 +685,18 @@ The opening screen shows the selected learner's identity, supervising clinician,
 
 If no client is selected, the workspace shows a client-choice state and disables the other workflows. The client selector in the header is the single source of scope; changing it keeps each screen's state but re-filters all data.
 
+### Portfolio triage
+
+Directly below the metric strip, the portfolio triage answers the analysis-first question — *what is improving, what needs me, and what changed?* — without opening programs one at a time. It is a read-only rollup over the existing client → program → target structure; it adds no entities and changes no data.
+
+- **KPI strip (last 90 days).** Five cards summarize every measured target: **Improving**, **Stable** and **Declining** show a percentage and item count, then **Near mastery** and **Needs review** show counts. Trend percentages use only *active* targets with at least four weekly points; maintenance, generalization, completed, paused and discontinued targets are reported with their own status pills instead of entering the trend denominator. For behavior-reduction targets, a decreasing measure reads as **improving** — direction always follows the target's therapeutic direction, not the raw sign of the number.
+- **Clinical attention center.** Ranked cards combine the leading concern (wrong-direction trend, plateau, high variability, stale data, no data, or regression after mastery) with a 12-week sparkline and the reason in words. Selecting a card opens that target's chart in **Target analysis** through the same focus mechanism the weekly progress map uses.
+- **Recent successes.** Mastery transitions into maintenance, generalization or completed from the last 30 days, taken from each target's existing phase history. **Use in report** switches to the Reports workflow with the learner still selected.
+- **Target health matrix.** One keyboard-operable row per measured target: measurement type, 90-day trend delta, phase status, a forecast (criterion streak like `2/3 at criterion`, a projected horizon, or *Review needed*) and a current-level bar against the mastery criterion when the units match. Selecting a row — with a pointer, Enter or Space — opens the target analysis for that target.
+- **KPI cards are filters.** Selecting Improving, Stable, Declining, Near mastery or Needs review filters the matrix to the items behind that number; selecting the card again or **Clear filter** restores the full list.
+
+**How the classifications are made.** Weekly observations are aggregated in each tool's natural unit (the same normalization as the progress map), an ordinary least-squares fit is run over the last 12 weekly points, and a fitted relative change under 10% reads as stable. Variability requires both a failed ±25% stability envelope and a coefficient spread of at least 0.25, so ordinary weekly noise is not over-flagged. Near mastery means the mastery streak is one session short or the trend projects the criterion within 21 days. A target with no measurement for 14 days is flagged as stale; mastered targets are never called "declining" for missing data — a mastered target with genuinely falling recent data is flagged as **regression after mastery** instead. Targets with fewer than four weekly points show *Insufficient history* and stay out of the trend percentages. These are decision-support thresholds, not clinical cutoffs, and they are centralized in `utils/targetHealth.js`.
+
 ### Skill mastery
 
 The **Skill mastery** chart answers: *how do mastered targets accumulate over time?*
