@@ -16,11 +16,18 @@ import { workflowFromHash } from './data/workflows';
 import { User, Calendar, ChartLineUp, Target, Notebook, CheckCircle2, ArrowRight, ArrowCounterClockwise, AlertTriangle, ShieldCheck } from './components/ui/Icons';
 import { apiService } from './services/apiService';
 import { SEED_AS_OF_DATE, PROMPT_HIERARCHY_TEMPLATES, CLINICAL_STANDARDS } from './data/mockData';
+import {
+  DEFAULT_PROGRAM_SCOPE, DEFAULT_RANGE_ID, durationFilterForDate, resolveScopeWindow,
+  scopePrograms, weekCountFor
+} from './utils/analyticsScope';
+import { ALL_PROGRAMS_ID, cumulativeMasterySeries, resolveMasterySelection } from './utils/targetAnalytics';
+import OverviewScopeControls from './components/overview/OverviewScopeControls';
 
 const ClientSpecificSection = lazy(() => import('./components/ClientSpecificSection'));
 const AbcDataSection = lazy(() => import('./components/AbcDataSection'));
 const ProgressHeatmap = lazy(() => import('./components/overview/ProgressHeatmap'));
 const PortfolioTriage = lazy(() => import('./components/overview/PortfolioTriage'));
+const InterventionTimeline = lazy(() => import('./components/overview/InterventionTimeline'));
 const ServiceQualitySection = lazy(() => import('./components/ServiceQualitySection'));
 const ReportsSection = lazy(() => import('./components/ReportsSection'));
 const DocumentationSection = lazy(() => import('./components/documentation/DocumentationSection'));
@@ -51,6 +58,11 @@ export default function App() {
   // The third argument lets the workspace be server-rendered (npm run smoke) without a browser store.
   const data = useSyncExternalStore(apiService.subscribe, apiService.getSnapshot, apiService.getSnapshot);
   const [masterySelections, setMasterySelections] = useState({});
+  // One shared scope for the whole Progress overview: the program scope and time range are
+  // lifted here and passed into the triage, timeline, mastery chart and weekly progress map,
+  // so the landing page answers a single question instead of each section carrying its own
+  // filter. Defaults (all programs, 90 days) match the blueprint.
+  const [overviewScope, setOverviewScope] = useState({ programScope: DEFAULT_PROGRAM_SCOPE, rangeId: DEFAULT_RANGE_ID });
   const [recordOpen, setRecordOpen] = useState(false);
   const [recordTargetId, setRecordTargetId] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
@@ -94,10 +106,26 @@ export default function App() {
   const annotations = useMemo(() => ({ phaseLines: data.phaseLines, phaseRanges: data.phaseRanges, graphNotes: data.graphNotes }), [data.phaseLines, data.phaseRanges, data.graphNotes]);
   const currentClient = clients.find(client => client.id === selectedClientId);
   const skillPrograms = programs.filter(program => program.category === 'SkillAcquisition');
+  const clientSessions = useMemo(() => sessions.filter(session => session.clientId === selectedClientId), [sessions, selectedClientId]);
+  // Program scope is a derived view of the existing categories; the window is the one shared
+  // time range. "All time" starts at the client's earliest record rather than a magic number.
+  const scopedPrograms = useMemo(() => scopePrograms(programs, overviewScope.programScope), [programs, overviewScope.programScope]);
+  const scopeWindow = useMemo(() => resolveScopeWindow({
+    asOfDate: SEED_AS_OF_DATE, rangeId: overviewScope.rangeId, programs, sessions: clientSessions
+  }), [overviewScope.rangeId, programs, clientSessions]);
+  const overviewWeeks = useMemo(() => weekCountFor(scopeWindow), [scopeWindow]);
+  const scopeCounts = useMemo(() => {
+    const skill = scopedPrograms.filter(program => program.category === 'SkillAcquisition').length;
+    return { total: scopedPrograms.length, skill, behavior: scopedPrograms.length - skill };
+  }, [scopedPrograms]);
+  const scopedSkillPrograms = useMemo(() => scopedPrograms.filter(program => program.category === 'SkillAcquisition'), [scopedPrograms]);
+  // The mastery picker keeps a per-client choice; "All programs" is the default aggregate.
   const chosenMasteryId = masterySelections[selectedClientId];
-  const selectedMasteryProgId = chosenMasteryId === '' ? '' : skillPrograms.some(program => program.id === chosenMasteryId) ? chosenMasteryId : skillPrograms[0]?.id || '';
-  const masteryData = apiService.getCumulativeMastery(selectedClientId, selectedMasteryProgId);
-  const clientSessions = sessions.filter(session => session.clientId === selectedClientId);
+  const selectedMasteryProgId = resolveMasterySelection(chosenMasteryId, scopedSkillPrograms);
+  const masteryPrograms = selectedMasteryProgId === ALL_PROGRAMS_ID
+    ? scopedSkillPrograms
+    : scopedSkillPrograms.filter(program => program.id === selectedMasteryProgId);
+  const masteryData = cumulativeMasterySeries(masteryPrograms, { from: scopeWindow.start, to: scopeWindow.asOfDate });
   const skillTargets = skillPrograms.flatMap(program => program.targets);
   const masteredCount = skillTargets.filter(target => ['Maintenance', 'Generalization', 'Completed'].includes(target.phase)).length;
   const canEdit = accessLevel === 'full';
@@ -193,11 +221,16 @@ export default function App() {
   // One drilldown channel for every summary surface (progress map cell, attention card,
   // health-matrix row). A week opens the observation inspector; a plain target focus lands
   // on the chart. The focus-request contract consumed by ClientSpecificSection is unchanged.
-  function openTargetFocus({ program, target, week = null, aggregation = 'Per Day' }) {
+  // `date` scopes the chart to a specific day (intervention-timeline events); `week` keeps the
+  // existing progress-map behaviour. Both reuse the same focus-request shape, and the chart's
+  // own date filter is widened only as far as the event needs.
+  function openTargetFocus({ program, target, week = null, date = null, aggregation = 'Per Day' }) {
+    const focusDate = date ? String(date).slice(0, 10) : null;
     setFocusRequest({
       clientId: selectedClientId, nonce: Date.now(), category: program.category === 'BehaviorReduction' ? 'Behavior' : 'SkillAcquisition',
       programId: program.category === 'SkillAcquisition' ? program.id : undefined, behaviorIds: program.category === 'BehaviorReduction' ? [target.id] : undefined,
-      targetType: target.type, durationFilter: '3 months', aggregation, selectedKey: week, analysisTargetId: target.id
+      targetType: target.type, durationFilter: focusDate ? durationFilterForDate(focusDate, SEED_AS_OF_DATE) : '3 months',
+      aggregation, selectedKey: focusDate || week, analysisTargetId: target.id
     });
     activateWorkflow('target-analysis', { scrollToTop: false });
     whenSectionReady('target-analysis', section => {
@@ -210,6 +243,19 @@ export default function App() {
     const program = programs.find(entry => entry.id === item.programId);
     const target = program?.targets.find(entry => entry.id === item.targetId);
     if (program && target) openTargetFocus({ program, target });
+  }
+  // Timeline events carry the same ids plus the date the change happened, so the drilldown
+  // lands on the target's chart with that date inside the visible range.
+  function openTimelineEvent(event) {
+    const program = programs.find(entry => entry.id === event.programId);
+    const target = program?.targets.find(entry => entry.id === event.targetId);
+    if (program && target) openTargetFocus({ program, target, date: event.date });
+  }
+  function changeProgramScope(programScope) {
+    setOverviewScope(value => ({ ...value, programScope }));
+  }
+  function changeOverviewRange(rangeId) {
+    setOverviewScope(value => ({ ...value, rangeId }));
   }
   function changeAccessLevel(level) {
     setAccessLevelState(level);
@@ -320,14 +366,26 @@ export default function App() {
                     { id: 'abc', label: 'ABC observations', value: abcEntries.length, note: 'Antecedent to consequence', icon: Notebook }
                   ].map(metric => <div className={`metric metric--${metric.id}`} key={metric.label}><dt><span className="metric-icon" aria-hidden="true"><metric.icon size={16} /></span>{metric.label}</dt><dd className="metric-number">{metric.value}</dd><dd className="metric-note">{metric.note}</dd></div>)}
                 </dl>
+                <OverviewScopeControls programScope={overviewScope.programScope} rangeId={overviewScope.rangeId}
+                  window={scopeWindow} counts={scopeCounts}
+                  onProgramScopeChange={changeProgramScope} onRangeChange={changeOverviewRange} />
                 <Suspense fallback={<AnalyticsSkeleton />}>
-                  <PortfolioTriage key={`triage-${selectedClientId}`} programs={programs} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE}
+                  <PortfolioTriage key={`triage-${selectedClientId}`} programs={scopedPrograms} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE}
+                    windowDays={scopeWindow.days} rangePhrase={scopeWindow.phrase}
                     onOpenTarget={openHealthItem} onUseInReport={() => activateWorkflow('reports')} />
                 </Suspense>
-                <OverallMasterySection programs={programs} selectedProgramId={selectedMasteryProgId}
-                  onSelectProgram={id => setMasterySelections(value => ({ ...value, [selectedClientId]: id }))} masteryData={masteryData} />
                 <Suspense fallback={<AnalyticsSkeleton />}>
-                  <ProgressHeatmap key={selectedClientId} programs={programs} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE}
+                  <InterventionTimeline key={`timeline-${selectedClientId}`} programs={scopedPrograms}
+                    phaseLines={data.phaseLines} phaseRanges={data.phaseRanges} graphNotes={data.graphNotes}
+                    asOfDate={SEED_AS_OF_DATE} windowStart={scopeWindow.start} programScope={overviewScope.programScope}
+                    rangePhrase={scopeWindow.phrase} onOpen={openTimelineEvent} />
+                </Suspense>
+                <OverallMasterySection programs={scopedPrograms} selectedProgramId={selectedMasteryProgId}
+                  onSelectProgram={id => setMasterySelections(value => ({ ...value, [selectedClientId]: id }))} masteryData={masteryData}
+                  rangePhrase={scopeWindow.phrase} />
+                <Suspense fallback={<AnalyticsSkeleton />}>
+                  <ProgressHeatmap key={selectedClientId} programs={scopedPrograms} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE}
+                    weeks={overviewWeeks} programScope={overviewScope.programScope}
                     onOpen={focus => openTargetFocus({ ...focus, aggregation: 'Weekly' })} />
                 </Suspense>
               </>}

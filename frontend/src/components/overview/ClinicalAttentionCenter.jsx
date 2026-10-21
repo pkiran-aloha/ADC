@@ -27,11 +27,11 @@ function Sparkline({ points, tone }) {
 
 // Ranked triage cards. The leading flag sets the card tone; every card opens the target's
 // chart through the existing focus-request drilldown (no new navigation mechanism).
-export default function ClinicalAttentionCenter({ items = [], onOpen, onViewAll }) {
+export default function ClinicalAttentionCenter({ items = [], onOpen, onViewAll, rangePhrase = 'the last 90 days' }) {
   return (
     <section className="panel" aria-labelledby="attention-title">
       <SectionHeader id="attention-title" title="Clinical attention center"
-        description="Targets that need a clinical look, ranked by severity over the last 90 days."
+        description={`Targets that need a clinical look, ranked by severity over ${rangePhrase}.`}
         help="Cards combine direction-aware trend checks with plateau, variability, staleness and post-mastery regression rules. A behavior that is decreasing reads as improving. Select any card to open that target's chart."
         actions={<button type="button" className="button button--tertiary" onClick={onViewAll}>View all</button>} />
       <div className="panel-body">

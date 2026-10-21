@@ -14,11 +14,15 @@ import ReportsSection from '../src/components/ReportsSection.jsx';
 import OverallMasterySection from '../src/components/OverallMasterySection.jsx';
 import ProgressHeatmap from '../src/components/overview/ProgressHeatmap.jsx';
 import PortfolioTriage from '../src/components/overview/PortfolioTriage.jsx';
+import InterventionTimeline from '../src/components/overview/InterventionTimeline.jsx';
+import OverviewScopeControls from '../src/components/overview/OverviewScopeControls.jsx';
 import DataEntryModal from '../src/components/Modals/DataEntryModal.jsx';
 import RecordSessionModal from '../src/components/Modals/RecordSessionModal.jsx';
 import PhaseLineModal from '../src/components/Modals/PhaseLineModal.jsx';
 import App from '../src/App.jsx';
 import { supervisorObservations } from '../src/utils/observations.js';
+import { resolveScopeWindow, scopePrograms, weekCountFor } from '../src/utils/analyticsScope.js';
+import { ALL_PROGRAMS_ID, cumulativeMasterySeries } from '../src/utils/targetAnalytics.js';
 
 const client = seed.clients[0];
 const programs = seed.programs.filter(program => program.clientId === client.id);
@@ -32,6 +36,15 @@ const supervisionRecords = supervisorObservations(serviceSessions, sessions, {
   targetNameById: new Map(programs.flatMap(program => program.targets).map(target => [target.id, target.name]))
 });
 const noop = () => {};
+// Phase 2 shared scope, resolved exactly as App does it so the smoke cases exercise the real
+// window, week count and program filtering.
+const clientSessions = sessions.filter(row => row.clientId === client.id);
+const scopeWindow = resolveScopeWindow({ asOfDate: SEED_AS_OF_DATE, rangeId: '90D', programs, sessions: clientSessions });
+const scopedPrograms = scopePrograms(programs, 'all');
+const behaviorPrograms = scopePrograms(programs, 'behavior');
+const scopeCounts = { total: scopedPrograms.length, skill: scopedPrograms.filter(program => program.category === 'SkillAcquisition').length, behavior: scopedPrograms.filter(program => program.category === 'BehaviorReduction').length };
+const skillPrograms = scopedPrograms.filter(program => program.category === 'SkillAcquisition');
+const masteryData = cumulativeMasterySeries(skillPrograms, { from: scopeWindow.start, to: scopeWindow.asOfDate });
 
 // The dialogs render through createPortal, which the server renderer refuses, so they are
 // only exercised when this script runs with a DOM available (Playwright covers them in CI).
@@ -81,12 +94,38 @@ const cases = [
     programs, selectedProgramId: programs.find(program => program.category === 'SkillAcquisition')?.id,
     onSelectProgram: noop
   }, ['Mastery']],
+  ['OverallMasterySection (all programs, shared range)', OverallMasterySection, {
+    programs: scopedPrograms, selectedProgramId: ALL_PROGRAMS_ID, onSelectProgram: noop,
+    masteryData, rangePhrase: scopeWindow.phrase
+  }, ['Skill mastery', 'All programs', 'Newly mastered in this range', 'Mastered overall']],
   ['ProgressHeatmap', ProgressHeatmap, {
     programs, sessions, asOfDate: SEED_AS_OF_DATE, onOpen: noop
   }, ['Progress']],
+  ['ProgressHeatmap (behaviour scope, 13 weeks)', ProgressHeatmap, {
+    programs: behaviorPrograms, sessions, asOfDate: SEED_AS_OF_DATE, onOpen: noop,
+    weeks: weekCountFor(scopeWindow), programScope: 'behavior'
+  }, ['Progress', 'Rows follow the program scope']],
   ['PortfolioTriage', PortfolioTriage, {
     programs, sessions, asOfDate: SEED_AS_OF_DATE, onOpenTarget: noop, onUseInReport: noop
   }, ['Clinical attention center', 'Target health matrix', 'Recent successes']],
+  ['PortfolioTriage (shared 90-day scope)', PortfolioTriage, {
+    programs: scopedPrograms, sessions: clientSessions, asOfDate: SEED_AS_OF_DATE,
+    windowDays: scopeWindow.days, rangePhrase: scopeWindow.phrase, onOpenTarget: noop, onUseInReport: noop
+  }, ['Clinical attention center', 'Target health matrix', 'over the last 90 days']],
+  ['OverviewScopeControls', OverviewScopeControls, {
+    programScope: 'all', rangeId: '90D', window: scopeWindow, counts: scopeCounts,
+    onProgramScopeChange: noop, onRangeChange: noop
+  }, ['Progress overview scope', 'Program scope', 'Time range', '16 Jul 2026', 'programs in scope']],
+  ['InterventionTimeline (90-day feed)', InterventionTimeline, {
+    programs: scopedPrograms, phaseLines: seed.phaseLines, phaseRanges: seed.phaseRanges, graphNotes: seed.graphNotes,
+    asOfDate: SEED_AS_OF_DATE, windowStart: scopeWindow.start, programScope: 'all',
+    rangePhrase: scopeWindow.phrase, onOpen: noop
+  }, ['Intervention timeline', 'Phase change', 'Respond to Hello', 'View timeline as a table']],
+  ['InterventionTimeline (empty range)', InterventionTimeline, {
+    programs: scopedPrograms, phaseLines: seed.phaseLines, phaseRanges: seed.phaseRanges, graphNotes: seed.graphNotes,
+    asOfDate: SEED_AS_OF_DATE, windowStart: SEED_AS_OF_DATE, programScope: 'all',
+    rangePhrase: scopeWindow.phrase, onOpen: noop
+  }, ['Intervention timeline', 'No recorded changes in this range.']],
 ];
 
 let failures = 0;

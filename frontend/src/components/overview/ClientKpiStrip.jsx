@@ -35,9 +35,9 @@ const CARDS = [
   }
 ];
 
-export default function ClientKpiStrip({ kpis, activeFilter, onFilterChange }) {
+export default function ClientKpiStrip({ kpis, activeFilter, onFilterChange, rangePhrase = 'the last 90 days' }) {
   return (
-    <div className="kpi-strip" role="group" aria-label="Portfolio status for the last 90 days">
+    <div className="kpi-strip" role="group" aria-label={`Portfolio status for ${rangePhrase}`}>
       {CARDS.map(card => {
         const Icon = card.icon;
         const count = card.count(kpis);

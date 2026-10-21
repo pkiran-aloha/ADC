@@ -5,7 +5,7 @@ import { formatChartDate, heatColor } from '../../utils/chartTheme';
 import { addDays } from '../../utils/stats';
 import { MEASUREMENT_LABELS } from '../../utils/formValidation';
 
-const WEEKS = 12;
+const DEFAULT_WEEKS = 12;
 // Natural unit per measurement tool for the weekly summary.
 const VIEW = { TrialByTrial: {}, IntervalData: {}, Duration: { durationView: 'Total Duration' }, Frequency: { frequencyView: 'Rate per Hour' }, FluencyRate: { rateView: 'Rate per Minute' } };
 
@@ -30,12 +30,20 @@ function ruleThreshold(target) {
 
 // Each cell summarizes one target-week relative to its own goal (skills) or its own
 // baseline (behaviors), so different measurement tools can share one color scale.
-export default function ProgressHeatmap({ programs, sessions, asOfDate, onOpen }) {
-  const [rowsKind, setRowsKind] = useState('SkillAcquisition');
+// Phase 2: the column count follows the overview's shared time range and the row type follows
+// its program scope, so this map answers the same question as the cards above it. When the
+// scope is constrained the local Skills/Behaviors switch is replaced by a static label rather
+// than offering a control that cannot take effect.
+export default function ProgressHeatmap({
+  programs, sessions, asOfDate, onOpen, weeks: weekCount = DEFAULT_WEEKS, programScope = 'all'
+}) {
+  const scopedKind = programScope === 'skill' ? 'SkillAcquisition' : programScope === 'behavior' ? 'BehaviorReduction' : null;
+  const [localKind, setLocalKind] = useState('SkillAcquisition');
+  const rowsKind = scopedKind || localKind;
   const weeks = useMemo(() => {
     const last = getObservationKey({ timestamp: `${asOfDate}T12:00:00` }, 'Weekly');
-    return Array.from({ length: WEEKS }, (_, index) => addDays(last, -7 * (WEEKS - 1 - index)));
-  }, [asOfDate]);
+    return Array.from({ length: Math.max(1, weekCount) }, (_, index) => addDays(last, -7 * (weekCount - 1 - index)));
+  }, [asOfDate, weekCount]);
   const table = useMemo(() => {
     const rows = [];
     for (const program of programs.filter(item => item.category === rowsKind)) {
@@ -70,14 +78,16 @@ export default function ProgressHeatmap({ programs, sessions, asOfDate, onOpen }
         <p>{rowsKind === 'SkillAcquisition' ? 'Darker cells are closer to the mastery criterion.' : 'Darker cells are further below the behavior’s baseline level.'} Select a cell to open that target and week in the target analysis.</p>
       </div>
       <div className="panel-actions">
-        <SegmentedControl label="Progress map rows" value={rowsKind} onChange={setRowsKind}
-          options={[{ value: 'SkillAcquisition', label: 'Skills' }, { value: 'BehaviorReduction', label: 'Behaviors' }]} />
+        {scopedKind
+          ? <p className="scope-note">Rows follow the program scope: {scopedKind === 'SkillAcquisition' ? 'skill acquisition' : 'behavior reduction'}.</p>
+          : <SegmentedControl label="Progress map rows" value={rowsKind} onChange={setLocalKind}
+            options={[{ value: 'SkillAcquisition', label: 'Skills' }, { value: 'BehaviorReduction', label: 'Behaviors' }]} />}
       </div>
     </header>
     <div className="panel-body">
-      {!table.length ? <p className="field-hint">No measured observations in the last {WEEKS} weeks.</p> : <div className="data-table-scroll heat-scroll" tabIndex={0} role="region" aria-label="Weekly progress map. Scroll horizontally to see all weeks.">
+      {!table.length ? <p className="field-hint">No measured observations in the last {weekCount} weeks{scopedKind ? ' for this program scope' : ''}.</p> : <div className="data-table-scroll heat-scroll" tabIndex={0} role="region" aria-label="Weekly progress map. Scroll horizontally to see all weeks.">
         <table className="heat-table progress-table">
-          <caption className="sr-only">Weekly summary for each target over the last {WEEKS} weeks</caption>
+          <caption className="sr-only">Weekly summary for each target over the last {weekCount} weeks</caption>
           <thead><tr><th scope="col" className="heat-corner">Target</th>{weeks.map(week => <th key={week} scope="col">{formatChartDate(week)}</th>)}</tr></thead>
           <tbody>{table.map(({ program, target, cells, baseline, threshold }) => <tr key={target.id}>
             <th scope="row"><span className="heat-row-label">{target.name}<small>{rowsKind === 'SkillAcquisition' ? program.name : target.functionHypothesis ? `${target.functionHypothesis} function` : ''} · {MEASUREMENT_LABELS[target.type]} · {target.phase}</small></span></th>
@@ -94,7 +104,7 @@ export default function ProgressHeatmap({ programs, sessions, asOfDate, onOpen }
           </tr>)}</tbody>
         </table>
       </div>}
-      <p className="analysis-footnote">Weekly values use each tool’s natural unit: % correct or % of intervals, average seconds per session, responses per hour or per minute. A dot marks a phase change that week.</p>
+      <p className="analysis-footnote">Weekly values use each tool’s natural unit: % correct or % of intervals, average seconds per session, responses per hour or per minute. A dot marks a phase change that week. Columns follow the time range chosen at the top of the overview.</p>
     </div>
   </section>;
 }
