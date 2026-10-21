@@ -3,12 +3,18 @@ import AxeBuilder from '@axe-core/playwright';
 import { readFile, readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import buildTargetHealth from '../src/utils/targetHealth.js';
+import { buildInterventionTimeline } from '../src/utils/interventionTimeline.js';
+import { durationFilterForDate, weekCountFor } from '../src/utils/analyticsScope.js';
+import { ALL_PROGRAMS_ID, cumulativeMasterySeries } from '../src/utils/targetAnalytics.js';
 
 const read = promisify(readFile);
 const seed = JSON.parse(readFileSync(new URL('../../data/clinicalSeed.json', import.meta.url), 'utf8'));
 const client = seed.clients[0];
 const programs = seed.programs.filter(program => program.clientId === client.id);
 const skillProgram = programs.find(program => program.category === 'SkillAcquisition');
+const clientSessions = seed.sessionData.filter(row => row.clientId === client.id);
+const behaviorPrograms = programs.filter(program => program.category === 'BehaviorReduction');
+const skillPrograms = programs.filter(program => program.category === 'SkillAcquisition');
 const test = base.extend({
   runtimeErrors: [async ({ page }, use) => {
     const errors = [];
@@ -1186,4 +1192,101 @@ test('manual entry and spreadsheet import record where the data came from', asyn
   await dialog.getByRole('button', { name: /^Import 1 row$/ }).click();
   // The rows land on the graph without a lesson note; the dialog reports what it added.
   await expect(dialog.getByText(/Imported 1 observation/)).toBeVisible();
+});
+
+test('the shared overview scope drives triage, timeline, mastery and the progress map', async ({ page }) => {
+  await open(page);
+  const scope = page.locator('.overview-scope');
+  const rangeGroup = scope.getByRole('group', { name: 'Time range' });
+  const programGroup = scope.getByRole('group', { name: 'Program scope' });
+  await expect(rangeGroup.getByRole('button', { name: 'Last 90 days' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(programGroup.getByRole('button', { name: 'All programs' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(scope).toContainText('90 days');
+  await expect(page.locator('.kpi-strip')).toHaveAttribute('aria-label', 'Portfolio status for the last 90 days');
+
+  // Behavior scope keeps only behavior programs: the matrix, the map rows and the mastery panel
+  // all follow the same choice instead of each holding its own filter.
+  await programGroup.getByRole('button', { name: 'Behavior reduction' }).click();
+  await expect(programGroup.getByRole('button', { name: 'Behavior reduction' })).toHaveAttribute('aria-pressed', 'true');
+  const behaviorHealth = buildTargetHealth({ programs: behaviorPrograms, sessions: clientSessions, asOfDate: seed.asOfDate, windowDays: 90 });
+  await expect(page.locator('.health-matrix tbody tr.health-matrix__row')).toHaveCount(behaviorHealth.items.length);
+  await expect(page.getByRole('heading', { name: 'No skill programs in this scope.' })).toBeVisible();
+  const map = page.locator('.progress-heatmap');
+  await expect(map).toContainText('Rows follow the program scope');
+  await expect(map.getByRole('button', { name: 'Skills', exact: true })).toHaveCount(0);
+  await accessible(page);
+
+  // Back to all programs; a shorter shared range resizes every section together.
+  await programGroup.getByRole('button', { name: 'All programs' }).click();
+  await rangeGroup.getByRole('button', { name: 'Last 30 days' }).click();
+  await expect(scope).toContainText('30 days');
+  await expect(page.locator('.kpi-strip')).toHaveAttribute('aria-label', 'Portfolio status for the last 30 days');
+  const shortHealth = buildTargetHealth({ programs, sessions: clientSessions, asOfDate: seed.asOfDate, windowDays: 30 });
+  await expect(page.locator('.health-matrix tbody tr.health-matrix__row')).toHaveCount(shortHealth.items.length);
+  await expect(page.getByRole('region', { name: 'Clinical attention center' })).toContainText('over the last 30 days');
+  await expect(map.locator('thead th')).toHaveCount(weekCountFor({ days: 30 }) + 1);
+  await expect(map).toContainText(`over the last ${weekCountFor({ days: 30 })} weeks`);
+  const shortWindow = { start: '2026-09-14', asOfDate: seed.asOfDate };
+  const shortTimeline = buildInterventionTimeline({
+    programs, phaseLines: seed.phaseLines, phaseRanges: seed.phaseRanges, graphNotes: seed.graphNotes,
+    asOfDate: seed.asOfDate, windowStart: shortWindow.start
+  });
+  await expect(page.locator('.timeline-panel .timeline-event')).toHaveCount(Math.min(shortTimeline.total, 25));
+  // The shared range survives a workflow switch, like every other workspace filter.
+  await activate(page, 'Target analysis');
+  await activate(page, 'Progress overview');
+  await expect(rangeGroup.getByRole('button', { name: 'Last 30 days' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('the intervention timeline merges phase pairs and opens a date-scoped chart', async ({ page }) => {
+  await open(page);
+  const timeline = page.locator('.timeline-panel');
+  await expect(timeline.getByRole('heading', { name: 'Intervention timeline' })).toBeVisible();
+  const expected = buildInterventionTimeline({
+    programs, phaseLines: seed.phaseLines, phaseRanges: seed.phaseRanges, graphNotes: seed.graphNotes,
+    asOfDate: seed.asOfDate, windowStart: '2026-07-16'
+  });
+  await expect(timeline.locator('.timeline-event')).toHaveCount(Math.min(expected.total, 25));
+  // The completion sample from the findings doc appears once, with its companion line folded in.
+  const first = timeline.locator('.timeline-event').first();
+  const label = await first.getAttribute('aria-label');
+  expect(label).toContain('Phase change: Completed');
+  await expect(first).toContainText('Also recorded: Target completed');
+  await expect(first.locator('.timeline-event__flag')).toHaveText('Phase line merged');
+
+  // Selecting an event opens that target's chart with a date filter that contains the event.
+  const eventDate = label.slice(0, 10);
+  await first.click();
+  await expect(page.locator('#target-analysis')).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Target analysis' })).toBeVisible();
+  await expect(page.locator('#target-date-range')).toHaveValue(durationFilterForDate(eventDate, seed.asOfDate));
+
+  // Filters narrow the feed without changing the data; the table is the non-visual equivalent.
+  await activate(page, 'Progress overview');
+  const filters = timeline.getByRole('group', { name: 'Timeline events' });
+  await filters.getByRole('button', { name: new RegExp(`^Phase changes, ${expected.counts.phase} events`) }).click();
+  await expect(timeline.locator('.timeline-event .stat-chip').first()).toHaveText('Phase change');
+  await filters.getByRole('button', { name: new RegExp(`^All ${expected.total} events`) }).click();
+  await timeline.locator('summary').filter({ hasText: 'View timeline as a table' }).click();
+  await expect(timeline.locator('table.timeline-table')).toBeVisible();
+  await expect(timeline.locator('table.timeline-table tbody tr')).toHaveCount(expected.total);
+  await accessible(page);
+});
+
+test('skill mastery aggregates all programs by default and follows the shared range', async ({ page }) => {
+  await open(page);
+  const mastery = page.locator('section.panel[aria-labelledby="mastery-title"]');
+  await expect(page.locator('#mastery-prog')).toHaveValue(ALL_PROGRAMS_ID);
+  await expect(mastery).toContainText('Newly mastered in this range');
+  await expect(mastery).toContainText('Mastered overall');
+  const all = cumulativeMasterySeries(skillPrograms, { from: '2026-07-16', to: seed.asOfDate });
+  await expect(mastery.getByRole('img', { name: /All skill programs/ })).toHaveAttribute('aria-label', new RegExp(`${all.at(-1).cumulativeCount} targets mastered`));
+
+  // One program still shows only its own transitions, and the choice survives a workflow switch.
+  await page.locator('#mastery-prog').selectOption(skillProgram.id);
+  await expect(mastery.getByRole('img', { name: new RegExp(skillProgram.name) })).toBeVisible();
+  await activate(page, 'Target analysis');
+  await activate(page, 'Progress overview');
+  await expect(page.locator('#mastery-prog')).toHaveValue(skillProgram.id);
+  await accessible(page);
 });

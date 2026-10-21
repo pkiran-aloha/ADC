@@ -242,6 +242,59 @@ export function daysBetween(start, end) {
   return Math.round((dayNumber(end) - dayNumber(start)));
 }
 
+// The phases that count as mastered, in the same vocabulary the mastery chart, KPI strip and
+// successes feed already use. Kept local so this module stays a leaf of the util graph.
+const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
+
+// Selection value for "All programs" in the mastery picker. It is a derived view of the
+// programs already in scope, never a stored program.
+export const ALL_PROGRAMS_ID = '__all-programs__';
+
+// The mastery picker keeps a per-client choice. Fall back to the aggregate so the section
+// answers the client-level question instead of defaulting to whichever program sorts first.
+export function resolveMasterySelection(selection, skillPrograms = []) {
+  if (!skillPrograms.length) return '';
+  if (selection === ALL_PROGRAMS_ID) return ALL_PROGRAMS_ID;
+  if (selection && skillPrograms.some(program => program.id === selection)) return selection;
+  return ALL_PROGRAMS_ID;
+}
+
+// First mastered transition recorded on a target: the earliest mastery-phase entry in its
+// phase history, falling back to the current phase for targets created before histories.
+export function masteryTransitionDate(target) {
+  const milestone = targetMilestones(target).find(entry => MASTERED_PHASES.includes(entry.phase));
+  if (milestone) return milestone.date;
+  return MASTERED_PHASES.includes(target?.phase) ? target?.phaseEnteredDate || null : null;
+}
+
+// Cumulative mastery series across one or more programs, in the shape the mastery chart and
+// its CSV export expect. `from`/`to` window the transitions so the overview's shared range
+// applies; without them the series is the all-time history.
+export function cumulativeMasterySeries(programs = [], { from = null, to = null } = {}) {
+  const transitions = [];
+  for (const program of programs) {
+    for (const target of program?.targets || []) {
+      const date = masteryTransitionDate(target);
+      if (!date) continue;
+      if (from && date < from) continue;
+      if (to && date > to) continue;
+      transitions.push({ date, targetName: target.name });
+    }
+  }
+  if (!transitions.length) return [];
+  transitions.sort((a, b) => a.date.localeCompare(b.date) || a.targetName.localeCompare(b.targetName));
+  const byDate = new Map();
+  for (const transition of transitions) {
+    if (!byDate.has(transition.date)) byDate.set(transition.date, []);
+    byDate.get(transition.date).push(transition.targetName);
+  }
+  let cumulative = 0;
+  return [...byDate.entries()].map(([date, newlyMastered]) => {
+    cumulative += newlyMastered.length;
+    return { date, cumulativeCount: cumulative, newlyMastered };
+  });
+}
+
 // Acquisition-rate reporting: how long the target took from introduction to mastery.
 export function acquisitionRate(target) {
   const start = introducedOn(target);

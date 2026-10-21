@@ -265,20 +265,22 @@ Follow these steps in order. Each one produces something visible.
 | # | Do this | You should see | Why it matters |
 |---|---|---|---|
 | 1 | Read the header: **Current client**, **Add data**, **Import**, **Record observation**, **Access** | One learner is selected and data actions are enabled | Everything is scoped to one learner at a time |
-| 2 | Look at the metric strip | Programs, targets mastered, session observations, ABC observations | These counts come from the actual fixture, not marketing copy |
-| 3 | In **Skill mastery**, choose a program | A cumulative line of mastery transitions, with the targets mastered on each date | Mastery is counted from the *first* entry into Maintenance, Generalization, or Completed |
-| 4 | Scroll to **Weekly progress map** | Targets × the last 12 weeks; darker cells are closer to the goal | This is the fastest way to find a target that is stuck or accelerating |
-| 5 | Select any map cell | The workspace opens **Target analysis** on that target, week, and weekly grouping, with details open | Summary views drill into the evidence, not into a dead end |
-| 6 | In **Target analysis**, change **Group by** from **Weekly** to **Day**, then **Session** | Data points regroup; per-session view paginates 12 groups at a time | Aggregation changes what a "point" means; the units stay explicit |
-| 7 | Hover a point, then press Enter or click it | A tooltip first; then the **Observation details** inspector opens | Keyboard and pointer both reach the underlying session |
-| 8 | In the inspector, open a session | Measurement, clinician and role, appointment, setting events, IOA, supervision, fidelity, prompt chips or interval grid, ABC records | A graph point is not an orphan number; it has provenance |
-| 9 | Scroll to **Visual analysis** | Phase comparison, effect sizes, dual-criterion, progress and decision prompts, data quality, context | The platform quantifies what a clinician would inspect by eye |
-| 10 | Open **ABC observations → Patterns** | Antecedent × behavior and consequence × behavior matrices, function profile, scatterplot, flow, chains | Descriptive functional thinking, with the correlational caveat stated |
-| 11 | Open **ABC observations → Forecast** | Next-session outlook, model check, two-week outlook, situation explorer | Every forecast reports how it performed on later data it never saw |
-| 12 | Open **Service & data quality** | Dosage, attendance, IOA, fidelity, supervision, cancellations, live session activity | A graph is only as trustworthy as the service and measurement behind it |
-| 13 | Open **Reports** | Template, program scope, date range, target roster | One document can carry every selected graph and the goal list |
-| 14 | Choose **Download report** | A standalone HTML document opens or downloads | The report is self-contained and print-ready |
-| 15 | Try **Access → View-only analytics** | Data actions disable; graphs and exports remain | Role-based read-only access is a first-class workflow |
+| 2 | Look at the metric strip, then the **Programs** and **Time range** controls under it | Programs, targets mastered, session observations, ABC observations; scope controls set to All programs / 90D | These counts come from the actual fixture, not marketing copy, and the scope decides what every section below reports |
+| 3 | Read the KPI cards, then select **Needs review** | Five status cards; the target health matrix filters to the items behind the number | The landing page is a triage surface, not a volume report |
+| 4 | In **Skill mastery**, leave **Program → All programs** | A cumulative line of the learner's mastery transitions inside the selected range | Mastery is counted from the *first* entry into Maintenance, Generalization, or Completed |
+| 5 | Scroll to **Intervention timeline**, then select an event | A dated feed of phase changes, lines, ranges and notes; the event opens that target's chart with the date in view | Context travels with the drilldown instead of being looked up graph by graph |
+| 6 | Scroll to **Weekly progress map** | Targets × the weeks in the selected range; darker cells are closer to the goal | This is the fastest way to find a target that is stuck or accelerating |
+| 7 | Select any map cell | The workspace opens **Target analysis** on that target, week, and weekly grouping, with details open | Summary views drill into the evidence, not into a dead end |
+| 8 | In **Target analysis**, change **Group by** from **Weekly** to **Day**, then **Session** | Data points regroup; per-session view paginates 12 groups at a time | Aggregation changes what a "point" means; the units stay explicit |
+| 9 | Hover a point, then press Enter or click it | A tooltip first; then the **Observation details** inspector opens | Keyboard and pointer both reach the underlying session |
+| 10 | In the inspector, open a session | Measurement, clinician and role, appointment, setting events, IOA, supervision, fidelity, prompt chips or interval grid, ABC records | A graph point is not an orphan number; it has provenance |
+| 11 | Scroll to **Visual analysis** | Phase comparison, effect sizes, dual-criterion, progress and decision prompts, data quality, context | The platform quantifies what a clinician would inspect by eye |
+| 12 | Open **ABC observations → Patterns** | Antecedent × behavior and consequence × behavior matrices, function profile, scatterplot, flow, chains | Descriptive functional thinking, with the correlational caveat stated |
+| 13 | Open **ABC observations → Forecast** | Next-session outlook, model check, two-week outlook, situation explorer | Every forecast reports how it performed on later data it never saw |
+| 14 | Open **Service & data quality** | Dosage, attendance, IOA, fidelity, supervision, cancellations, live session activity | A graph is only as trustworthy as the service and measurement behind it |
+| 15 | Open **Reports** | Template, program scope, date range, target roster | One document can carry every selected graph and the goal list |
+| 16 | Choose **Download report** | A standalone HTML document opens or downloads | The report is self-contained and print-ready |
+| 17 | Try **Access → View-only analytics** | Data actions disable; graphs and exports remain | Role-based read-only access is a first-class workflow |
 
 ## 2.3 Finding your way around
 
@@ -683,30 +685,54 @@ The opening screen shows the selected learner's identity, supervising clinician,
 - **Session observations** — all observation rows for the learner.
 - **ABC observations** — all ABC records for the learner.
 
-If no client is selected, the workspace shows a client-choice state and disables the other workflows. The client selector in the header is the single source of scope; changing it keeps each screen's state but re-filters all data.
+If no client is selected, the workspace shows a client-choice state and disables the other workflows. The client selector in the header chooses the learner; changing it keeps each screen's state but re-filters all data.
+
+### Shared scope: program scope and time range
+
+Below the metric strip sit the overview's scope controls. They are deliberately shared: the triage cards, the intervention timeline, the mastery chart and the weekly progress map all read the same program scope and the same date window, so the landing page answers one question instead of each section carrying its own date filter.
+
+- **Programs** — **All programs**, **Skills** (skill-acquisition programs) or **Behaviors** (behavior-reduction programs). Program scope is a derived view of the existing program categories; it is not a new entity and it changes no program, target or observation.
+- **Time range** — **30D**, **90D**, **6M**, **1Y** or **ALL**. The default is **90 days**, which matches the reference design and the portfolio probe. **ALL** starts at the learner's earliest recorded date (an observation or a phase-history entry), not a fixed number.
+- **Caption** — the line beside the controls states the exact window (`16 Jul 2026 – 14 Oct 2026 · 90 days`) and how many programs are in scope.
+
+A constrained program scope is honest about what it hides: with Behaviors selected, Skill mastery explains that there are no skill programs in scope, and the weekly progress map replaces its Skills/Behaviors switch with a line saying the rows follow the scope above. Both choices survive a workflow switch.
 
 ### Portfolio triage
 
-Directly below the metric strip, the portfolio triage answers the analysis-first question — *what is improving, what needs me, and what changed?* — without opening programs one at a time. It is a read-only rollup over the existing client → program → target structure; it adds no entities and changes no data.
+Directly below the scope controls, the portfolio triage answers the analysis-first question — *what is improving, what needs me, and what changed?* — without opening programs one at a time. It is a read-only rollup over the existing client → program → target structure; it adds no entities and changes no data.
 
-- **KPI strip (last 90 days).** Five cards summarize every measured target: **Improving**, **Stable** and **Declining** show a percentage and item count, then **Near mastery** and **Needs review** show counts. Trend percentages use only *active* targets with at least four weekly points; maintenance, generalization, completed, paused and discontinued targets are reported with their own status pills instead of entering the trend denominator. For behavior-reduction targets, a decreasing measure reads as **improving** — direction always follows the target's therapeutic direction, not the raw sign of the number.
-- **Clinical attention center.** Ranked cards combine the leading concern (wrong-direction trend, plateau, high variability, stale data, no data, or regression after mastery) with a 12-week sparkline and the reason in words. Selecting a card opens that target's chart in **Target analysis** through the same focus mechanism the weekly progress map uses.
+- **KPI strip (selected range).** Five cards summarize every measured target: **Improving**, **Stable** and **Declining** show a percentage and item count, then **Near mastery** and **Needs review** show counts. Trend percentages use only *active* targets with at least four weekly points; maintenance, generalization, completed, paused and discontinued targets are reported with their own status pills instead of entering the trend denominator. For behavior-reduction targets, a decreasing measure reads as **improving** — direction always follows the target's therapeutic direction, not the raw sign of the number.
+- **Clinical attention center.** Ranked cards combine the leading concern (wrong-direction trend, plateau, high variability, stale data, no data, or regression after mastery) with a sparkline of the recent weekly values and the reason in words. Selecting a card opens that target's chart in **Target analysis** through the same focus mechanism the weekly progress map uses.
 - **Recent successes.** Mastery transitions into maintenance, generalization or completed from the last 30 days, taken from each target's existing phase history. **Use in report** switches to the Reports workflow with the learner still selected.
-- **Target health matrix.** One keyboard-operable row per measured target: measurement type, 90-day trend delta, phase status, a forecast (criterion streak like `2/3 at criterion`, a projected horizon, or *Review needed*) and a current-level bar against the mastery criterion when the units match. Selecting a row — with a pointer, Enter or Space — opens the target analysis for that target.
+- **Target health matrix.** One keyboard-operable row per measured target: measurement type, trend delta for the selected range, phase status, a forecast (criterion streak like `2/3 at criterion`, a projected horizon, or *Review needed*) and a current-level bar against the mastery criterion when the units match. Selecting a row — with a pointer, Enter or Space — opens the target analysis for that target.
 - **KPI cards are filters.** Selecting Improving, Stable, Declining, Near mastery or Needs review filters the matrix to the items behind that number; selecting the card again or **Clear filter** restores the full list.
 
 **How the classifications are made.** Weekly observations are aggregated in each tool's natural unit (the same normalization as the progress map), an ordinary least-squares fit is run over the last 12 weekly points, and a fitted relative change under 10% reads as stable. Variability requires both a failed ±25% stability envelope and a coefficient spread of at least 0.25, so ordinary weekly noise is not over-flagged. Near mastery means the mastery streak is one session short or the trend projects the criterion within 21 days. A target with no measurement for 14 days is flagged as stale; mastered targets are never called "declining" for missing data — a mastered target with genuinely falling recent data is flagged as **regression after mastery** instead. Targets with fewer than four weekly points show *Insufficient history* and stay out of the trend percentages. These are decision-support thresholds, not clinical cutoffs, and they are centralized in `utils/targetHealth.js`.
+
+### Intervention timeline
+
+The **Intervention timeline** answers: *what changed around the movements on these charts?* It merges the events every target already records — phase-history entries, phase lines, phase ranges and graph notes — into one chronological, date-deduped feed for the learner, newest first. Nothing new is collected and nothing is written back.
+
+- **One event per change.** A phase change absorbs the phase line recorded with it on the same target and date: an automated companion line, or a manual line that repeats the same transition (for example “Target completed” on a completion date). The row shows *Also recorded: Target completed* so the absorbed line is visible rather than hidden.
+- **Distinct events stay distinct.** Manual intervention lines (DRA, NCR, prompt fading, schedule changes), phase ranges and graph notes are never merged into a phase change — they are different kinds of context. Ranges show their full span; notes keep their text and clinician.
+- **Filters.** **All**, **Phase changes**, or **Notes & ranges**, with counts on each option.
+- **Drilldown.** Selecting an event opens that target's chart in **Target analysis** through the same focus channel the attention cards and the health matrix use. The chart's own date filter widens just enough to include the event (plus at least two weeks of context), so a note from June is visible instead of landing in an empty window.
+- **Non-visual equivalent.** *View timeline as a table* lists every event with its date, kind, target, program and source.
+- **Empty state.** If the selected range contains no recorded changes, the panel says so and points to a longer range or to adding a phase line or note.
+
+Dates come from the records themselves, so a timeline is only as complete as the annotation discipline behind it. A phase change with no accompanying line still appears; a long gap in the feed usually means no phase decisions were documented, not that nothing happened.
 
 ### Skill mastery
 
 The **Skill mastery** chart answers: *how do mastered targets accumulate over time?*
 
-- Choose a **Program**.
-- Each point is a date on which one or more targets first entered **Maintenance**, **Generalization**, or **Completed**.
+- Choose a **Program**, or **All programs** — the default, so the section answers the client-level question instead of defaulting to whichever program sorts first.
+- Each point is a date on which one or more targets first entered **Maintenance**, **Generalization**, or **Completed** *inside the selected time range*.
 - Targets that transition on the same date combine into one cumulative point.
-- The summary shows **targets mastered / total targets**, the latest transition date, and the newly mastered target names.
-- **Export mastery** offers CSV, SVG, and PNG.
-- The data table below the chart lists every transition.
+- The summary shows **newly mastered in this range / targets in view**, **mastered overall** (a phase snapshot, independent of the range), the latest transition date, and the newly mastered target names.
+- If earlier targets were mastered before the range begins, the empty state says so instead of implying that mastery is still ahead.
+- **Export mastery** offers CSV, SVG, and PNG for the current selection and range.
+- The data table below the chart lists every transition in the range.
 
 **Why it counts from the first mastered phase:** a target that enters Maintenance and later moves to Completed is one mastered target, not two. Counting the first transition avoids double-counting.
 
@@ -714,7 +740,7 @@ The **Skill mastery** chart answers: *how do mastered targets accumulate over ti
 
 ### Weekly progress map
 
-The map shows every measured target × the last 12 weeks.
+The map shows every measured target × the columns in the selected time range (5 weeks for 30D, 13 for 90D, 27 for 6M, 53 for 1Y and ALL — the column count is clamped to a readable band).
 
 - **Skills:** darker cells are closer to the target's mastery criterion.
 - **Behaviors:** darker cells are further below the target's baseline level.
@@ -722,6 +748,7 @@ The map shows every measured target × the last 12 weeks.
 - A dot marks a week with a phase change.
 - Empty cells mean no measurement that week; they are not zeros.
 - Select a cell to open **Target analysis** on that target, week, and weekly grouping, with the observation details open.
+- Rows follow the **program scope** above: Skills and Behaviors can still be switched while the scope is All programs, and the switch is replaced by a static note when the scope already decides the row type.
 
 The map uses each tool's natural unit: percent correct, percent of intervals, average seconds per session, responses per hour, or responses per minute. Because every cell is normalized to its own goal or baseline, different measurement tools can share one color scale.
 
@@ -2157,6 +2184,18 @@ The workspace's data model is small enough to learn in one sitting. Field names 
 | Change access level | Header | **Access** selector |
 | Reset to the seed | Header or sidebar | **Reset demo data** (full access only) |
 | Read the one-line method help | Any panel header | The **?** help button |
+
+### Read the overview
+
+| I want to… | Go to | Use |
+|---|---|---|
+| Change the shared time range | Progress overview | **Time range** — 30D, 90D, 6M, 1Y, ALL |
+| Narrow to skill or behavior programs | Progress overview | **Programs** — All programs, Skills, Behaviors |
+| See what is improving or needs review | Progress overview | A KPI card; it filters the target health matrix |
+| Open a target from the overview | Progress overview | An attention card, a matrix row, or a timeline event |
+| See what changed around a movement | Progress overview | **Intervention timeline** |
+| Read the timeline without the feed | Progress overview → Intervention timeline | **View timeline as a table** |
+| Answer the client-level mastery question | Progress overview → Skill mastery | **Program → All programs** |
 
 ### Enter and correct data
 
