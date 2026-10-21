@@ -22,6 +22,7 @@ const AbcDataSection = lazy(() => import('./components/AbcDataSection'));
 const ProgressHeatmap = lazy(() => import('./components/overview/ProgressHeatmap'));
 const ServiceQualitySection = lazy(() => import('./components/ServiceQualitySection'));
 const ReportsSection = lazy(() => import('./components/ReportsSection'));
+const DocumentationSection = lazy(() => import('./components/documentation/DocumentationSection'));
 const DataEntryModal = lazy(() => import('./components/Modals/DataEntryModal'));
 const initials = name => name.split(' ').map(part => part[0]).slice(0, 2).join('');
 const snapshotDate = new Date(`${SEED_AS_OF_DATE}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -358,6 +359,9 @@ export default function App() {
               </Suspense>
             </WorkflowPanel>}
           </>}
+          {workflowVisible('documentation') && <WorkflowPanel id="documentation" active={activeSection === 'documentation'}>
+            <DocumentationSection onClose={() => activateWorkflow('overview')} />
+          </WorkflowPanel>}
           <footer className="workspace-footer">
             <p>Fictional records. Stored on this device. Not for clinical decisions.</p>
             <nav aria-label="Demo information"><a href={`${import.meta.env.BASE_URL}privacy.html`}>Privacy</a><a href={`${import.meta.env.BASE_URL}terms.html`}>Terms of use</a></nav>
