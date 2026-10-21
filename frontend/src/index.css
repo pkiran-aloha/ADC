@@ -129,7 +129,7 @@
 .icon-button--bordered { border-color: var(--line); background: #fff; }
 .shell-layout { --sidebar-width: 14.5rem; display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); max-width: 110rem; margin: auto; }
 .shell-layout--collapsed { --sidebar-width: 4.75rem; }
-.sidebar { position: sticky; top: var(--header-height); height: calc(100dvh - var(--header-height)); background: var(--color-slate-50); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; padding: 1.5rem 0.875rem 1.25rem; }
+.sidebar { position: sticky; top: var(--header-height); height: calc(100dvh - var(--header-height)); background: var(--color-slate-50); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; padding: 1.5rem 0.875rem 1.25rem; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-slate-300) transparent; }
 .sidebar-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-left: 0.625rem; }
 .sidebar-heading p { font-size: 0.75rem; font-weight: 500; color: var(--muted); }
 .sidebar-nav { display: flex; flex-direction: column; gap: 0.375rem; }
