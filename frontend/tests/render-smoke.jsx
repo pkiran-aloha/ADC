@@ -16,6 +16,7 @@ import ProgressHeatmap from '../src/components/overview/ProgressHeatmap.jsx';
 import PortfolioTriage from '../src/components/overview/PortfolioTriage.jsx';
 import InterventionTimeline from '../src/components/overview/InterventionTimeline.jsx';
 import OverviewScopeControls from '../src/components/overview/OverviewScopeControls.jsx';
+import TrendExplorer from '../src/components/overview/TrendExplorer.jsx';
 import DataEntryModal from '../src/components/Modals/DataEntryModal.jsx';
 import RecordSessionModal from '../src/components/Modals/RecordSessionModal.jsx';
 import PhaseLineModal from '../src/components/Modals/PhaseLineModal.jsx';
@@ -23,6 +24,7 @@ import App from '../src/App.jsx';
 import { supervisorObservations } from '../src/utils/observations.js';
 import { resolveScopeWindow, scopePrograms, weekCountFor } from '../src/utils/analyticsScope.js';
 import { ALL_PROGRAMS_ID, cumulativeMasterySeries } from '../src/utils/targetAnalytics.js';
+import { buildExplorerCatalog } from '../src/utils/trendExplorer.js';
 
 const client = seed.clients[0];
 const programs = seed.programs.filter(program => program.clientId === client.id);
@@ -45,6 +47,9 @@ const behaviorPrograms = scopePrograms(programs, 'behavior');
 const scopeCounts = { total: scopedPrograms.length, skill: scopedPrograms.filter(program => program.category === 'SkillAcquisition').length, behavior: scopedPrograms.filter(program => program.category === 'BehaviorReduction').length };
 const skillPrograms = scopedPrograms.filter(program => program.category === 'SkillAcquisition');
 const masteryData = cumulativeMasterySeries(skillPrograms, { from: scopeWindow.start, to: scopeWindow.asOfDate });
+const explorerCatalog = buildExplorerCatalog({ programs, sessions: clientSessions, asOfDate: SEED_AS_OF_DATE });
+const firstSkillTarget = skillPrograms[0].targets[0];
+const firstBehaviorTarget = behaviorTargets[0];
 
 // The dialogs render through createPortal, which the server renderer refuses, so they are
 // only exercised when this script runs with a DOM available (Playwright covers them in CI).
@@ -126,6 +131,52 @@ const cases = [
     asOfDate: SEED_AS_OF_DATE, windowStart: SEED_AS_OF_DATE, programScope: 'all',
     rangePhrase: scopeWindow.phrase, onOpen: noop
   }, ['Intervention timeline', 'No recorded changes in this range.']],
+  ['TrendExplorer (three-pane shell)', TrendExplorer, {
+    catalog: explorerCatalog,
+    selection: {
+      activeCategoryTab: 'SkillAcquisition',
+      selectedProgramId: skillPrograms[0].id,
+      selectedBehaviorIds: [firstBehaviorTarget.id],
+      activeTargetType: firstSkillTarget.type,
+      visibleTargetIds: new Set(skillPrograms[0].targets.map(target => target.id)),
+      analysisTargetId: firstSkillTarget.id
+    },
+    skillPrograms,
+    allBehaviors: behaviorTargets,
+    onSelectCategory: noop,
+    onSelectProgramDropdown: noop,
+    onToggleBehaviorId: noop,
+    onSelectBehaviorPreset: noop,
+    onSelectProgramGroup: noop,
+    onSelectTargetItem: noop,
+    insights: [{ tone: 'attention', title: 'Plateau prompt', detail: 'Check teaching steps.', reference: 'Lane & Gast (2014)' }],
+    focusedEntry: explorerCatalog.items[0],
+    annotationTarget: firstSkillTarget,
+    tabTargets: [firstSkillTarget],
+    onAnnotationTargetChange: noop,
+    activeAnnotations: { phaseLines: [], phaseRanges: [], graphNotes: [] },
+    detailPrograms: [skillPrograms[0]],
+    activeTarget: firstSkillTarget,
+    children: createElement('div', null, 'Center chart workspace')
+  }, ['Search targets or programs', 'Center chart workspace', 'Clinical context', 'Plateau prompt', 'Target definition', 'Discriminative stimuli:']],
+  ['ClientSpecificSection (focus drilldown)', ClientSpecificSection, {
+    client, programs, sessions, serviceSessions, abcEntries, annotations,
+    templates: PROMPT_HIERARCHY_TEMPLATES, standards: CLINICAL_STANDARDS,
+    initialFocus: {
+      clientId: client.id,
+      category: 'Behavior',
+      behaviorIds: [firstBehaviorTarget.id],
+      targetType: firstBehaviorTarget.type,
+      durationFilter: '3 months',
+      aggregation: 'Per Day',
+      analysisTargetId: firstBehaviorTarget.id
+    },
+    onAddPhaseLineClick: noop, onAddPhaseRangeClick: noop, onAddGraphNoteClick: noop,
+    onDeletePhaseLine: noop, onDeletePhaseRange: noop, onDeleteGraphNote: noop,
+    onRefresh: noop, onEditAnnotation: noop, onRecordClick: noop, onManualEntryClick: noop,
+    onCorrectObservation: noop, onDeleteObservation: noop, onProgramStatusChange: noop,
+    canEdit: true, supervisionRecords
+  }, [firstBehaviorTarget.name, 'Clinical context', 'Target definition', 'Function hypothesis:']],
 ];
 
 let failures = 0;
