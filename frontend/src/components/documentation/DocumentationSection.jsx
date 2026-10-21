@@ -26,7 +26,10 @@ export default function DocumentationSection({ onClose }) {
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         params.set('doc', id);
-        window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+        // Keep the documentation workflow deep link when changing wiki pages, so
+        // reloading or sharing a selected page opens the same workspace section.
+        const hash = window.location.hash || '#documentation';
+        window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}${hash}`);
       }
     },
     []

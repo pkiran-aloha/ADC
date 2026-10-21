@@ -360,7 +360,9 @@ export default function App() {
             </WorkflowPanel>}
           </>}
           {workflowVisible('documentation') && <WorkflowPanel id="documentation" active={activeSection === 'documentation'}>
-            <DocumentationSection onClose={() => activateWorkflow('overview')} />
+            <Suspense fallback={<AnalyticsSkeleton label="Loading documentation…" />}>
+              <DocumentationSection onClose={() => activateWorkflow('overview')} />
+            </Suspense>
           </WorkflowPanel>}
           <footer className="workspace-footer">
             <p>Fictional records. Stored on this device. Not for clinical decisions.</p>

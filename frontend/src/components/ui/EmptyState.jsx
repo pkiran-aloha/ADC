@@ -9,9 +9,9 @@ export default function EmptyState({ title, description, action, icon: Icon = Ch
   </div>;
 }
 
-export function AnalyticsSkeleton() {
+export function AnalyticsSkeleton({ label = 'Loading analytics…' }) {
   return <div className="analytics-skeleton" aria-busy="true" role="status">
-    <span className="sr-only">Loading analytics…</span>
+    <span className="sr-only">{label}</span>
     <div className="skeleton skeleton-heading" />
     <div className="skeleton skeleton-caption" />
     <div className="skeleton skeleton-toolbar" />
