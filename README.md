@@ -9,6 +9,11 @@ A fictional **Applied Behavior Analysis (ABA)** analytics workspace built with *
 - **Repository**: [pkiran-aloha/ADC](https://github.com/pkiran-aloha/ADC)
 - **Deployment**: Every push to `main` (including a merged pull request) automatically validates the project, builds the frontend, and publishes it via `.github/workflows/deploy.yml`. Pull requests targeting `main` run build checks without deploying.
 
+**Documentation**
+- **Platform wiki** — features, workflows, measurement science, data dictionary and glossary: [docs/wiki/Home.md](docs/wiki/Home.md)
+- **Tech stack and architecture** — dependencies, data pipeline, testing, CI/CD and deployment: [TECH_STACK.md](TECH_STACK.md)
+- **UX and accessibility audit** — findings, fixes and verification: [UX_AUDIT.md](UX_AUDIT.md)
+
 ---
 
 ## System Architecture
@@ -63,7 +68,7 @@ ADC/
 ├── tests/analytics.test.mjs              # Visual-analysis, ABC and predictive-model tests
 ├── tests/uxLogic.test.mjs                # Validation, measures, calendar, CSV and contrast tests
 ├── UX_AUDIT.md                           # Findings, implemented fixes and verification scope
-├── docs/                                  # Legacy static snapshot (not used by deployments)
+├── docs/                                  # Platform wiki (docs/wiki) + legacy static snapshot
 └── .github/workflows/deploy.yml           # Automated CI/CD deployment to Pages
 ```
 
@@ -246,6 +251,6 @@ Only `main` can publish: the deploy job checks the branch, and the repository's 
 - To redeploy, select **Actions → Deploy Welina Analytics to GitHub Pages → Run workflow** and choose **main**. Manual runs on other branches validate the build only.
 - In **Settings → Pages**, keep **Build and deployment → Source** set to **GitHub Actions** (already enabled for this repository).
 - In **Settings → Environments → github-pages**, keep the deployment branch policy restricted to `main`. Do not add required reviewers if deployment should remain fully automatic.
-- The workflow uses the built-in `GITHUB_TOKEN` and grants Pages/OIDC write permissions only to the deploy job. The checked-in `docs/` directory is a legacy snapshot and is **not** the deployment source.
+- The workflow uses the built-in `GITHUB_TOKEN` and grants Pages/OIDC write permissions only to the deploy job. The checked-in `docs/` directory contains the platform wiki plus a legacy snapshot and is **not** the deployment source.
 
 **Hosting scope:** GitHub Pages serves only the static React frontend and its fictional, browser-local demo data. The .NET API is compiled as a validation check, not hosted by Pages; running the API in production requires a separate backend host.

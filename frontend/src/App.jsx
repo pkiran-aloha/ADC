@@ -370,7 +370,7 @@ export default function App() {
       <Sidebar {...sidebarProps} drawer />
     </Dialog>
     <Dialog isOpen={resetOpen} onClose={() => setResetOpen(false)} title="Restore demo data?" icon={ArrowCounterClockwise}
-      description="This replaces recorded observations, target-phase changes, and annotations for all three fictional clients with the original demo records." presentation="confirmation">
+      description="This replaces recorded observations, target-phase changes, and annotations for every fictional client with the original demo records." presentation="confirmation">
       <p className="field-hint">This affects only this browser. Export any records you want to keep before resetting.</p>
       <div className="form-actions"><button type="button" className="button button--secondary" onClick={() => setResetOpen(false)} data-autofocus>Keep my changes</button><button type="button" className="button button--danger" onClick={resetData}>Restore demo data</button></div>
     </Dialog>
