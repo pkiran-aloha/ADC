@@ -6,6 +6,7 @@ import buildTargetHealth from '../src/utils/targetHealth.js';
 import { buildInterventionTimeline } from '../src/utils/interventionTimeline.js';
 import { durationFilterForDate, weekCountFor } from '../src/utils/analyticsScope.js';
 import { ALL_PROGRAMS_ID, cumulativeMasterySeries } from '../src/utils/targetAnalytics.js';
+import { buildExplorerCatalog } from '../src/utils/trendExplorer.js';
 
 const read = promisify(readFile);
 const seed = JSON.parse(readFileSync(new URL('../../data/clinicalSeed.json', import.meta.url), 'utf8'));
@@ -1290,3 +1291,59 @@ test('skill mastery aggregates all programs by default and follows the shared ra
   await expect(page.locator('#mastery-prog')).toHaveValue(skillProgram.id);
   await accessible(page);
 });
+
+test('trend explorer groups targets with phase and delta, searches, navigates by keyboard and exposes the clinical rail', async ({ page }) => {
+  await open(page, 'Target analysis');
+  const catalog = buildExplorerCatalog({ programs, sessions: clientSessions, asOfDate: seed.asOfDate });
+  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
+  const rail = page.getByRole('complementary', { name: 'Clinical context', exact: true });
+
+  await expect(nav.locator('.explorer-group')).toHaveCount(catalog.counts.programs);
+  await expect(nav.locator('.explorer-target')).toHaveCount(catalog.counts.targets);
+  await expect(nav.locator('.explorer-count')).toContainText(`${catalog.counts.targets} targets across ${catalog.counts.programs} programs`);
+  await expect(page.locator('.trend-explorer__center svg.chart-svg')).toBeVisible();
+
+  // Clinical context rail shows insights, annotations and visible target definitions without expanding a disclosure.
+  await expect(rail.getByRole('heading', { name: 'Clinical context', exact: true })).toBeVisible();
+  await expect(rail.getByRole('heading', { name: 'Annotations', exact: true })).toBeVisible();
+  await expect(rail.getByRole('heading', { name: 'Target definition', exact: true })).toBeVisible();
+  await expect(rail).toContainText('Discriminative stimuli:');
+  await expect(rail).toContainText('Mastery:');
+  await accessible(page);
+
+  // Search filters the grouped list and updates the live status summary.
+  const search = page.getByLabel('Search targets or programs');
+  await search.fill('Community Helpers');
+  await expect(nav.locator('.explorer-target')).toHaveCount(1);
+  await expect(nav.locator('.explorer-count')).toContainText('1 target across 1 program matching “Community Helpers”');
+  const helpersRow = nav.locator('.explorer-target').first();
+  await helpersRow.click();
+  await expect(helpersRow).toHaveAttribute('aria-current', 'true');
+  await expect(rail.locator('.rail-target-summary')).toContainText('Label Community Helpers');
+  await page.getByRole('button', { name: 'Clear target search' }).click();
+  await expect(nav.locator('.explorer-target')).toHaveCount(catalog.counts.targets);
+
+  // Keyboard arrow, End and Home keys move focus across target rows in the explorer list.
+  const firstItem = nav.locator('.explorer-target').first();
+  const secondItem = nav.locator('.explorer-target').nth(1);
+  const lastItem = nav.locator('.explorer-target').last();
+  await firstItem.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(secondItem).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(lastItem).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(firstItem).toBeFocused();
+
+  // Selecting a behavior reduction target directly in the explorer switches chart and rail in one click.
+  const firstBehavior = behaviorPrograms[0].targets[0];
+  const behaviorRow = nav.locator('.explorer-target').filter({
+    has: page.locator('.explorer-target__name', { hasText: firstBehavior.name })
+  }).first();
+  await behaviorRow.click();
+  await expect(behaviorRow).toHaveAttribute('aria-current', 'true');
+  await expect(page.getByRole('button', { name: `Edit chart title: ${firstBehavior.name}` })).toBeVisible();
+  await expect(rail).toContainText('Function hypothesis:');
+  await accessible(page);
+});
+

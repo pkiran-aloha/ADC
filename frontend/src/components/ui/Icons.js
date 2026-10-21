@@ -16,5 +16,6 @@ export {
   Buildings as Building2, ChartLineUp, Target, Notebook, SidebarSimple, List,
   ArrowUpRight, ArrowLeft, ArrowRight, Check, Clock, Info, FloppyDisk,
   ArrowCounterClockwise, ShieldCheck, Flask as Probe, FileDoc as ReportIcon,
-  CalendarCheck, UploadSimple as Upload, Printer, BookOpen as Book
+  CalendarCheck, UploadSimple as Upload, Printer, BookOpen as Book,
+  MagnifyingGlass as Search
 } from '@phosphor-icons/react';
