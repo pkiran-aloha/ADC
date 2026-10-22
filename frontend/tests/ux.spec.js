@@ -6,6 +6,7 @@ import buildTargetHealth from '../src/utils/targetHealth.js';
 import { buildInterventionTimeline } from '../src/utils/interventionTimeline.js';
 import { durationFilterForDate, weekCountFor } from '../src/utils/analyticsScope.js';
 import { ALL_PROGRAMS_ID, cumulativeMasterySeries } from '../src/utils/targetAnalytics.js';
+import { buildExplorerCatalog } from '../src/utils/trendExplorer.js';
 
 const read = promisify(readFile);
 const seed = JSON.parse(readFileSync(new URL('../../data/clinicalSeed.json', import.meta.url), 'utf8'));
@@ -62,6 +63,7 @@ async function download(page, trigger, option) {
   return { name: file.suggestedFilename(), bytes: await read(await file.path()) };
 }
 async function openTargetSelection(page) {
+  // In the original explorer, search and program controls are immediately visible.
   await expect(page.locator('#target-program, .explorer-behavior-picker').first()).toBeVisible();
 }
 async function selectProgram(page, programId) {
@@ -69,19 +71,14 @@ async function selectProgram(page, programId) {
   await page.locator('#target-program').selectOption(programId);
 }
 async function openContext(page) {
-  const toggle = page.getByRole('button', { name: /^(Show context & annotations|Hide context)$/ });
-  await expect(toggle).toBeVisible();
-  if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
-  await expect(page.getByRole('tab', { name: 'Annotations', exact: true })).toBeVisible();
+  // Clinical context, annotations and target details share the always-visible right rail.
+  await expect(page.getByRole('complementary', { name: 'Clinical context', exact: true })).toBeVisible();
 }
-async function openChartSettings(page) {
-  const settings = page.locator('#target-analysis details.chart-settings');
-  await expect(settings.locator('summary')).toBeVisible();
-  if (!(await settings.evaluate(element => element.open))) await settings.locator('summary').click();
+async function expectChartOptionsVisible(page) {
+  await expect(page.locator('#target-analysis .chart-options')).toBeVisible();
 }
 async function openAnnotations(page) {
   await openContext(page);
-  await page.getByRole('tab', { name: 'Annotations', exact: true }).click();
 }
 async function record(page, target) {
   await page.getByRole('button', { name: 'Record observation', exact: true }).click();
@@ -232,10 +229,7 @@ test('behavior comparison opens on click, supports checkboxes and dismisses with
   await checkboxes.nth(1).press('Escape');
   await expect(popup).toHaveCount(0);
   await expect(trigger).toBeFocused();
-  const chartSettings = page.locator('#target-analysis details.chart-settings');
-  await expect(chartSettings).not.toHaveAttribute('open', '');
-  await chartSettings.locator('summary').click();
-  await expect(chartSettings.getByLabel('Show missing dates')).toBeVisible();
+  await expect(page.getByLabel('Show missing dates')).toBeVisible();
   await accessible(page);
 });
 
@@ -245,11 +239,9 @@ test('chart title updates persist after refresh and overlay controls are keyboar
   await page.getByLabel('Chart title', { exact: true }).fill('Labeling responses over time');
   await page.getByLabel('Chart title', { exact: true }).press('Enter');
   await expect(page.getByRole('button', { name: 'Edit chart title: Labeling responses over time' })).toBeVisible();
-  // Refresh is a secondary action, so it lives in the header overflow menu.
-  await page.locator('#target-analysis .panel-header').getByRole('button', { name: 'More actions', exact: true }).click();
   await page.getByRole('button', { name: 'Refresh target analysis', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Edit chart title: Labeling responses over time' })).toBeVisible();
-  await openChartSettings(page);
+  await expectChartOptionsVisible(page);
   await page.getByLabel('Average', { exact: true }).focus();
   await page.keyboard.press('Space');
   await expect(page.locator('#target-analysis svg.chart-svg')).toContainText('Avg:');
@@ -258,19 +250,6 @@ test('chart title updates persist after refresh and overlay controls are keyboar
   await expect(page.locator('#target-analysis .chart-caption')).toContainText('Regression:');
   await page.getByLabel('Trend calculation').selectOption('directional');
   await expect(page.locator('#target-analysis .chart-caption')).not.toContainText('Regression:');
-});
-
-test('the graph-side insight opens full decision prompts and moves focus to visual analysis', async ({ page }) => {
-  await open(page, 'Target analysis');
-  await openContext(page);
-  const rail = page.getByRole('complementary', { name: 'Target context, annotations and details', exact: true });
-  const review = rail.getByRole('button', { name: 'Review decision prompts', exact: true });
-  await expect(review).toBeVisible();
-  await review.click();
-  const heading = page.locator('#analysis-title');
-  await expect(heading).toBeFocused();
-  await expect(page.locator('.analysis-panel').getByRole('button', { name: 'Progress & decisions', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await accessible(page);
 });
 
 test('mastery and all-hidden target states explain a path forward', async ({ page }) => {
@@ -282,11 +261,9 @@ test('mastery and all-hidden target states explain a path forward', async ({ pag
   await activate(page, 'Target analysis');
   const legend = page.locator('#target-analysis .target-legend').first();
   for (const target of skillProgram.targets.filter(item => item.type === 'TrialByTrial')) await legend.getByRole('button', { name: target.name, exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'No targets plotted', exact: true })).toBeVisible();
-  // The legend disappears with the graph; recover through the persistent target pane.
-  await page.getByRole('checkbox', { name: `Plot ${skillProgram.targets[0].name}`, exact: true }).check();
-  await expect(page.getByRole('heading', { name: 'No targets plotted', exact: true })).toHaveCount(0);
-  await expect(page.locator('#target-analysis svg.chart-svg')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No series are visible.' })).toBeVisible();
+  await legend.getByRole('button', { name: skillProgram.targets[0].name, exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'No series are visible.' })).toHaveCount(0);
 });
 
 test('recording validation stays inline and focuses the first invalid input', async ({ page }) => {
@@ -413,25 +390,22 @@ test('copy last session and shared minutes fill a whole program in two clicks', 
   await page.keyboard.press('Escape');
 });
 
-test('the vertical axis can be fixed in Chart settings and recovers from a bad range', async ({ page }) => {
+test('the vertical axis can be fixed by the clinician and recovers from a bad range', async ({ page }) => {
   await open(page, 'Target analysis');
   const chart = page.locator('#target-analysis svg.chart-svg');
-  const settings = page.locator('#target-analysis details.chart-settings');
   await expect(chart).toContainText('100');
-  await settings.locator('summary').click();
-  // Match the group's accessible name: a case-insensitive text filter also picks up the
-  // "Values vertical · dates horizontal" orientation option in Graph display.
-  const axis = settings.getByRole('group', { name: /^Vertical axis/ });
-  await axis.getByLabel('Y-axis minimum').fill('40');
-  await axis.getByLabel('Y-axis maximum').fill('120');
+  await page.getByRole('button', { name: /^Y axis/ }).click();
+  const popup = page.getByRole('group', { name: /^Y axis/ });
+  await popup.getByLabel('Minimum').fill('40');
+  await popup.getByLabel('Maximum').fill('120');
   await expect(chart).toContainText('120');
-  await expect(axis).toContainText('40–120');
+  await expect(page.getByRole('button', { name: /^Y axis/ })).toContainText('40–120');
   // A reversed range is reported instead of silently rescaling the chart.
-  await axis.getByLabel('Y-axis maximum').fill('20');
-  await expect(axis.getByText(/greater than/)).toBeVisible();
+  await popup.getByLabel('Maximum').fill('20');
+  await expect(popup.getByText(/greater than/)).toBeVisible();
   await expect(chart).toContainText('120');
-  await axis.getByRole('button', { name: 'Use automatic scale' }).click();
-  await expect(axis).toContainText('automatic');
+  await popup.getByRole('button', { name: 'Use automatic scale' }).click();
+  await expect(page.getByRole('button', { name: /^Y axis/ })).toContainText('automatic');
   await expect(chart).toContainText('100');
   await accessible(page);
 });
@@ -440,7 +414,7 @@ test('every measurement type can be drawn as bars, points or a cumulative record
   await open(page, 'Target analysis');
   const chart = page.locator('#target-analysis svg.chart-svg');
   await expect(chart.locator('path[stroke-width="2.2"]').first()).toBeVisible();
-  await openChartSettings(page);
+  await expectChartOptionsVisible(page);
   await page.getByLabel('Plot', { exact: true }).selectOption('bars');
   await expect(chart.locator('rect[rx="2"]').first()).toBeVisible();
   await page.getByLabel('Plot', { exact: true }).selectOption('points');
@@ -465,7 +439,6 @@ test('phase labels sit in their own strip, clear of every plotted point', async 
   const stripBox = await strip.boundingBox();
   const pointBox = await chart.locator('rect[width="9"]').first().boundingBox();
   expect(stripBox.y + stripBox.height).toBeLessThan(pointBox.y);
-  await page.locator('#target-analysis details.chart-settings > summary').click();
   await page.getByRole('button', { name: 'Phase labels', exact: true }).click();
   await expect(strip).toHaveCount(0);
   expect(await chart.locator('line[stroke-opacity="0.4"]').count()).toBeGreaterThan(0);
@@ -476,7 +449,6 @@ test('value labels print each plotted measurement when the timeline is short', a
   await open(page, 'Target analysis');
   await page.getByLabel('Group by').selectOption('Weekly');
   const chart = page.locator('#target-analysis svg.chart-svg');
-  await page.locator('#target-analysis details.chart-settings > summary').click();
   await page.getByRole('button', { name: 'Values', exact: true }).click();
   const label = chart.locator('text[font-size="10"][paint-order="stroke"]').first();
   await expect(label).toBeVisible();
@@ -596,7 +568,7 @@ test('frequency views, narrative notes, data tables and log pagination remain fu
   const frequencyProgram = programs.find(program => program.category === 'SkillAcquisition' && program.targets.some(target => target.type === 'Frequency'));
   await selectProgram(page, frequencyProgram.id);
   await page.getByRole('button', { name: 'Frequency', exact: true }).click();
-  await openChartSettings(page);
+  await expectChartOptionsVisible(page);
   await page.getByLabel('Frequency measure').selectOption('Rate per Minute');
   await page.locator('#target-analysis summary').filter({ hasText: 'View plotted data table' }).click();
   await expect(page.locator('#target-analysis .data-table')).toContainText('per minute');
@@ -738,7 +710,6 @@ test('session pagination and weekly/monthly labels follow the actual grouped dat
 
 test('clinician splitting and all-hidden clinician recovery only use the active target', async ({ page }) => {
   await open(page, 'Target analysis');
-  await page.locator('#target-analysis details.chart-settings > summary').click();
   const targets = skillProgram.targets.filter(target => target.type === 'TrialByTrial');
   for (const target of targets.slice(1)) await page.locator('#target-analysis .target-legend').first().getByRole('button', { name: target.name, exact: true }).click();
   await page.getByLabel('Split by clinician').check();
@@ -789,9 +760,6 @@ test('range and note editing/deletion do not duplicate or lose unrelated annotat
 
 test('program setup remains inspectable and demo learning materials actually download', async ({ page }) => {
   await open(page, 'Target analysis');
-  // Reveal the context panel before selecting its details tab.
-  await openContext(page);
-  await page.getByRole('tab', { name: 'Target details', exact: true }).click();
   await page.locator('#target-analysis summary').filter({ hasText: 'Program setup' }).click();
   const definition = page.getByRole('article', { name: `${skillProgram.name} definition` });
   await expect(definition).toContainText(skillProgram.programObjective);
@@ -1028,20 +996,18 @@ test('chart points drill down by pointer and keyboard to sessions and trial-by-t
   await expect(page.getByRole('heading', { name: 'Observation details' })).toBeVisible();
 });
 
-test('chart settings expose overlays and preserve their analytic behavior', async ({ page }) => {
+test('chart functions add median, criterion, projection, envelope and split-middle overlays', async ({ page }) => {
   await open(page, 'Target analysis');
   await page.locator('#target-date-range').selectOption('6 months');
   const helpers = skillProgram.targets.find(target => target.phase === 'Acquisition' && target.type === 'TrialByTrial');
   await page.getByLabel('Analyze target').selectOption(helpers.id);
-  const settings = page.locator('#target-analysis details.chart-settings');
-  const settingsSummary = settings.locator('summary');
-  await settingsSummary.focus();
-  await page.keyboard.press('Enter');
-  await expect(settings).toHaveAttribute('open', '');
-  const overlays = settings.locator('fieldset').filter({ hasText: 'Analytical overlays' });
+  await page.getByRole('button', { name: /^Chart functions/ }).click();
+  const menu = page.getByRole('group', { name: /^Chart functions/ });
   for (const name of ['Median line', 'Mastery criterion line', 'Projection (80% band)', 'Stability envelope', 'Condition means', 'IOA markers']) {
-    await overlays.getByRole('checkbox', { name: new RegExp(`^${name.replace(/[()]/g, '\\$&')}`) }).check();
+    await menu.getByRole('checkbox', { name: new RegExp(`^${name.replace(/[()]/g, '\\$&')}`) }).check();
   }
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Chart functions (6)' })).toBeFocused();
   const svg = page.locator('#target-analysis svg.chart-svg');
   await expect(svg).toContainText('Median:');
   await expect(svg).toContainText('Criterion ≥ 80');
@@ -1076,7 +1042,7 @@ test('visual analysis compares conditions with effect sizes and the dual-criteri
 
 test('prompt levels and celeration views show the data behind accuracy and fluency', async ({ page }) => {
   await open(page, 'Target analysis');
-  await openChartSettings(page);
+  await expectChartOptionsVisible(page);
   await page.getByRole('group', { name: 'Chart view' }).getByRole('button', { name: 'Prompt levels', exact: true }).click();
   await expect(page.locator('#target-analysis svg.chart-svg title').first()).toHaveText('Prompt levels');
   const fluency = programs.find(program => program.targets.some(target => target.type === 'FluencyRate'));
@@ -1230,9 +1196,8 @@ test('view-only analytics access keeps reading and exporting but blocks every ch
   await expect(page.locator('.view-only-notice').first()).toContainText('View-only analytics access');
   await expect(page.getByRole('button', { name: 'Record observation', exact: true })).toBeDisabled();
   await expect(page.locator('#target-analysis .annotation-actions button').first()).toBeDisabled();
-  const chartSettings = page.locator('#target-analysis details.chart-settings');
-  await chartSettings.locator('summary').click();
-  await expect(chartSettings.getByLabel('Show missing dates')).toBeDisabled();
+  await page.getByRole('button', { name: 'Graph view', exact: true }).click();
+  await expect(page.getByLabel('Include dates without data')).toBeDisabled();
   // Phones keep the data-entry actions in the drawer, so open it before checking them.
   if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: 'Open workspace navigation' }).click();
   await expect((await visibleTrigger(page, 'Add data'))).toBeDisabled();
@@ -1387,50 +1352,58 @@ test('skill mastery aggregates all programs by default and follows the shared ra
   await accessible(page);
 });
 
-test('skill explorer scopes programs, compares compatible targets and preserves browsing', async ({ page }) => {
+test('trend explorer groups targets with phase and delta, searches, navigates by keyboard and exposes the clinical rail', async ({ page }) => {
   await open(page, 'Target analysis');
+  const catalog = buildExplorerCatalog({ programs, sessions: clientSessions, asOfDate: seed.asOfDate });
   const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
-  const browse = nav.locator('.explorer-target-list');
-  await expect(browse).toHaveAttribute('open', '');
-  await expect(nav.locator('.explorer-target')).toHaveCount(skillProgram.targets.length);
-  await expect(nav.locator('.explorer-group')).toHaveCount(1);
-  const first = nav.locator('.explorer-target').first();
-  const second = nav.locator('.explorer-target').nth(1);
-  await first.click();
-  await expect(first).toBeFocused();
-  await expect(browse).toHaveAttribute('open', '');
+  const rail = page.getByRole('complementary', { name: 'Clinical context', exact: true });
+
+  await expect(nav.locator('.explorer-group')).toHaveCount(catalog.counts.programs);
+  await expect(nav.locator('.explorer-target')).toHaveCount(catalog.counts.targets);
+  await expect(nav.locator('.explorer-count')).toContainText(`${catalog.counts.targets} targets across ${catalog.counts.programs} programs`);
+  await expect(page.locator('.trend-explorer__center svg.chart-svg')).toBeVisible();
+
+  // Clinical context, annotations and the selected target's definition are visible together.
+  await expect(rail.getByRole('heading', { name: 'Clinical context', exact: true })).toBeVisible();
+  await expect(rail.getByRole('heading', { name: 'Annotations', exact: true })).toBeVisible();
+  await expect(rail.getByRole('heading', { name: 'Target definition', exact: true })).toBeVisible();
+  await expect(rail).toContainText('Discriminative stimuli:');
+  await expect(rail).toContainText('Mastery:');
+  await accessible(page);
+
+  // Search filters the grouped list and updates the live status summary.
+  const search = page.getByLabel('Search targets or programs');
+  await search.fill('Community Helpers');
+  await expect(nav.locator('.explorer-target')).toHaveCount(1);
+  await expect(nav.locator('.explorer-count')).toContainText('1 target across 1 program matching “Community Helpers”');
+  const helpersRow = nav.locator('.explorer-target').first();
+  await helpersRow.click();
+  await expect(helpersRow).toHaveAttribute('aria-current', 'true');
+  await expect(rail.locator('.rail-target-summary')).toContainText('Label Community Helpers');
+  await page.getByRole('button', { name: 'Clear target search' }).click();
+  await expect(nav.locator('.explorer-target')).toHaveCount(catalog.counts.targets);
+
+  // Keyboard arrow, End and Home keys move focus across target rows in the explorer list.
+  const firstItem = nav.locator('.explorer-target').first();
+  const secondItem = nav.locator('.explorer-target').nth(1);
+  const lastItem = nav.locator('.explorer-target').last();
+  await firstItem.focus();
   await page.keyboard.press('ArrowDown');
-  await expect(second).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(second).toBeFocused();
-  await expect(browse).toHaveAttribute('open', '');
+  await expect(secondItem).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(lastItem).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(firstItem).toBeFocused();
 
-  const group = nav.locator('.explorer-measurement-group').first();
-  await group.getByRole('button', { name: 'Hide all', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'No targets plotted', exact: true })).toBeVisible();
-  await group.getByRole('button', { name: 'Show all', exact: true }).click();
-  const checks = group.locator('.explorer-target-row input[type=checkbox]');
-  await expect(checks.first()).toBeChecked();
-  await checks.first().uncheck();
-  await expect(checks.first()).not.toBeChecked();
-  if (await checks.count() > 1) await expect(checks.nth(1)).toBeChecked();
-  await checks.first().check();
-
-  const search = page.getByLabel('Search targets in this program', { exact: true });
-  await search.fill('no-such-target');
-  await expect(nav.locator('.explorer-target')).toHaveCount(0);
-  await page.locator('#target-program').selectOption(skillPrograms[1].id);
-  await expect(search).toHaveValue('');
-  await expect(nav.locator('.explorer-target')).toHaveCount(skillPrograms[1].targets.length);
-  await expect(nav.locator('.explorer-program__name')).toHaveText(skillPrograms[1].name);
-
-  await page.getByRole('button', { name: 'Expand chart', exact: true }).click();
-  await expect(nav).not.toBeVisible();
-  await page.getByRole('button', { name: 'Restore target pane', exact: true }).click();
-  await expect(nav).toBeVisible();
-  await expect(page.locator('#target-program')).toHaveValue(skillPrograms[1].id);
-  await page.getByRole('button', { name: 'Show context & annotations', exact: true }).click();
-  await expect(page.getByRole('tab', { name: 'Annotations', exact: true })).toBeVisible();
+  // Selecting a behavior reduction target directly in the explorer switches chart and rail in one click.
+  const firstBehavior = behaviorPrograms[0].targets[0];
+  const behaviorRow = nav.locator('.explorer-target').filter({
+    has: page.locator('.explorer-target__name', { hasText: firstBehavior.name })
+  }).first();
+  await behaviorRow.click();
+  await expect(behaviorRow).toHaveAttribute('aria-current', 'true');
+  await expect(page.getByRole('button', { name: `Edit chart title: ${firstBehavior.name}` })).toBeVisible();
+  await expect(rail).toContainText('Function hypothesis:');
   await accessible(page);
 });
 
@@ -1552,22 +1525,14 @@ test('overview modules can be reordered by keyboard and the order survives a rel
   expect(await readOrder()).toEqual(ids);
 });
 
-test('shared page headers keep one primary action and move secondary actions into overflow', async ({ page }) => {
+test('Target analysis keeps refresh beside export while other workflow actions overflow', async ({ page }) => {
   await open(page, 'Target analysis');
   const header = page.locator('#target-analysis .panel-header');
   await expect(header.getByRole('button', { name: 'Export targets', exact: true })).toBeVisible();
-  // Refresh is a secondary maintenance action, so it lives in the header overflow.
-  await expect(header.getByRole('button', { name: 'Refresh target analysis', exact: true })).toHaveCount(0);
-  const overflow = header.getByRole('button', { name: 'More actions', exact: true });
-  await expect(overflow).toHaveAttribute('aria-expanded', 'false');
-  await overflow.click();
-  await expect(overflow).toHaveAttribute('aria-expanded', 'true');
   await header.getByRole('button', { name: 'Refresh target analysis', exact: true }).click();
-  // Activating an overflow item closes the menu and returns focus to its trigger.
-  await expect(overflow).toHaveAttribute('aria-expanded', 'false');
-  await expect(overflow).toBeFocused();
-  await page.keyboard.press('Escape');
+  await expect(header.getByRole('button', { name: 'Refresh target analysis', exact: true })).toBeVisible();
 
+  // The shared header redesign remains in place for the unrelated ABC workflow.
   await activate(page, 'ABC observations');
   const abcHeader = page.locator('#abc-observations .panel-header');
   await abcHeader.getByRole('button', { name: 'More actions', exact: true }).click();

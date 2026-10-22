@@ -432,128 +432,6 @@ button.heat-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
 }
 .overview-section-anchor { display: flow-root; }
 
-/* Current scope stays readable; target browsing remains one clearly named action away. */
-.explorer-current-scope > strong {
-  overflow: visible;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
-}
-.explorer-current-scope__focus {
-  color: var(--color-slate-700);
-  font-size: 0.75rem;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-.explorer-target-list { border-top: 1px solid var(--line); }
-.explorer-target-list > summary {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.2rem;
-  min-height: 2.75rem;
-  padding: 0.45rem 0.875rem;
-  color: var(--color-brand-800);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-.explorer-target-list > summary span { color: var(--muted); font-weight: 400; }
-.explorer-target-list > summary:focus-visible,
-.explorer-change-selection > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 0.25rem; }
-.explorer-target-list[open] > summary { border-bottom: 1px solid var(--line); }
-.explorer-target-list .explorer-groups { max-height: none; overflow: visible; overscroll-behavior: auto; }
-
-/* The right rail uses concise, keyboard-operable tabs so annotations/definitions do not
-   become a long stacked tail on tablet and mobile. Full decision details stay in Progress. */
-.trend-explorer__rail {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  gap: 0.65rem;
-}
-.rail-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.2rem;
-  min-width: 0;
-  padding: 0.2rem;
-  border: 1px solid var(--line);
-  border-radius: 0.65rem;
-  background: var(--color-slate-100);
-}
-.rail-tabs [role="tab"] {
-  min-width: 0;
-  min-height: 2.75rem;
-  padding: 0.35rem 0.2rem;
-  border: 0;
-  border-radius: 0.45rem;
-  color: var(--color-slate-600);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-.rail-tabs [role="tab"][aria-selected="true"] { background: #fff; color: var(--color-brand-800); box-shadow: 0 1px 3px rgb(38 57 40 / 10%); }
-.rail-tabs [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.rail-card[hidden] { display: none !important; }
-.rail-review-insights { justify-self: start; }
-
-/* One progressive-disclosure surface replaces three competing chart popovers. */
-.chart-options { min-width: 0; }
-.chart-settings { flex: 1 1 100%; min-width: min(15rem, 100%); }
-.chart-settings > summary {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.75rem;
-  min-height: 2.75rem;
-  padding: 0.35rem 0.65rem;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  background: #fff;
-  color: var(--color-brand-800);
-  font-size: 0.75rem;
-  font-weight: 600;
-  list-style: none;
-}
-.chart-settings > summary::-webkit-details-marker { display: none; }
-.chart-settings > summary::before { content: "＋"; font-size: 1rem; line-height: 1; }
-.chart-settings[open] > summary::before { content: "−"; }
-.chart-settings > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.chart-settings__title { display: inline-flex; align-items: center; gap: 0.35rem; }
-.chart-settings__summary { margin-left: auto; color: var(--muted); font-size: 0.6875rem; font-weight: 400; }
-.chart-settings__body { display: grid; gap: 0.75rem; margin-top: 0.65rem; padding: 0.8rem; border: 1px solid var(--line); border-radius: 0.75rem; background: #fff; }
-.chart-settings__group { display: grid; gap: 0.65rem; min-width: 0; margin: 0; padding: 0.75rem; border: 1px solid var(--line); border-radius: 0.6rem; }
-.chart-settings__group legend { padding-inline: 0.35rem; color: var(--color-slate-700); font-size: 0.75rem; font-weight: 600; }
-.chart-settings__toggles { display: flex; flex-wrap: wrap; gap: 0.45rem; }
-.chart-settings__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr)); align-items: start; gap: 0.65rem; min-width: 0; }
-.chart-settings__fields > .field-hint { align-self: center; margin: 0; }
-.chart-settings .popover-option { border: 1px solid var(--line); background: var(--color-slate-50); }
-.chart-settings .axis-fields { max-width: 32rem; }
-.chart-settings .control-field { min-width: 0; }
-.chart-insight {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.8rem;
-  margin-top: 0.9rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--color-brand-200);
-  border-left: 4px solid var(--color-brand-500);
-  border-radius: 0.75rem;
-  background: var(--color-brand-50);
-}
-.chart-insight--attention { border-color: var(--color-amber-200); border-left-color: var(--color-amber-600); background: var(--color-amber-50); }
-.chart-insight__label { color: var(--muted); font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
-.chart-insight h3 { margin-top: 0.15rem; color: var(--ink); font-size: 0.875rem; font-weight: 650; line-height: 1.35; }
-.chart-insight p { margin-top: 0.25rem; color: var(--color-slate-700); font-size: 0.75rem; line-height: 1.5; }
-.chart-insight .button { min-height: 2.75rem; }
-.decision-prompts { display: grid; gap: 0.65rem; }
-.decision-prompts > h4 { font-size: 0.875rem; font-weight: 600; }
-.decision-prompts > .analysis-footnote { margin: 0; }
-
 /* Service activity exposes high-signal counts first; appointment rows are on demand. */
 .service-appointments { margin-top: 0.6rem; border-top: 1px solid var(--line); }
 .service-appointments > summary { display: flex; align-items: center; min-height: 2.75rem; color: var(--color-brand-800); font-size: 0.75rem; font-weight: 600; cursor: pointer; }
@@ -571,42 +449,35 @@ button.heat-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
   .section-jump-nav__label { padding-top: 0.65rem; }
   .section-jump-nav ul { flex-basis: 100%; gap: 0.15rem; }
   .section-jump-nav a { padding-inline: 0.45rem; }
-  .chart-settings__summary { flex-basis: 100%; margin-left: 1.35rem; }
-  .chart-settings__body { padding: 0.55rem; }
-  .chart-settings__fields { grid-template-columns: minmax(0, 1fr); }
-  .chart-insight { grid-template-columns: minmax(0, 1fr); }
-  .chart-insight .button { justify-self: start; }
 }
 
-/* Target workspace: browsing persists; the chart gets the available width. */
-.shell-layout:has(#workflow-panel-target-analysis:not([hidden])) { max-width: none; }
-.app-main:has(#workflow-panel-target-analysis:not([hidden])) { padding-inline: clamp(0.75rem, 1.5vw, 2rem); }
-.workspace-content:has(#workflow-panel-target-analysis:not([hidden])) { max-width: none; }
-.trend-explorer { grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr); }
-.explorer-layout-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; padding: 0.65rem 1rem; border-bottom: 1px solid var(--line); }
-.trend-explorer:not(.trend-explorer--context) > .trend-explorer__rail { display: none; }
-.trend-explorer--context > .trend-explorer__rail { grid-column: 1 / -1; border-top: 1px solid var(--line); }
-.trend-explorer--expanded { grid-template-columns: minmax(0, 1fr); }
-.trend-explorer--expanded > .trend-explorer__list,
-.trend-explorer--expanded > .trend-explorer__rail { display: none; }
-.explorer-target-list .explorer-groups { max-height: min(65dvh, 46rem); overflow-y: auto; overscroll-behavior: contain; }
-.explorer-target-row { display: flex; gap: 0.4rem; align-items: center; }
-.explorer-target-row > input { flex: 0 0 auto; width: 1.1rem; height: 1.1rem; margin: 0.25rem; }
-.explorer-target-row > button { flex: 1; min-width: 0; }
-.explorer-measurement-group { margin-top: 0.8rem; }
-.explorer-measurement-group h4 { font-size: 0.8rem; margin-bottom: 0.4rem; }
-.explorer-group-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 0.7rem; color: var(--muted); }
-.explorer-group-actions button { min-height: 2.75rem; color: var(--accent); text-decoration: underline; }
-.measurement-toolbar { display: grid; gap: 0.75rem; }
-.measurement-toolbar .view-controls { display: grid; grid-template-columns: auto minmax(7rem, 12rem) auto minmax(7rem, 12rem); align-items: center; justify-content: start; gap: 0.5rem 0.75rem; }
-.chart-toolbar { align-items: start; gap: 0.75rem; }
-.chart-options { display: flex; flex-wrap: wrap; align-items: start; gap: 0.75rem; }
-.chart-settings__fields { align-items: center; }
-@media (max-width: 899px) {
-  .trend-explorer { grid-template-columns: minmax(0, 1fr); }
-  .explorer-target-list .explorer-groups { max-height: 18rem; }
+
+/* Keep Target analysis on its original page-header layout; other workflows retain the
+   shared page-estate header hierarchy. */
+#workflow-panel-target-analysis #target-analysis > .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1.25rem;
+}
+#workflow-panel-target-analysis #target-analysis > .panel-header .panel-heading > p {
+  max-width: 65ch;
+  line-height: normal;
+}
+#workflow-panel-target-analysis #target-analysis > .panel-header .panel-actions {
+  align-self: auto;
+  max-width: none;
+}
+@container (max-width: 48rem) {
+  #workflow-panel-target-analysis #target-analysis > .panel-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
 }
 @media (max-width: 639px) {
-  .measurement-toolbar .view-controls { grid-template-columns: auto minmax(0, 1fr); }
-  .chart-options { width: 100%; }
+  #workflow-panel-target-analysis #target-analysis > .panel-header {
+    gap: 1rem;
+    padding: 1rem;
+  }
 }

@@ -28,8 +28,8 @@ export default function AnalysisPanel({
   return <section className="analysis-panel" aria-labelledby="analysis-title">
     <header className="analysis-header">
       <div className="min-w-0">
-        <h3 id="analysis-title" tabIndex={-1}>Visual analysis</h3>
-        <p>Metrics support—not replace—clinical visual inspection of the graph.</p>
+        <h3 id="analysis-title">Visual analysis</h3>
+        <p>Level, trend, variability, immediacy and overlap for the plotted data—quantified to support, not replace, inspection of the graph.</p>
       </div>
       {targetOptions.length > 1 && <div className="control-field analysis-target-field">
         <label htmlFor="analysis-target">Analyze target</label>
@@ -155,15 +155,11 @@ function ProgressView({ progress, unit }) {
       <p className="field-hint">Introduction and mastery dates support acquisition-rate reporting; the same markers appear on the graph.</p>
     </div>}
     <ProgramStatusControl program={program} canEdit={canEdit} onProgramStatusChange={onProgramStatusChange} />
-    <section className="decision-prompts" aria-labelledby="decision-prompts-title">
-      <h4 id="decision-prompts-title">Clinical decision prompts</h4>
-      {insights.length ? <ul className="insight-list">
-        {insights.map(insight => <li key={insight.title} className={`insight insight--${insight.tone}`}>
-          <strong>{insight.title}</strong><p>{insight.detail}</p><small>{insight.reference}</small>
-        </li>)}
-      </ul> : <p className="field-hint">No decision prompts for the plotted range.</p>}
-      <p className="analysis-footnote">These prompts support, but do not replace, review of the plotted observations and clinical context.</p>
-    </section>
+    {insights.length ? <ul className="insight-list">
+      {insights.map(insight => <li key={insight.title} className={`insight insight--${insight.tone}`}>
+        <strong>{insight.title}</strong><p>{insight.detail}</p><small>{insight.reference}</small>
+      </li>)}
+    </ul> : <p className="field-hint">No decision prompts for the plotted range.</p>}
   </div>;
 }
 
