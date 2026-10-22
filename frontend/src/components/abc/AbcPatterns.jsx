@@ -61,33 +61,33 @@ export default function AbcPatterns({ entries, allEntries, config, behaviorTarge
       <p className="field-hint">{entries.length} records in range · select a cell to open the matching records in the log.</p>
     </div>
     <div className="abc-grid">
-      <article className="abc-card abc-card--wide" aria-labelledby="abc-a-b">
+      <article id="abc-pattern-antecedents" className="abc-card abc-card--wide section-anchor" aria-labelledby="abc-a-b" tabIndex={-1}>
         <h3 id="abc-a-b">Antecedents before each behavior</h3>
         <p className="abc-card-note">Conditional % = share of a behavior’s episodes preceded by the antecedent. Lift compares that share with all recorded episodes (above ×1 = over-represented).</p>
         <HeatMatrix caption="Antecedent by behavior matrix" cornerLabel="Antecedent" rows={antecedentTable.rows} columns={antecedentTable.columns}
           rowHeader={row => <span className="heat-row-label">{row}<small>{config?.antecedentCategories?.[row]}</small></span>}
           cell={(row, column) => cellFor(antecedentTable, row, column, 'antecedent')} onSelect={(row, column) => onDrill({ antecedent: row, behavior: column })} />
       </article>
-      <article className="abc-card abc-card--wide" aria-labelledby="abc-b-c">
+      <article id="abc-pattern-consequences" className="abc-card abc-card--wide section-anchor" aria-labelledby="abc-b-c" tabIndex={-1}>
         <h3 id="abc-b-c">Consequences after each behavior</h3>
         <p className="abc-card-note">Row labels show the reinforcer each consequence would deliver if it maintained the behavior.</p>
         <HeatMatrix caption="Consequence by behavior matrix" cornerLabel="Consequence" rows={consequenceTable.rows} columns={consequenceTable.columns}
           rowHeader={row => <span className="heat-row-label">{row}<small><i className="function-dot" style={{ background: FUNCTION_COLORS[config?.consequenceFunctions?.[row] || 'None'] }} />{config?.consequenceFunctions?.[row] || 'None'}</small></span>}
           cell={(row, column) => cellFor(consequenceTable, row, column, 'consequence')} onSelect={(row, column) => onDrill({ consequence: row, behavior: column })} />
       </article>
-      <article className="abc-card" aria-labelledby="abc-function">
+      <article id="abc-pattern-function" className="abc-card section-anchor" aria-labelledby="abc-function" tabIndex={-1}>
         <div className="abc-card-head"><h3 id="abc-function">Descriptive function profile</h3>
           <label className="toggle-control"><input type="checkbox" checked={preIntervention} onChange={event => setPreIntervention(event.target.checked)} />Pre-intervention records</label></div>
         <FunctionBars profiles={profiles} documented={documented} />
         <ul className="prompt-legend">{FUNCTIONS.map(name => <li key={name}><i style={{ background: FUNCTION_COLORS[name] }} />{name === 'None' ? 'No social change' : name}</li>)}</ul>
         <p className="abc-card-note">Correlational only: staff responses such as blocking deliver attention even when escape maintains a behavior. Confirm hypotheses with a functional analysis (BACB TCO F.6).</p>
       </article>
-      <article className="abc-card" aria-labelledby="abc-events">
+      <article id="abc-pattern-setting-events" className="abc-card section-anchor" aria-labelledby="abc-events" tabIndex={-1}>
         <h3 id="abc-events">Setting events (motivating operations)</h3>
         <p className="abc-card-note">Episodes per hour in sessions with each event, relative to nearby sessions without events (±14 days), from the behavior data.</p>
         <ForestPlot effects={effects.map(effect => ({ label: effect.event, ratio: effect.ratio, low: effect.low, high: effect.high, n: effect.sessions }))} />
       </article>
-      <article className="abc-card abc-card--wide" aria-labelledby="abc-when">
+      <article id="abc-pattern-timing" className="abc-card abc-card--wide section-anchor" aria-labelledby="abc-when" tabIndex={-1}>
         <h3 id="abc-when">When episodes happen</h3>
         <p className="abc-card-note">Scatterplot by date and half hour (Touchette, MacDonald &amp; Langer, 1985). Hatched cells had no session, so they are not zeros.</p>
         <Scatterplot plot={plot} />
@@ -100,7 +100,7 @@ export default function AbcPatterns({ entries, allEntries, config, behaviorTarge
             </button></li>)}</ul> : <p className="field-hint">No window has enough observation time yet.</p>}
         </div>
       </article>
-      <article className="abc-card abc-card--wide" aria-labelledby="abc-clock">
+      <article id="abc-pattern-time-of-day" className="abc-card abc-card--wide section-anchor" aria-labelledby="abc-clock" tabIndex={-1}>
         <h3 id="abc-clock">Time of day</h3>
         <p className="abc-card-note">Every recorded event by its timestamp (updated with each new entry), on a 24-hour axis. Use it to time toileting schedules or to see when episodes cluster within the day.</p>
         <TimeOfDayScatter pattern={dayPattern} />
@@ -113,11 +113,11 @@ export default function AbcPatterns({ entries, allEntries, config, behaviorTarge
           {dayPattern.earliest != null && <p className="field-hint">Earliest event {clockLabel(dayPattern.earliest)} · latest {clockLabel(dayPattern.latest)}</p>}
         </div>
       </article>
-      <article className="abc-card abc-card--wide" aria-labelledby="abc-flow">
+      <article id="abc-pattern-flow" className="abc-card abc-card--wide section-anchor" aria-labelledby="abc-flow" tabIndex={-1}>
         <h3 id="abc-flow">From trigger to outcome</h3>
         <FlowDiagram flows={flows} behaviors={behaviors} />
       </article>
-      <article className="abc-card" aria-labelledby="abc-chains">
+      <article id="abc-pattern-escalation" className="abc-card section-anchor" aria-labelledby="abc-chains" tabIndex={-1}>
         <h3 id="abc-chains">Escalation chains</h3>
         <p className="abc-card-note">How often one behavior is followed by another within 10 minutes in the same session (lag-sequential).</p>
         {chains.length ? <ul className="chain-list">{chains.map(chain => <li key={`${chain.from}-${chain.to}`}>
@@ -127,7 +127,7 @@ export default function AbcPatterns({ entries, allEntries, config, behaviorTarge
         </li>)}</ul> : <p className="field-hint">No repeated sequences in this range.</p>}
         <p className="abc-card-note">Precursors can be targeted earlier in the chain to prevent escalation.</p>
       </article>
-      <article className="abc-card" aria-labelledby="abc-intensity">
+      <article id="abc-pattern-intensity" className="abc-card section-anchor" aria-labelledby="abc-intensity" tabIndex={-1}>
         <h3 id="abc-intensity">Intensity by week</h3>
         <MiniTrend series={trend.series} weeks={trend.weeks} label="Weekly mean intensity per behavior (1–5)" />
       </article>

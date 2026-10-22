@@ -4,7 +4,6 @@ import { exportSvgElement, exportPngFromSvg, exportRawTrialDataCsv, exportStruct
 import TrendExplorer from './overview/TrendExplorer';
 import SectionHeader from './ui/SectionHeader';
 import ExportMenu from './ui/ExportMenu';
-import Popover from './ui/Popover';
 import SegmentedControl from './ui/SegmentedControl';
 import EmptyState from './ui/EmptyState';
 import TargetChart from './analysis/TargetChart';
@@ -494,6 +493,7 @@ export default function ClientSpecificSection({
     target: analysisTarget, isBehavior, points: analysisPoints, rows: analysisRows, evaluation, comparison, template, ioa, projection,
     scale: percentType ? 100 : Math.max(1, ...analysisPoints.map(point => point.y)), standards
   }) : [];
+  const primaryInsight = insights.find(insight => insight.tone === 'attention') || insights[0] || null;
   const qualityServices = [...new Set(analysisRows.map(row => row.serviceSessionId).filter(Boolean))].map(id => services.get(id)).filter(Boolean);
   const fidelityValues = qualityServices.filter(service => service.fidelity).map(service => service.fidelity.percent);
   const observerMap = new Map();
@@ -572,6 +572,14 @@ export default function ClientSpecificSection({
     setTitleError('');
     requestAnimationFrame(() => titleButtonRef.current?.focus());
   }
+  function reviewDecisionPrompts() {
+    setAnalysisTab('progress');
+    requestAnimationFrame(() => {
+      const heading = document.getElementById('analysis-title');
+      heading?.focus({ preventScroll: true });
+      heading?.scrollIntoView({ block: 'start' });
+    });
+  }
   const suppressionNote = suppressedCounts.trials + suppressedCounts.shortObservations > 0
     ? ` · ${[suppressedCounts.trials ? `${suppressedCounts.trials} low-trial session${suppressedCounts.trials === 1 ? '' : 's'}` : null,
       suppressedCounts.shortObservations ? `${suppressedCounts.shortObservations} short observation${suppressedCounts.shortObservations === 1 ? '' : 's'}` : null].filter(Boolean).join(' and ')} hidden by the graphing policy (${graphPolicyMinimum} trials minimum)`
@@ -593,8 +601,8 @@ export default function ClientSpecificSection({
   }), [activeCategoryTab, selectedProgramId, selectedBehaviorIds, activeTargetType, visibleTargetIds, analysisTarget]);
 
   return <section id="target-analysis" className="panel" aria-labelledby="target-analysis-title" tabIndex={-1}>
-    <SectionHeader id="target-analysis-title" title="Target analysis" description="Explore targets across programs, inspect trends and session trials, and read clinical context alongside each graph."
-      help="Search or choose any target in the explorer on the left, then inspect its chart in the center and its definitions, insights and annotations in the clinical context rail. Measured zeros count; unobserved records never become zeros."
+    <SectionHeader id="target-analysis-title" title="Target analysis" description="Review target trends, session data, and clinical context."
+      help="Measured zero is different from data that was not tracked. Graphing filters can suppress low-trial or short observations; the chart states when anything is hidden. Insights support—not replace—clinical visual analysis."
       actions={<>
         <ExportMenu label="Export targets" onExport={handleExport} formats={[
           { id: 'svg', label: 'Vector chart · SVG', disabled: !hasChart },
@@ -640,6 +648,7 @@ export default function ClientSpecificSection({
       viewOnlyReason={viewOnlyReason}
       detailPrograms={detailPrograms}
       activeTarget={focusedTarget}
+      onReviewInsights={reviewDecisionPrompts}
     >
       <div className="measurement-toolbar">
         {availableTargetTypes.length > 0 ? <div className="measurement-tabs" role="group" aria-label="Measurement type">
@@ -670,7 +679,7 @@ export default function ClientSpecificSection({
             <select id="summary-mode" value={summaryMode} onChange={event => updatePreferences({ summaryMode: event.target.value })}>
               {availableSummaryModes(activeTargetType).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select></>}
-          {availableTargetTypes.length > 0 && activeTargetType !== 'Anecdotal' && tabTargets.length === 1 && <label className="toggle-control"><input type="checkbox" checked={splitByTherapist} onChange={event => setSplitByTherapist(event.target.checked)} />Split by clinician</label>}
+          {activeCategoryTab === 'Behavior' && <label className="toggle-control"><input type="checkbox" checked={behaviorZeroOut} onChange={event => setBehaviorZeroOut(event.target.checked)} />Include measured zeros</label>}
         </div>
       </div>
 
@@ -689,62 +698,74 @@ export default function ClientSpecificSection({
           {showTrendLine && <select aria-label="Trend calculation" className="toggle-control" disabled={!canEdit} value={trendMethod} onChange={event => setTrendMethod(event.target.value)}>
             <option value="regression">Linear regression</option><option value="directional">First-to-last direction</option><option value="split-middle">Split-middle (line of progress)</option>
           </select>}
-          <Popover label="Graph view" icon={Settings2} className="graph-view-popover">
-            <p className="popover-label">Graph view · {preferenceSummary(preferences, standards)}</p>
-            <label className="popover-option"><input type="checkbox" checked={preferences.showNoDataDates} disabled={!canEdit}
-              onChange={event => updatePreferences({ showNoDataDates: event.target.checked })} />
-              <span>Include dates without data<small className="block text-slate-500">Charts start with the dates that have measurements</small></span></label>
-            <label className="popover-option"><input type="checkbox" checked={preferences.suppressLowTrialSessions} disabled={!canEdit}
-              onChange={event => updatePreferences({ suppressLowTrialSessions: event.target.checked })} />
-              <span>Hide sessions below the trial minimum<small className="block text-slate-500">{graphStandards(standards).source}</small></span></label>
-            <div className="axis-fields">
-              <label htmlFor="graph-minimum-trials">Minimum trials per point</label>
-              <input id="graph-minimum-trials" type="number" min="0" step="1" inputMode="numeric" disabled={!canEdit}
-                placeholder={String(graphStandards(standards).minimumTrialsPerDataPoint)} value={preferences.minimumTrials ?? ''}
-                onChange={event => updatePreferences({ minimumTrials: event.target.value === '' ? null : Math.max(0, Math.round(Number(event.target.value))) })} />
+          <details className="chart-settings">
+            <summary><span className="chart-settings__title"><Settings2 size={16} aria-hidden="true" />Chart settings</span>
+              <span className="chart-settings__summary">{enabledFunctions} overlay{enabledFunctions === 1 ? '' : 's'} · {describeAxisBounds(axisBounds)}</span>
+            </summary>
+            <div className="chart-settings__body">
+              <fieldset className="chart-settings__group">
+                <legend>Graph display</legend>
+                <div className="chart-settings__toggles">
+                  <button type="button" className="toggle-control" aria-pressed={showValues} onClick={() => updatePreferences({ showValues: !showValues })}>Values</button>
+                  <button type="button" className="toggle-control" aria-pressed={showPhaseLabels} onClick={() => updatePreferences({ showPhaseLabels: !showPhaseLabels })}>Phase labels</button>
+                  <button type="button" className="toggle-control" aria-pressed={showGridlines} onClick={() => updatePreferences({ showGridlines: !showGridlines })}>Gridlines</button>
+                  <button type="button" className="toggle-control" aria-pressed={colorMode === 'BlackAndWhite'} onClick={() => setColorMode(value => value === 'System' ? 'BlackAndWhite' : 'System')}>Monochrome</button>
+                  <label className="toggle-control"><input type="checkbox" checked={showEmptyDates} disabled={!canEdit} onChange={event => updatePreferences({ showNoDataDates: event.target.checked })} />Show missing dates</label>
+                  {tabTargets.length === 1 && <label className="toggle-control"><input type="checkbox" checked={splitByTherapist} onChange={event => setSplitByTherapist(event.target.checked)} />Split by clinician</label>}
+                </div>
+                <div className="chart-settings__fields">
+                  <label className="popover-option"><input type="checkbox" checked={preferences.suppressLowTrialSessions} disabled={!canEdit}
+                    onChange={event => updatePreferences({ suppressLowTrialSessions: event.target.checked })} />
+                    <span>Hide low-trial and short observations<small className="block text-slate-500">{graphStandards(standards).source} · hidden counts remain stated above the chart</small></span>
+                  </label>
+                  <div className="axis-fields">
+                    <label htmlFor="graph-minimum-trials">Minimum trials per point</label>
+                    <input id="graph-minimum-trials" type="number" min="0" step="1" inputMode="numeric" disabled={!canEdit}
+                      placeholder={String(graphStandards(standards).minimumTrialsPerDataPoint)} value={preferences.minimumTrials ?? ''}
+                      onChange={event => updatePreferences({ minimumTrials: event.target.value === '' ? null : Math.max(0, Math.round(Number(event.target.value))) })} />
+                  </div>
+                  <div className="control-field"><label htmlFor="marker-shape">Data point shape</label>
+                    <select id="marker-shape" value={preferences.markerShape} disabled={!canEdit} onChange={event => updatePreferences({ markerShape: event.target.value })}>
+                      {MARKER_LIBRARY.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                    </select></div>
+                  <p className="field-hint">{MARKER_LIBRARY.find(option => option.id === preferences.markerShape)?.hint}</p>
+                  <div className="control-field"><label htmlFor="chart-orientation">Axis orientation</label>
+                    <select id="chart-orientation" value={preferences.orientation} disabled={!canEdit} onChange={event => { updatePreferences({ orientation: event.target.value }); setChartView('standard'); }}>
+                      <option value="values">Values vertical · dates horizontal</option>
+                      <option value="dates">Dates vertical · values horizontal (flipped)</option>
+                    </select></div>
+                  <p className="field-hint">The flipped view puts time down the vertical axis and keeps phase changes, notes and criteria on the alternate axis.</p>
+                  <p className="field-hint">{preferenceSummary(preferences, standards)}</p>
+                  <button type="button" className="button button--tertiary" disabled={!canEdit}
+                    onClick={() => setPreferences(resetGraphPreferences(client?.id) ? readGraphPreferences(client?.id) : normalizeGraphPreferences())}>Reset graph view</button>
+                </div>
+              </fieldset>
+              <fieldset className="chart-settings__group">
+                <legend>Analytical overlays</legend>
+                <div className="chart-settings__fields">
+                  {FUNCTION_OPTIONS.map(option => {
+                    const unavailable = (option.key === 'goal' && !goal) || (option.key === 'log' && percentType) || (shownChartView !== 'standard') || !canEdit;
+                    return <label key={option.key} className="popover-option function-option">
+                      <input type="checkbox" checked={functions.has(option.key)} disabled={unavailable} onChange={event => toggleFunction(option.key, event.target.checked)} />
+                      <span>{option.label}<small className="block text-slate-500">{option.key === 'goal' && !goal ? 'Not comparable with this unit or grouping' : option.hint}</small></span>
+                    </label>;
+                  })}
+                </div>
+              </fieldset>
+              <fieldset className="chart-settings__group">
+                <legend>Vertical axis · {describeAxisBounds(axisBounds)}</legend>
+                <div className="axis-fields">
+                  <label htmlFor="axis-min">Minimum</label>
+                  <input id="axis-min" type="number" step="any" inputMode="decimal" placeholder="Auto" disabled={!canEdit} value={axisDraft.min} onChange={event => applyAxis({ ...axisDraft, min: event.target.value })} />
+                  <label htmlFor="axis-max">Maximum</label>
+                  <input id="axis-max" type="number" step="any" inputMode="decimal" placeholder="Auto" disabled={!canEdit} value={axisDraft.max} onChange={event => applyAxis({ ...axisDraft, max: event.target.value })} />
+                </div>
+                {axisError && <p className="field-error" role="alert">{axisError}</p>}
+                <p className="field-hint">Leave a field blank to scale that end to the data. Observations outside the range stay in the data table and exports.</p>
+                <button type="button" className="button button--tertiary" disabled={!canEdit} onClick={() => applyAxis({ min: '', max: '' })}>Use automatic scale</button>
+              </fieldset>
             </div>
-            <div className="control-field"><label htmlFor="marker-shape">Data point shape</label>
-              <select id="marker-shape" value={preferences.markerShape} disabled={!canEdit} onChange={event => updatePreferences({ markerShape: event.target.value })}>
-                {MARKER_LIBRARY.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-              </select></div>
-            <p className="field-hint">{MARKER_LIBRARY.find(option => option.id === preferences.markerShape)?.hint}</p>
-            <div className="control-field"><label htmlFor="chart-orientation">Axis orientation</label>
-              <select id="chart-orientation" value={preferences.orientation} disabled={!canEdit} onChange={event => { updatePreferences({ orientation: event.target.value }); setChartView('standard'); }}>
-                <option value="values">Values vertical · dates horizontal</option>
-                <option value="dates">Dates vertical · values horizontal (flipped)</option>
-              </select></div>
-            <p className="field-hint">The flipped view puts time down the vertical axis and keeps phase changes, notes and criteria on the alternate axis.</p>
-            <button type="button" className="button button--tertiary" disabled={!canEdit}
-              onClick={() => setPreferences(resetGraphPreferences(client?.id) ? readGraphPreferences(client?.id) : normalizeGraphPreferences())}>Reset graph view</button>
-          </Popover>
-          <Popover label={`Chart functions (${enabledFunctions})`} icon={Settings2} className="functions-popover">
-            <p className="popover-label">Analytical functions for {analysisTarget?.name || 'the plotted target'}</p>
-            {FUNCTION_OPTIONS.map(option => {
-              const unavailable = (option.key === 'goal' && !goal) || (option.key === 'log' && percentType) || (shownChartView !== 'standard') || !canEdit;
-              return <label key={option.key} className="popover-option function-option">
-                <input type="checkbox" checked={functions.has(option.key)} disabled={unavailable} onChange={event => toggleFunction(option.key, event.target.checked)} />
-                <span>{option.label}<small className="block text-slate-500">{option.key === 'goal' && !goal ? 'Not comparable with this unit or grouping' : option.hint}</small></span>
-              </label>;
-            })}
-          </Popover>
-          <Popover label={`Y axis · ${describeAxisBounds(axisBounds)}`} icon={Settings2} className="axis-popover">
-            <p className="popover-label">Vertical axis range</p>
-            <div className="axis-fields">
-              <label htmlFor="axis-min">Minimum</label>
-              <input id="axis-min" type="number" step="any" inputMode="decimal" placeholder="Auto" disabled={!canEdit} value={axisDraft.min} onChange={event => applyAxis({ ...axisDraft, min: event.target.value })} />
-              <label htmlFor="axis-max">Maximum</label>
-              <input id="axis-max" type="number" step="any" inputMode="decimal" placeholder="Auto" disabled={!canEdit} value={axisDraft.max} onChange={event => applyAxis({ ...axisDraft, max: event.target.value })} />
-            </div>
-            {axisError && <p className="field-error" role="alert">{axisError}</p>}
-            <p className="field-hint">Leave a field blank to scale that end to the data. Observations outside the range stay in the data table and exports.</p>
-            <button type="button" className="button button--tertiary" disabled={!canEdit} onClick={() => applyAxis({ min: '', max: '' })}>Use automatic scale</button>
-          </Popover>
-          <button type="button" className="toggle-control" aria-pressed={showValues} onClick={() => updatePreferences({ showValues: !showValues })}>Values</button>
-          <button type="button" className="toggle-control" aria-pressed={showPhaseLabels} onClick={() => updatePreferences({ showPhaseLabels: !showPhaseLabels })}>Phase labels</button>
-          <button type="button" className="toggle-control" aria-pressed={showGridlines} onClick={() => updatePreferences({ showGridlines: !showGridlines })}>Gridlines</button>
-          <button type="button" className="toggle-control" aria-pressed={colorMode === 'BlackAndWhite'} onClick={() => setColorMode(value => value === 'System' ? 'BlackAndWhite' : 'System')}>Monochrome</button>
-          {activeCategoryTab === 'Behavior' && <label className="toggle-control"><input type="checkbox" checked={behaviorZeroOut} onChange={event => setBehaviorZeroOut(event.target.checked)} />Include measured zeros</label>}
-          <label className="toggle-control"><input type="checkbox" checked={showEmptyDates} onChange={event => updatePreferences({ showNoDataDates: event.target.checked })} />Show missing dates</label>
+          </details>
         </div>
       </div>}
 
@@ -779,6 +800,11 @@ export default function ClientSpecificSection({
                       suppressed={preferences.orientation === 'values' ? suppressedCounts : null} />}
                 {chartPending && <p className="chart-pending" role="status">Updating chart…</p>}
                 {hasChart && <div className="chart-caption"><span>{caption}</span><span className="scroll-hint">Scroll to see the full chart →</span></div>}
+                {hasChart && primaryInsight && <section className={`chart-insight chart-insight--${primaryInsight.tone}`} aria-labelledby="chart-insight-title">
+                  <div><span className="chart-insight__label">Clinical insight · {primaryInsight.tone === 'attention' ? 'review' : 'current'}</span>
+                    <h3 id="chart-insight-title">{primaryInsight.title}</h3><p>{primaryInsight.detail}</p></div>
+                  <button type="button" className="button button--secondary" onClick={reviewDecisionPrompts}>Review all prompts</button>
+                </section>}
                 {aggregation === 'Per Session' && totalPages > 1 && <div className="pagination" aria-label="Session chart pagination"><span>Page {currentPage} of {totalPages}</span><button type="button" className="icon-button icon-button--bordered" aria-label="Previous session page" disabled={currentPage <= 1} onClick={() => setSessionPage(currentPage - 1)}><ChevronLeft size={18} /></button><button type="button" className="icon-button icon-button--bordered" aria-label="Next session page" disabled={currentPage >= totalPages} onClick={() => setSessionPage(currentPage + 1)}><ChevronRight size={18} /></button></div>}
                 {hasChart && aggregation !== 'Per Session' && <TimelineBrush keys={allChartKeys} values={brushValues} start={zoomRange.start} end={zoomRange.end} aggregation={aggregation}
                   onChange={(start, end) => setZoom({ signature: zoomSignature, start, end })} />}

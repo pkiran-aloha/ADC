@@ -15,7 +15,7 @@ const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
 // match the KPI strip and timeline above it. Both are derived views — no new entity, no change
 // to any target's phase or phase history.
 export default function OverallMasterySection({
-  programs = [], selectedProgramId, onSelectProgram, masteryData = [],
+  id = 'overview-mastery', programs = [], selectedProgramId, onSelectProgram, masteryData = [],
   rangePhrase = 'the last 90 days'
 }) {
   const svgRef = useRef(null);
@@ -50,7 +50,7 @@ export default function OverallMasterySection({
     return exportPngFromSvg(svgRef.current, `Mastery_${chartTitle}.png`);
   }
 
-  return <section className="panel" aria-labelledby="mastery-title">
+  return <section id={id} className="panel" aria-labelledby="mastery-title" tabIndex={-1}>
     <SectionHeader id="mastery-title" title="Skill mastery" description={`How mastered targets accumulate over ${rangePhrase}.`}
       help="A target counts as mastered when it enters maintenance, generalization, or completed. This chart plots those transition dates inside the selected time range, not each session. Choose All programs to see the whole client, or one program to see its targets only."
       actions={<>

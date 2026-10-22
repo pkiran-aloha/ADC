@@ -3,6 +3,7 @@ import { BarChart2, Table as TableIcon, LayoutList, RotateCw, ChevronLeft, Chevr
 import SectionHeader from './ui/SectionHeader';
 import ExportMenu from './ui/ExportMenu';
 import SegmentedControl from './ui/SegmentedControl';
+import SectionJumpNav from './ui/SectionJumpNav';
 import EmptyState, { AnalyticsSkeleton } from './ui/EmptyState';
 import { exportAbcDataCsv, exportSvgElement, exportPngFromSvg } from '../utils/exportUtils';
 import { seriesColor, formatChartDate, CHART_GRID, CHART_MUTED, CHART_INK } from '../utils/chartTheme';
@@ -113,9 +114,23 @@ export default function AbcDataSection({
   const visibleRows = logEntries.slice((currentPage - 1) * 8, currentPage * 8);
   const activeFilters = Object.entries(logFilter).filter(([, value]) => value);
   const primarySetting = client?.primarySetting || 'Clinic';
+  const sectionLinks = analysisMode === 'Timeline' && filteredEntries.length ? [
+    ...(viewMode !== 'Data' ? [{ id: 'abc-chart-section', label: 'Timeline chart' }] : []),
+    ...(viewMode !== 'Graph' ? [{ id: 'abc-observation-log', label: 'Observation log' }] : [])
+  ] : analysisMode === 'Patterns' && filteredEntries.length >= 5 ? [
+    { id: 'abc-pattern-antecedents', label: 'Antecedents' },
+    { id: 'abc-pattern-consequences', label: 'Consequences' },
+    { id: 'abc-pattern-function', label: 'Function profile' },
+    { id: 'abc-pattern-setting-events', label: 'Setting events' },
+    { id: 'abc-pattern-timing', label: 'Timing' },
+    { id: 'abc-pattern-time-of-day', label: 'Time of day' },
+    { id: 'abc-pattern-flow', label: 'Event flow' },
+    { id: 'abc-pattern-escalation', label: 'Escalation' },
+    { id: 'abc-pattern-intensity', label: 'Intensity' }
+  ] : [];
 
   return <section id="abc-observations" className="panel" aria-labelledby="abc-title" tabIndex={-1}>
-    <SectionHeader id="abc-title" title="ABC observations" description="What happened before, during, and after each behavior—with patterns and forecasts from the recorded context."
+    <SectionHeader id="abc-title" title="ABC observations" description="Browse observations, the event log, and descriptive patterns."
       help="ABC stands for antecedent, behavior, and consequence. Location and setting events add context. These records describe what was observed; they don’t establish why a behavior occurred—confirm hypotheses with a functional analysis."
       actions={<>
         <ExportMenu label="Export ABC" disabled={!filteredEntries.length} onExport={handleExport} formats={[
@@ -146,6 +161,7 @@ export default function AbcDataSection({
         ['Locations', abcConfiguration.locations]
       ].map(([label, values]) => <div key={label}><h3 className="font-medium text-slate-800">{label}</h3><ul className="space-y-1 mt-2 list-disc pl-4">{values.map(value => <li key={value}>{value}</li>)}</ul></div>)}</div>
     </details>}
+    <SectionJumpNav label="ABC observation sections" items={sectionLinks} />
     <div className="panel-body">
       {analysisMode === 'Patterns' ? <Suspense fallback={<AnalyticsSkeleton />}>
         <AbcPatterns entries={filteredEntries} allEntries={abcEntries} config={abcConfiguration} behaviorTargets={behaviorTargets}
@@ -156,7 +172,7 @@ export default function AbcDataSection({
         </Suspense>
           : !filteredEntries.length ? <EmptyState title="No ABC observations in this range." description="Try a longer date range to see the client’s recorded context."
             action={durationFilter !== 'Past 6 Months' ? { label: 'Show past 6 months', onClick: () => { setDurationFilter('Past 6 Months'); setLogPage(1); } } : undefined} /> : <>
-            {viewMode !== 'Data' && <div>
+            {viewMode !== 'Data' && <div id="abc-chart-section" className="section-anchor" tabIndex={-1}>
               <div className="chart-scroll" tabIndex={0} role="region" aria-label="ABC behavior distribution chart. Scroll horizontally for the full timeline."><div className="chart-inner chart-inner--quantitative">
                 <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} className="chart-svg" role="img" aria-label={`Behavior counts across ${dateKeys.length} observation dates. Select a bar segment to filter the observation log. Exact records appear in the observation log.`}>
                   <title>ABC behavior distribution</title><desc>Stacked daily behavior counts. Each segment has a labeled legend; the observation log below gives the complete context.</desc>
@@ -194,7 +210,7 @@ export default function AbcDataSection({
               <div className="chart-caption"><span>{filteredEntries.length} ABC observations · behaviors may co-occur · select a bar to filter the log</span><span className="scroll-hint">Scroll to see the full chart →</span></div>
               <div className="abc-legend">{behaviorList.map(behavior => <div key={behavior}><span className="legend-swatch" aria-hidden="true"><svg viewBox="0 0 12 12"><rect width="12" height="12" rx="2" fill={behaviorColor(behavior)} /></svg></span><span>{behavior}</span></div>)}</div>
             </div>}
-            {viewMode !== 'Graph' && <section className="observation-log" aria-labelledby="observation-log-title" ref={logRef}>
+            {viewMode !== 'Graph' && <section id="abc-observation-log" className="observation-log section-anchor" aria-labelledby="observation-log-title" ref={logRef} tabIndex={-1}>
               <div className="observation-log-head">
                 <div><h3 id="observation-log-title">Observation log</h3><p>Most recent first · {logEntries.length} {activeFilters.length ? `of ${filteredEntries.length} ` : ''}records</p></div>
                 <div className="log-filters">
