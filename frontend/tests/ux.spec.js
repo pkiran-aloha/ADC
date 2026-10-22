@@ -68,9 +68,19 @@ async function selectProgram(page, programId) {
   await openTargetSelection(page);
   await page.locator('#target-program').selectOption(programId);
 }
+async function openContext(page) {
+  const toggle = page.getByRole('button', { name: /^(Show context & annotations|Hide context)$/ });
+  await expect(toggle).toBeVisible();
+  if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+  await expect(page.getByRole('tab', { name: 'Annotations', exact: true })).toBeVisible();
+}
+async function openChartSettings(page) {
+  const settings = page.locator('#target-analysis details.chart-settings');
+  await expect(settings.locator('summary')).toBeVisible();
+  if (!(await settings.evaluate(element => element.open))) await settings.locator('summary').click();
+}
 async function openAnnotations(page) {
-  const show = page.getByRole('button', { name: 'Show context & annotations', exact: true });
-  if (await show.isVisible()) await show.click();
+  await openContext(page);
   await page.getByRole('tab', { name: 'Annotations', exact: true }).click();
 }
 async function record(page, target) {
@@ -239,6 +249,7 @@ test('chart title updates persist after refresh and overlay controls are keyboar
   await page.locator('#target-analysis .panel-header').getByRole('button', { name: 'More actions', exact: true }).click();
   await page.getByRole('button', { name: 'Refresh target analysis', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Edit chart title: Labeling responses over time' })).toBeVisible();
+  await openChartSettings(page);
   await page.getByLabel('Average', { exact: true }).focus();
   await page.keyboard.press('Space');
   await expect(page.locator('#target-analysis svg.chart-svg')).toContainText('Avg:');
@@ -251,6 +262,7 @@ test('chart title updates persist after refresh and overlay controls are keyboar
 
 test('the graph-side insight opens full decision prompts and moves focus to visual analysis', async ({ page }) => {
   await open(page, 'Target analysis');
+  await openContext(page);
   const rail = page.getByRole('complementary', { name: 'Target context, annotations and details', exact: true });
   const review = rail.getByRole('button', { name: 'Review decision prompts', exact: true });
   await expect(review).toBeVisible();
@@ -270,9 +282,11 @@ test('mastery and all-hidden target states explain a path forward', async ({ pag
   await activate(page, 'Target analysis');
   const legend = page.locator('#target-analysis .target-legend').first();
   for (const target of skillProgram.targets.filter(item => item.type === 'TrialByTrial')) await legend.getByRole('button', { name: target.name, exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'No series are visible.' })).toBeVisible();
-  await legend.getByRole('button', { name: skillProgram.targets[0].name, exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'No series are visible.' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'No targets plotted', exact: true })).toBeVisible();
+  // The legend disappears with the graph; recover through the persistent target pane.
+  await page.getByRole('checkbox', { name: `Plot ${skillProgram.targets[0].name}`, exact: true }).check();
+  await expect(page.getByRole('heading', { name: 'No targets plotted', exact: true })).toHaveCount(0);
+  await expect(page.locator('#target-analysis svg.chart-svg')).toBeVisible();
 });
 
 test('recording validation stays inline and focuses the first invalid input', async ({ page }) => {
@@ -426,6 +440,7 @@ test('every measurement type can be drawn as bars, points or a cumulative record
   await open(page, 'Target analysis');
   const chart = page.locator('#target-analysis svg.chart-svg');
   await expect(chart.locator('path[stroke-width="2.2"]').first()).toBeVisible();
+  await openChartSettings(page);
   await page.getByLabel('Plot', { exact: true }).selectOption('bars');
   await expect(chart.locator('rect[rx="2"]').first()).toBeVisible();
   await page.getByLabel('Plot', { exact: true }).selectOption('points');
@@ -581,6 +596,7 @@ test('frequency views, narrative notes, data tables and log pagination remain fu
   const frequencyProgram = programs.find(program => program.category === 'SkillAcquisition' && program.targets.some(target => target.type === 'Frequency'));
   await selectProgram(page, frequencyProgram.id);
   await page.getByRole('button', { name: 'Frequency', exact: true }).click();
+  await openChartSettings(page);
   await page.getByLabel('Frequency measure').selectOption('Rate per Minute');
   await page.locator('#target-analysis summary').filter({ hasText: 'View plotted data table' }).click();
   await expect(page.locator('#target-analysis .data-table')).toContainText('per minute');
@@ -773,7 +789,8 @@ test('range and note editing/deletion do not duplicate or lose unrelated annotat
 
 test('program setup remains inspectable and demo learning materials actually download', async ({ page }) => {
   await open(page, 'Target analysis');
-  // Program setup lives in the Target details rail tab, which is one tab away on every size.
+  // Reveal the context panel before selecting its details tab.
+  await openContext(page);
   await page.getByRole('tab', { name: 'Target details', exact: true }).click();
   await page.locator('#target-analysis summary').filter({ hasText: 'Program setup' }).click();
   const definition = page.getByRole('article', { name: `${skillProgram.name} definition` });
@@ -1059,6 +1076,7 @@ test('visual analysis compares conditions with effect sizes and the dual-criteri
 
 test('prompt levels and celeration views show the data behind accuracy and fluency', async ({ page }) => {
   await open(page, 'Target analysis');
+  await openChartSettings(page);
   await page.getByRole('group', { name: 'Chart view' }).getByRole('button', { name: 'Prompt levels', exact: true }).click();
   await expect(page.locator('#target-analysis svg.chart-svg title').first()).toHaveText('Prompt levels');
   const fluency = programs.find(program => program.targets.some(target => target.type === 'FluencyRate'));
