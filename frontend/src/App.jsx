@@ -22,7 +22,12 @@ import {
 } from './utils/analyticsScope';
 import { ALL_PROGRAMS_ID, cumulativeMasterySeries, resolveMasterySelection } from './utils/targetAnalytics';
 import OverviewScopeControls from './components/overview/OverviewScopeControls';
+import OverviewModuleOrder from './components/overview/OverviewModuleOrder';
 import SectionJumpNav from './components/ui/SectionJumpNav';
+import {
+  DEFAULT_OVERVIEW_ORDER, describeOverviewMove, moduleById,
+  moveOverviewModule, readOverviewOrder, writeOverviewOrder
+} from './utils/overviewOrder';
 
 const ClientSpecificSection = lazy(() => import('./components/ClientSpecificSection'));
 const AbcDataSection = lazy(() => import('./components/AbcDataSection'));
@@ -64,6 +69,10 @@ export default function App() {
   // so the landing page answers a single question instead of each section carrying its own
   // filter. Defaults (all programs, 90 days) match the blueprint.
   const [overviewScope, setOverviewScope] = useState({ programScope: DEFAULT_PROGRAM_SCOPE, rangeId: DEFAULT_RANGE_ID });
+  // The order of the overview modules is a presentation preference the clinician controls.
+  // It persists in this browser and never changes a calculation or hides a module.
+  const [overviewOrder, setOverviewOrder] = useState(() => readOverviewOrder());
+  const [orderMessage, setOrderMessage] = useState('');
   const [recordOpen, setRecordOpen] = useState(false);
   const [recordTargetId, setRecordTargetId] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
@@ -258,6 +267,19 @@ export default function App() {
   function changeOverviewRange(rangeId) {
     setOverviewScope(value => ({ ...value, rangeId }));
   }
+  function moveOverviewModuleBy(id, delta) {
+    setOverviewOrder(previous => {
+      const next = moveOverviewModule(previous, id, delta);
+      writeOverviewOrder(next);
+      setOrderMessage(describeOverviewMove(next, id));
+      return next;
+    });
+  }
+  function resetOverviewOrder() {
+    setOverviewOrder([...DEFAULT_OVERVIEW_ORDER]);
+    writeOverviewOrder(DEFAULT_OVERVIEW_ORDER);
+    setOrderMessage('Module order restored to the default.');
+  }
   function changeAccessLevel(level) {
     setAccessLevelState(level);
     writeAccessLevel(level);
@@ -370,37 +392,40 @@ export default function App() {
                 <OverviewScopeControls programScope={overviewScope.programScope} rangeId={overviewScope.rangeId}
                   window={scopeWindow} counts={scopeCounts}
                   onProgramScopeChange={changeProgramScope} onRangeChange={changeOverviewRange} />
-                <SectionJumpNav label="Progress overview sections" items={[
-                  { id: 'overview-triage', label: 'Attention & target health' },
-                  { id: 'overview-timeline', label: 'Intervention timeline' },
-                  { id: 'overview-mastery', label: 'Skill mastery' },
-                  { id: 'overview-progress-map', label: 'Weekly progress map' }
-                ]} />
-                <div id="overview-triage" className="overview-section-anchor" tabIndex={-1}>
-                  <Suspense fallback={<AnalyticsSkeleton />}>
-                    <PortfolioTriage key={`triage-${selectedClientId}`} programs={scopedPrograms} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE}
-                      windowDays={scopeWindow.days} rangePhrase={scopeWindow.phrase}
-                      onOpenTarget={openHealthItem} onUseInReport={() => activateWorkflow('reports')} />
-                  </Suspense>
-                </div>
-                <div id="overview-timeline" className="overview-section-anchor" tabIndex={-1}>
-                  <Suspense fallback={<AnalyticsSkeleton />}>
-                    <InterventionTimeline key={`timeline-${selectedClientId}`} programs={scopedPrograms}
-                      phaseLines={data.phaseLines} phaseRanges={data.phaseRanges} graphNotes={data.graphNotes}
-                      asOfDate={SEED_AS_OF_DATE} windowStart={scopeWindow.start} programScope={overviewScope.programScope}
-                      rangePhrase={scopeWindow.phrase} onOpen={openTimelineEvent} />
-                  </Suspense>
-                </div>
-                <OverallMasterySection id="overview-mastery" programs={scopedPrograms} selectedProgramId={selectedMasteryProgId}
-                  onSelectProgram={id => setMasterySelections(value => ({ ...value, [selectedClientId]: id }))} masteryData={masteryData}
-                  rangePhrase={scopeWindow.phrase} />
-                <div id="overview-progress-map" className="overview-section-anchor" tabIndex={-1}>
-                  <Suspense fallback={<AnalyticsSkeleton />}>
-                    <ProgressHeatmap key={selectedClientId} programs={scopedPrograms} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE}
-                      weeks={overviewWeeks} programScope={overviewScope.programScope}
-                      onOpen={focus => openTargetFocus({ ...focus, aggregation: 'Weekly' })} />
-                  </Suspense>
-                </div>
+                <OverviewModuleOrder order={overviewOrder} onMove={moveOverviewModuleBy} onReset={resetOverviewOrder} />
+                <p className="sr-only" role="status">{orderMessage}</p>
+                <SectionJumpNav label="Progress overview sections" items={overviewOrder.map(id => {
+                  const module = moduleById(id);
+                  return { id: module.offset, label: module.label };
+                })} />
+                {overviewOrder.map(id => {
+                  if (id === 'triage') return <div key="triage" id="overview-triage" className="overview-section-anchor" tabIndex={-1}>
+                    <Suspense fallback={<AnalyticsSkeleton />}>
+                      <PortfolioTriage key={`triage-${selectedClientId}`} programs={scopedPrograms} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE}
+                        windowDays={scopeWindow.days} rangePhrase={scopeWindow.phrase}
+                        onOpenTarget={openHealthItem} onUseInReport={() => activateWorkflow('reports')} />
+                    </Suspense>
+                  </div>;
+                  if (id === 'timeline') return <div key="timeline" id="overview-timeline" className="overview-section-anchor" tabIndex={-1}>
+                    <Suspense fallback={<AnalyticsSkeleton />}>
+                      <InterventionTimeline key={`timeline-${selectedClientId}`} programs={scopedPrograms}
+                        phaseLines={data.phaseLines} phaseRanges={data.phaseRanges} graphNotes={data.graphNotes}
+                        asOfDate={SEED_AS_OF_DATE} windowStart={scopeWindow.start} programScope={overviewScope.programScope}
+                        rangePhrase={scopeWindow.phrase} onOpen={openTimelineEvent} />
+                    </Suspense>
+                  </div>;
+                  if (id === 'mastery') return <OverallMasterySection key="mastery" id="overview-mastery" programs={scopedPrograms} selectedProgramId={selectedMasteryProgId}
+                    onSelectProgram={selection => setMasterySelections(value => ({ ...value, [selectedClientId]: selection }))} masteryData={masteryData}
+                    rangePhrase={scopeWindow.phrase} />;
+                  if (id === 'progress-map') return <div key="progress-map" id="overview-progress-map" className="overview-section-anchor" tabIndex={-1}>
+                    <Suspense fallback={<AnalyticsSkeleton />}>
+                      <ProgressHeatmap key={selectedClientId} programs={scopedPrograms} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE}
+                        weeks={overviewWeeks} programScope={overviewScope.programScope}
+                        onOpen={focus => openTargetFocus({ ...focus, aggregation: 'Weekly' })} />
+                    </Suspense>
+                  </div>;
+                  return null;
+                })}
               </>}
             </section>
           </WorkflowPanel>

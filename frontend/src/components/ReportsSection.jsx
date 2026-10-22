@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import SectionHeader from './ui/SectionHeader';
 import SegmentedControl from './ui/SegmentedControl';
 import EmptyState from './ui/EmptyState';
 import ExportMenu from './ui/ExportMenu';
+import ReportsPreview from './ReportsPreview';
 import { Printer, Download, Filter } from './ui/Icons';
 import { SEED_AS_OF_DATE } from '../data/mockData';
 import { downloadFile } from '../utils/exportUtils';
@@ -33,6 +34,13 @@ export default function ReportsSection({
   const [rosterTo, setRosterTo] = useState('');
   const [preparedBy, setPreparedBy] = useState('');
   const [status, setStatus] = useState('');
+  // After the first generation the parameter panel collapses to a summary row so the
+  // document itself owns the page; the settings stay one labelled action away.
+  const [builderOpen, setBuilderOpen] = useState(true);
+  const [preview, setPreview] = useState(null);
+  const previewRef = useRef(null);
+  const previewHeadingRef = useRef(null);
+  const builderRef = useRef(null);
   const preferences = useMemo(() => readGraphPreferences(client?.id), [client?.id]);
   const asOfDate = SEED_AS_OF_DATE;
 
@@ -59,6 +67,32 @@ export default function ReportsSection({
     const charts = renderReportCharts(reportModel);
     const html = reportHtml(reportModel, { charts });
     return { html, charts };
+  }
+
+  // A stable signature lets the preview say when it no longer matches the settings instead
+  // of silently showing an out-of-date document.
+  const settingsSignature = useMemo(() => JSON.stringify({
+    templateId, range, includeRoster, preparedBy,
+    programs: [...selectedProgramIds].sort(),
+    template: template?.id || ''
+  }), [templateId, range, includeRoster, preparedBy, selectedProgramIds, template]);
+
+  useEffect(() => {
+    if (!preview) return;
+    // Bring the new document into view (the sticky offsets keep it clear of the headers)
+    // and move focus to its heading so keyboard and screen-reader users land on the output.
+    // Jump rather than smooth-scroll: the document is long, and an animated scroll would
+    // leave focus visibly travelling away from the button the reader just pressed.
+    previewRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    previewHeadingRef.current?.focus({ preventScroll: true });
+  }, [preview]);
+
+  function generatePreview() {
+    const { charts } = buildDocument();
+    setPreview({ model: reportModel, charts, signature: settingsSignature, generatedAt: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) });
+    setBuilderOpen(false);
+    setStatus(`Preview ready: ${reportModel.counts.charts} graph${reportModel.counts.charts === 1 ? '' : 's'} across ${reportModel.counts.targets} target${reportModel.counts.targets === 1 ? '' : 's'}.`);
+    // The preview mounts on this update; the effect above moves focus into its heading.
   }
 
   function downloadReport() {
@@ -90,6 +124,15 @@ export default function ReportsSection({
     }, 350);
   }
 
+  function editSettings() {
+    setBuilderOpen(true);
+    requestAnimationFrame(() => {
+      const templateField = document.getElementById('report-template');
+      (templateField || builderRef.current)?.focus?.();
+      builderRef.current?.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
   function downloadRoster() {
     downloadFile(rosterCsv(roster), `Target_roster_${(client?.name || 'client').replace(/[^a-zA-Z0-9]+/g, '_')}_${asOfDate}.csv`, 'text/csv;charset=utf-8;');
     setStatus(`${roster.length} target${roster.length === 1 ? '' : 's'} exported as CSV.`);
@@ -111,6 +154,9 @@ export default function ReportsSection({
   return <section id="reports" className="panel" aria-labelledby="reports-title" tabIndex={-1}>
     <SectionHeader id="reports-title" title="Reports" description="Create a clinical report or review targets by status."
       help="Pick a template and the programs to include. Every graph is drawn from the recorded data in the chosen range, with mastery criteria, phase changes and notes already applied. Download the HTML for an archive copy, or open the print view to save a PDF."
+      primaryAction={<button type="button" className="button button--primary" onClick={generatePreview} disabled={!reportModel.counts.targets}>
+        Generate preview
+      </button>}
       actions={<ExportMenu label="Export reports" onExport={type => { if (type === 'report') downloadReport(); if (type === 'roster') downloadRoster(); }} formats={[
         { id: 'report', label: 'Print-ready report · HTML', disabled: !reportModel.counts.targets },
         { id: 'roster', label: 'Target list · CSV', disabled: !roster.length }
@@ -122,39 +168,47 @@ export default function ReportsSection({
         { value: 'roster', label: `Target roster (${roster.length})` }
       ]} className="report-task-switcher" />
       <div className="reports-layout">
-        <article className="reports-builder" aria-labelledby="report-builder-title" hidden={reportView !== 'builder'}>
-          <h3 id="report-builder-title">Report builder</h3>
-          <div className="control-field"><label htmlFor="report-template">Template</label>
-            <select id="report-template" value={templateId} onChange={event => setTemplateId(event.target.value)}>
-              {REPORT_TEMPLATES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
+        <details className="reports-builder" ref={builderRef} open={builderOpen}
+          onToggle={event => setBuilderOpen(event.currentTarget.open)} hidden={reportView !== 'builder'}>
+          <summary className="reports-builder__summary">
+            <span className="reports-builder__title" id="report-builder-title">Report builder</span>
+            <span className="reports-builder__current">{template.label} · {REPORT_RANGES.find(item => item.value === range)?.label} · {scopedPrograms.length} program{scopedPrograms.length === 1 ? '' : 's'}</span>
+            <span className="reports-builder__hint">{builderOpen ? 'Hide settings' : 'Edit settings'}</span>
+          </summary>
+          <div className="reports-builder__body">
+            <div className="control-field"><label htmlFor="report-template">Template</label>
+              <select id="report-template" value={templateId} onChange={event => setTemplateId(event.target.value)}>
+                {REPORT_TEMPLATES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+            </div>
+            <p className="field-hint">{template.description}</p>
+            <ul className="report-includes">{template.includes.map(item => <li key={item}>{item}</li>)}</ul>
+            <div className="form-row">
+              <div className="control-field"><label htmlFor="report-range">Date range</label>
+                <select id="report-range" value={range} onChange={event => setRange(event.target.value)}>
+                  {REPORT_RANGES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select></div>
+              <div className="control-field"><label htmlFor="report-prepared-by">Prepared by</label>
+                <input id="report-prepared-by" type="text" maxLength={100} value={preparedBy} onChange={event => setPreparedBy(event.target.value)} placeholder={client.supervisingBcba} /></div>
+            </div>
+            <fieldset className="report-scope">
+              <legend>Programs to include</legend>
+              <label className="toggle-control"><input type="checkbox" checked={includeRoster} onChange={event => setIncludeRoster(event.target.checked)} />Include the target list</label>
+              <div className="scope-list">{programs.map(program => <label key={program.id} className="popover-option">
+                <input type="checkbox" checked={selectedProgramIds.has(program.id)} onChange={() => toggleProgram(program.id)} />
+                <span>{program.name}<small className="block text-slate-500">{program.category === 'BehaviorReduction' ? 'Behavior reduction' : 'Skill acquisition'} · {program.targets.length} targets · {program.status}</small></span>
+              </label>)}</div>
+            </fieldset>
+            <p className="field-hint">{reportSummarySentence(reportModel)}</p>
+            {status && <p className="field-hint" role="status">{status}</p>}
+            <div className="form-actions">
+              <button type="button" className="button button--primary" onClick={generatePreview} disabled={!reportModel.counts.targets}>Generate preview</button>
+              <button type="button" className="button button--secondary" onClick={downloadReport} disabled={!reportModel.counts.targets}><Download size={17} aria-hidden="true" />Download report</button>
+              <button type="button" className="button button--tertiary" onClick={printReport} disabled={!reportModel.counts.targets}><Printer size={17} aria-hidden="true" />Open print view</button>
+            </div>
+            <p className="field-hint">Second-observer and supervision records stay with the session in the report narrative and are excluded from every graph total.</p>
           </div>
-          <p className="field-hint">{template.description}</p>
-          <ul className="report-includes">{template.includes.map(item => <li key={item}>{item}</li>)}</ul>
-          <div className="form-row">
-            <div className="control-field"><label htmlFor="report-range">Date range</label>
-              <select id="report-range" value={range} onChange={event => setRange(event.target.value)}>
-                {REPORT_RANGES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select></div>
-            <div className="control-field"><label htmlFor="report-prepared-by">Prepared by</label>
-              <input id="report-prepared-by" type="text" maxLength={100} value={preparedBy} onChange={event => setPreparedBy(event.target.value)} placeholder={client.supervisingBcba} /></div>
-          </div>
-          <fieldset className="report-scope">
-            <legend>Programs to include</legend>
-            <label className="toggle-control"><input type="checkbox" checked={includeRoster} onChange={event => setIncludeRoster(event.target.checked)} />Include the target list</label>
-            <div className="scope-list">{programs.map(program => <label key={program.id} className="popover-option">
-              <input type="checkbox" checked={selectedProgramIds.has(program.id)} onChange={() => toggleProgram(program.id)} />
-              <span>{program.name}<small className="block text-slate-500">{program.category === 'BehaviorReduction' ? 'Behavior reduction' : 'Skill acquisition'} · {program.targets.length} targets · {program.status}</small></span>
-            </label>)}</div>
-          </fieldset>
-          <p className="field-hint">{reportSummarySentence(reportModel)}</p>
-          {status && <p className="field-hint" role="status">{status}</p>}
-          <div className="form-actions">
-            <button type="button" className="button button--secondary" onClick={downloadReport} disabled={!reportModel.counts.targets}><Download size={17} />Download report</button>
-            <button type="button" className="button button--primary" onClick={printReport} disabled={!reportModel.counts.targets}><Printer size={17} />Open print view</button>
-          </div>
-          <p className="field-hint">Second-observer and supervision records stay with the session in the report narrative and are excluded from every graph total.</p>
-        </article>
+        </details>
 
         <article className="reports-roster" aria-labelledby="roster-title" hidden={reportView !== 'roster'}>
           <h3 id="roster-title">Targets by status</h3>
@@ -194,6 +248,10 @@ export default function ReportsSection({
           <p className="field-hint">Acquisition rate is the number of days between introduction and mastery, shown beside the mastery date.</p>
         </article>
       </div>
+      {preview && <ReportsPreview ref={previewRef} headingRef={previewHeadingRef} model={preview.model} charts={preview.charts}
+        stale={preview.signature !== settingsSignature} generatedAt={preview.generatedAt}
+        onDownload={downloadReport} onPrint={printReport} onEditSettings={editSettings} />}
+      {!preview && <p className="field-hint">Choose <strong>Generate preview</strong> to review the document here before downloading or printing it.</p>}
     </div>
   </section>;
 }
