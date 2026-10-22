@@ -326,7 +326,7 @@
 .field-hint { color: var(--muted); font-size: 0.75rem; margin-top: 0.4rem; }
 .field-error { color: var(--color-red-700); font-size: 0.8125rem; margin-top: 0.4rem; }
 .form-error { color: var(--color-red-700); background: var(--color-red-50); padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.8125rem; }
-.form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; padding-top: 1.25rem; margin-top: 0.25rem; border-top: 1px solid var(--line); }
+.form-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.75rem; padding-top: 1.25rem; margin-top: 0.25rem; border-top: 1px solid var(--line); }
 .measurement-inputs { padding: 1rem; background: var(--color-slate-50); border-radius: 0.75rem; display: flex; flex-direction: column; gap: 1rem; border: 0; }
 .measurement-inputs > h3 { font-size: 0.875rem; font-weight: 500; }
 .measurement-preview { font-size: 0.8125rem; color: var(--color-brand-700); font-weight: 500; }
@@ -819,6 +819,8 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
    data columns fit without horizontal scrolling. */
 .reports-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
 .reports-builder { max-width: 52rem; }
+.reports-builder, .reports-roster { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.reports-builder > *, .reports-roster > * { min-width: 0; }
 .reports-builder, .reports-roster { display: grid; gap: 0.9rem; align-content: start; padding: 1.1rem 1.2rem 1.25rem; border: 1px solid var(--line); border-radius: 0.75rem; background: #fff; }
 .reports-builder h3, .reports-roster h3 { font-family: var(--font-display); font-size: 1.0625rem; font-weight: 500; }
 .scope-list { display: grid; gap: 0.35rem; max-height: 15rem; overflow-y: auto; padding: 0.6rem 0.7rem; border: 1px solid var(--line); border-radius: 0.6rem; background: var(--color-slate-50); }
@@ -1447,3 +1449,80 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
   .explorer-head { padding: 0.75rem 1rem; }
   .explorer-groups { max-height: 14rem; }
 }
+
+/* ---------------------------------------------------------------------------
+   Overview module order: a clinician-controlled reading order for the four
+   analytics modules. It is a reorder panel in normal page flow (no drag, no
+   nested scroll), and the section links follow the same order.
+   --------------------------------------------------------------------------- */
+.module-order { margin: 0 0 1rem; padding: 0.15rem 1rem; border: 1px solid var(--line); border-radius: 0.75rem; background: #fff; }
+.module-order > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.75rem; min-height: 2.75rem; align-content: center; font-size: 0.8125rem; }
+.module-order__title { font-weight: 600; }
+.module-order__summary { color: var(--muted); font-size: 0.75rem; overflow-wrap: anywhere; }
+.module-order__body { display: grid; gap: 0.6rem; padding-bottom: 0.9rem; }
+.module-order__body .field-hint { margin: 0; }
+.module-order__list { list-style: none; display: grid; gap: 0.4rem; margin: 0; padding: 0; }
+.module-order__item { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) auto; align-items: center; gap: 0.5rem; padding: 0.3rem 0.5rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--color-slate-50); font-size: 0.8125rem; }
+.module-order__index { color: var(--muted); font-variant-numeric: tabular-nums; }
+.module-order__label { min-width: 0; overflow-wrap: anywhere; }
+.module-order__actions { display: flex; gap: 0.25rem; }
+.module-order__footer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.module-order__footer .field-hint { margin: 0; }
+
+/* ---------------------------------------------------------------------------
+   Reports: the builder collapses to a settings summary once a preview exists,
+   and the generated document is reviewed in-page with a focusable heading.
+   --------------------------------------------------------------------------- */
+.reports-builder > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.75rem; min-height: 2.75rem; align-content: center; }
+.reports-builder__title { font-family: var(--font-display); font-size: 1.0625rem; font-weight: 500; }
+.reports-builder__current { flex: 1 1 12rem; min-width: 0; color: var(--muted); font-size: 0.75rem; overflow-wrap: anywhere; }
+.reports-builder__hint { color: var(--color-brand-700); font-size: 0.75rem; font-weight: 600; }
+.reports-builder__body { display: grid; gap: 0.9rem; padding-top: 0.35rem; }
+.reports-builder[open] { padding-bottom: 1.25rem; }
+
+.report-preview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; margin-top: 1.25rem; padding: 1.1rem 1.2rem 1.25rem; border: 1px solid var(--line); border-radius: 0.75rem; background: #fff; }
+.report-preview:focus { outline: none; }
+.report-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.report-preview__bar { display: grid; gap: 0.45rem; }
+.report-preview__bar .field-hint { margin: 0; }
+.report-preview__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.report-preview__head { display: grid; gap: 0.35rem; }
+.report-preview__head h3 { font-family: var(--font-display); font-size: 1.25rem; font-weight: 500; }
+.report-preview__head h3:focus { outline: none; }
+.report-preview__subtitle { color: var(--muted); font-size: 0.8125rem; }
+.report-preview__meta { display: flex; flex-wrap: wrap; gap: 0.6rem 1.5rem; margin: 0.25rem 0 0; }
+.report-preview__meta dt { color: var(--muted); font-size: 0.6875rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.report-preview__meta dd { margin: 0.1rem 0 0; font-size: 0.8125rem; font-weight: 600; }
+.report-preview__section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; padding-top: 0.85rem; border-top: 1px solid var(--line); }
+/* Tables keep their own scroll region: the grid column must not inherit the table's
+   min-content width, or a phone viewport widens to fit every column at once. */
+.report-preview > *, .report-preview__section > *, .report-preview__table { min-width: 0; }
+.report-preview__section h4 { font-family: var(--font-display); font-size: 1rem; font-weight: 500; }
+.report-preview__section h5 { font-size: 0.8125rem; font-weight: 600; }
+.report-preview__section ul { display: grid; gap: 0.2rem; padding-left: 1.15rem; font-size: 0.8125rem; }
+.report-preview__table .data-table { min-width: 34rem; }
+.report-preview__narrative p { padding: 0.5rem 0.65rem; border-left: 3px solid var(--color-brand-400); background: var(--color-slate-50); font-size: 0.8125rem; }
+/* One graph per row at its natural scale: a 21rem column would shrink 9px axis labels to
+   roughly 4px, so the preview keeps the graphs readable instead of fitting more per row. */
+.report-preview__charts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+.report-preview__chart-scroll { overflow-x: auto; overscroll-behavior-x: contain; border-radius: 0.4rem; }
+.report-preview__chart-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.report-preview__chart-hint { display: none; color: var(--muted); font-size: 0.6875rem; }
+
+.report-preview__chart { display: grid; gap: 0.4rem; margin: 0; padding: 0.6rem; border: 1px solid var(--line); border-radius: 0.6rem; }
+.report-preview__chart img { display: block; width: 100%; max-width: 60rem; height: auto; }
+@media (max-width: 899px) {
+  /* Too narrow to scale a graph without losing its 9px axis labels: keep the drawn size
+     larger than the column and scroll inside the named region, rather than shrinking the
+     graph or widening the page. */
+  .report-preview__chart img { width: 40rem; max-width: none; }
+  .report-preview__chart-hint { display: block; }
+}
+.report-preview__chart figcaption { display: grid; gap: 0.1rem; font-size: 0.8125rem; }
+.report-preview__chart figcaption span { color: var(--muted); font-size: 0.75rem; }
+.report-preview__footer { display: grid; gap: 0.25rem; padding-top: 0.6rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.75rem; }
+
+/* The document is long, so the same three actions are repeated at its end. Deliberately
+   not sticky: the app already has a sticky header and tab bar, and a third sticky band
+   would collide with them at zoom and on short screens. */
+.report-preview__footer-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; padding-top: 0.35rem; }

@@ -603,15 +603,13 @@ export default function ClientSpecificSection({
   return <section id="target-analysis" className="panel" aria-labelledby="target-analysis-title" tabIndex={-1}>
     <SectionHeader id="target-analysis-title" title="Target analysis" description="Review target trends, session data, and clinical context."
       help="Measured zero is different from data that was not tracked. Graphing filters can suppress low-trial or short observations; the chart states when anything is hidden. Insights support—not replace—clinical visual analysis."
-      actions={<>
-        <ExportMenu label="Export targets" onExport={handleExport} formats={[
-          { id: 'svg', label: 'Vector chart · SVG', disabled: !hasChart },
-          { id: 'png', label: 'Chart image · PNG', disabled: !hasChart },
-          { id: 'raw-csv', label: 'Raw observations · CSV', disabled: !tabTargets.length },
-          { id: 'zip', label: 'All client targets · ZIP' }
-        ]} />
-        <button type="button" className="icon-button icon-button--bordered" onClick={onRefresh} aria-label="Refresh target analysis"><RotateCw size={19} /></button>
-      </>} />
+      actions={<ExportMenu label="Export targets" onExport={handleExport} formats={[
+        { id: 'svg', label: 'Vector chart · SVG', disabled: !hasChart },
+        { id: 'png', label: 'Chart image · PNG', disabled: !hasChart },
+        { id: 'raw-csv', label: 'Raw observations · CSV', disabled: !tabTargets.length },
+        { id: 'zip', label: 'All client targets · ZIP' }
+      ]} />}
+      overflowActions={[{ label: 'Refresh target analysis', icon: RotateCw, onClick: onRefresh }]} />
 
     {!canEdit && <p className="view-only-notice explorer-view-notice" role="status">{viewOnlyReason || 'View-only analytics access: graphs, tables and exports are available; changes are disabled.'}</p>}
 
@@ -755,9 +753,9 @@ export default function ClientSpecificSection({
               <fieldset className="chart-settings__group">
                 <legend>Vertical axis · {describeAxisBounds(axisBounds)}</legend>
                 <div className="axis-fields">
-                  <label htmlFor="axis-min">Minimum</label>
+                  <label htmlFor="axis-min">Y-axis minimum</label>
                   <input id="axis-min" type="number" step="any" inputMode="decimal" placeholder="Auto" disabled={!canEdit} value={axisDraft.min} onChange={event => applyAxis({ ...axisDraft, min: event.target.value })} />
-                  <label htmlFor="axis-max">Maximum</label>
+                  <label htmlFor="axis-max">Y-axis maximum</label>
                   <input id="axis-max" type="number" step="any" inputMode="decimal" placeholder="Auto" disabled={!canEdit} value={axisDraft.max} onChange={event => applyAxis({ ...axisDraft, max: event.target.value })} />
                 </div>
                 {axisError && <p className="field-error" role="alert">{axisError}</p>}

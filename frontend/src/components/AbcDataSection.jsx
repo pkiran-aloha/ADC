@@ -132,14 +132,12 @@ export default function AbcDataSection({
   return <section id="abc-observations" className="panel" aria-labelledby="abc-title" tabIndex={-1}>
     <SectionHeader id="abc-title" title="ABC observations" description="Browse observations, the event log, and descriptive patterns."
       help="ABC stands for antecedent, behavior, and consequence. Location and setting events add context. These records describe what was observed; they don’t establish why a behavior occurred—confirm hypotheses with a functional analysis."
-      actions={<>
-        <ExportMenu label="Export ABC" disabled={!filteredEntries.length} onExport={handleExport} formats={[
-          { id: 'csv', label: 'Observation log · CSV' },
-          { id: 'svg', label: 'Vector chart · SVG', disabled: viewMode === 'Data' || analysisMode !== 'Timeline' },
-          { id: 'png', label: 'Chart image · PNG', disabled: viewMode === 'Data' || analysisMode !== 'Timeline' }
-        ]} />
-        <button type="button" className="icon-button icon-button--bordered" onClick={onRefresh} aria-label="Refresh ABC observations"><RotateCw size={19} /></button>
-      </>} />
+      actions={<ExportMenu label="Export ABC" disabled={!filteredEntries.length} onExport={handleExport} formats={[
+        { id: 'csv', label: 'Observation log · CSV' },
+        { id: 'svg', label: 'Vector chart · SVG', disabled: viewMode === 'Data' || analysisMode !== 'Timeline' },
+        { id: 'png', label: 'Chart image · PNG', disabled: viewMode === 'Data' || analysisMode !== 'Timeline' }
+      ]} />}
+      overflowActions={[{ label: 'Refresh ABC observations', icon: RotateCw, onClick: onRefresh }]} />
     <div className="analysis-filters">
       <SegmentedControl label="ABC analysis" value={analysisMode} onChange={setAnalysisMode} options={[
         { value: 'Timeline', label: 'Timeline' }, { value: 'Patterns', label: 'Patterns' }, { value: 'Forecast', label: 'Forecast' }

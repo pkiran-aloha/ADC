@@ -1,7 +1,13 @@
 import Popover from './Popover';
-import { HelpCircle } from './Icons';
+import { HelpCircle, Ellipsis } from './Icons';
 
-export default function SectionHeader({ id, title, description, help, actions }) {
+// Shared page header. The pattern is deliberately narrow: title, one-line purpose, one
+// primary action, and an overflow for secondary actions. Anything else competes with the
+// work below it. `actions` stays available for the sections that already pass a custom row
+// (exports with their own progress/error states); `overflowActions` collects the rest.
+export default function SectionHeader({
+  id, title, description, help, actions, primaryAction, overflowActions = [], overflowLabel = 'More actions'
+}) {
   return <header className="panel-header">
     <div className="panel-heading">
       <div className="panel-title-row">
@@ -12,6 +18,21 @@ export default function SectionHeader({ id, title, description, help, actions })
       </div>
       <p>{description}</p>
     </div>
-    {actions && <div className="panel-actions">{actions}</div>}
+    {(primaryAction || actions || overflowActions.length > 0) && <div className="panel-actions">
+      {primaryAction}
+      {actions}
+      {overflowActions.length > 0 && <Popover label={overflowLabel} icon={Ellipsis} compact className="overflow-popover">
+        {({ close }) => overflowActions.map(action => {
+          const Icon = action.icon;
+          return <button key={action.label} type="button" className="popover-option"
+            disabled={action.disabled} onClick={() => {
+              close(true);
+              action.onClick?.();
+            }}>
+            {Icon && <Icon size={18} aria-hidden="true" />}<span>{action.label}</span>
+          </button>;
+        })}
+      </Popover>}
+    </div>}
   </header>;
 }
