@@ -216,15 +216,35 @@ export default function ClientSpecificSection({
   }
 
   function applyExplorerTarget(entry) {
-    resetView(false);
-    const next = selectExplorerTarget(entry, programs);
-    setActiveCategoryTab(next.category);
-    if (next.selectedProgramId !== undefined) setSelectedProgramId(next.selectedProgramId);
-    if (next.selectedBehaviorIds) setSelectedBehaviorIds(next.selectedBehaviorIds);
-    setActiveTargetType(next.requestedTargetType);
-    setHiddenTargetIds(next.hiddenTargetIds);
-    setAnalysisTargetId(next.analysisTargetId);
-    setAnnotationTargetId(next.annotationTargetId);
+    if (entry.category === 'BehaviorReduction') {
+      resetView(false);
+      const next = selectExplorerTarget(entry, programs);
+      setActiveCategoryTab(next.category);
+      setSelectedBehaviorIds(next.selectedBehaviorIds);
+      setHiddenTargetIds(next.hiddenTargetIds);
+    }
+    if (entry.targetId !== analysisTargetId) {
+      setSelectedKey(null);
+      setZoom(null);
+    }
+    setActiveTargetType(entry.measurementType);
+    setAnalysisTargetId(entry.targetId);
+    setAnnotationTargetId(entry.targetId);
+  }
+
+  function setTargetsIncluded(entries, included) {
+    if (!entries.length) return;
+    setHiddenTargetIds(previous => {
+      const next = new Set(previous);
+      for (const entry of entries) {
+        if (included) next.delete(entry.targetId);
+        else next.add(entry.targetId);
+      }
+      return next;
+    });
+    setActiveTargetType(entries[0].measurementType);
+    setSelectedKey(null);
+    setZoom(null);
   }
 
   function applyExplorerProgram(group) {
@@ -336,7 +356,7 @@ export default function ClientSpecificSection({
 
   // ---------------- Analysis target, overlays and visual analysis ----------------
   const analysisTarget = tabTargets.find(target => target.id === analysisTargetId) || tabTargets[0] || null;
-  const focusedTarget = analysisTarget || activeTargets[0] || null;
+  const focusedTarget = analysisTarget || null;
   const focusedEntry = useMemo(
     () => explorerCatalog.items.find(item => item.targetId === focusedTarget?.id) || null,
     [explorerCatalog.items, focusedTarget]
@@ -629,6 +649,7 @@ export default function ClientSpecificSection({
       onSelectBehaviorPreset={ids => { setSelectedBehaviorIds(ids); resetView(); }}
       onSelectProgramGroup={applyExplorerProgram}
       onSelectTargetItem={applyExplorerTarget}
+      onSetTargetsIncluded={setTargetsIncluded}
       insights={insights}
       focusedEntry={focusedEntry}
       annotationTarget={annotationTarget}
@@ -657,27 +678,10 @@ export default function ClientSpecificSection({
           <select id="target-date-range" value={durationFilter} onChange={event => { setDurationFilter(event.target.value); setSelectedKey(null); setZoom(null); }}>
             {['3 days', '5 days', '7 days', '2 weeks', '1 month', '3 months', '6 months', '1 year', '2 years'].map(value => <option key={value} value={value}>{value}</option>)}
           </select>
-          {availableTargetTypes.length > 0 && viewOptions && <SegmentedControl label="Chart view" value={shownChartView} onChange={value => { setChartView(value); setSelectedKey(null); }} options={viewOptions} className="chart-view-control" />}
           {availableTargetTypes.length > 0 && activeTargetType !== 'Anecdotal' && <><label htmlFor="target-grouping">Group by</label><select id="target-grouping" value={aggregation} onChange={event => { setAggregation(event.target.value); setSessionPage(1); setSelectedKey(null); setZoom(null); }}>
             {['Per Day', 'Per Session', 'Weekly', 'Monthly'].map(value => <option key={value} value={value}>{value === 'Per Day' ? 'Day' : value === 'Per Session' ? 'Session' : value}</option>)}
           </select></>}
-          {availableTargetTypes.length > 0 && activeTargetType !== 'Anecdotal' && <><label htmlFor="target-chart-type">Plot</label><select id="target-chart-type" value={shownChartType} onChange={event => { setChartType(event.target.value); setSelectedKey(null); }}>
-            {CHART_TYPES.map(option => <option key={option.value} value={option.value} disabled={option.value === 'cumulative' && percentType}>{option.label}{option.value === 'cumulative' && percentType ? ' · counts only' : ''}</option>)}
-          </select></>}
-          {activeTargetType === 'Duration' && <select aria-label="Duration measure" value={durationView} onChange={event => setDurationView(event.target.value)}>
-            <option value="Total Duration">Total duration</option><option value="Total Count">Occurrence count</option><option value="Average Duration">Average duration</option>
-          </select>}
-          {activeTargetType === 'FluencyRate' && <select aria-label="Fluency rate measure" value={rateView} onChange={event => setRateView(event.target.value)}>
-            <option value="Rate per Day">{aggregation === 'Per Day' ? 'Occurrences per day' : 'Occurrence count'}</option><option value="Rate per Minute">Rate per minute</option><option value="Rate per Hour">Rate per hour</option>
-          </select>}
-          {activeTargetType === 'Frequency' && <select aria-label="Frequency measure" value={frequencyView} onChange={event => setFrequencyView(event.target.value)}>
-            <option value="Raw Frequency">Occurrence count</option><option value="Rate per Minute">Rate per minute</option><option value="Rate per Hour">Rate per hour</option>
-          </select>}
-          {availableTargetTypes.length > 0 && activeTargetType !== 'Anecdotal' && tabTargets.length > 1 && <><label htmlFor="summary-mode">Summary</label>
-            <select id="summary-mode" value={summaryMode} onChange={event => updatePreferences({ summaryMode: event.target.value })}>
-              {availableSummaryModes(activeTargetType).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select></>}
-          {activeCategoryTab === 'Behavior' && <label className="toggle-control"><input type="checkbox" checked={behaviorZeroOut} onChange={event => setBehaviorZeroOut(event.target.checked)} />Include measured zeros</label>}
+
         </div>
       </div>
 
@@ -691,16 +695,39 @@ export default function ClientSpecificSection({
           : <p className="chart-title-static">{chartTitle}</p>}
         <div className="chart-options">
           <button type="button" className="button button--tertiary" disabled={!canEdit} onClick={() => onManualEntryClick?.(activeTargets[0])}>Add data point</button>
+          <details className="chart-settings">
+            <summary><span className="chart-settings__title"><Settings2 size={16} aria-hidden="true" />Chart settings</span>
+              <span className="chart-settings__summary">{enabledFunctions + Number(showAverageLine) + Number(showTrendLine)} active overlays · {describeAxisBounds(axisBounds)}</span>
+            </summary>
+            <div className="chart-settings__body">
+              <fieldset className="chart-settings__group"><legend>View & comparison</legend>
+                <div className="chart-settings__fields">
+          {availableTargetTypes.length > 0 && viewOptions && <SegmentedControl label="Chart view" value={shownChartView} onChange={value => { setChartView(value); setSelectedKey(null); }} options={viewOptions} className="chart-view-control" />}
+          {availableTargetTypes.length > 0 && activeTargetType !== 'Anecdotal' && <div className="control-field"><label htmlFor="target-chart-type">Plot</label><select id="target-chart-type" value={shownChartType} onChange={event => { setChartType(event.target.value); setSelectedKey(null); }}>
+            {CHART_TYPES.map(option => <option key={option.value} value={option.value} disabled={option.value === 'cumulative' && percentType}>{option.label}{option.value === 'cumulative' && percentType ? ' · counts only' : ''}</option>)}
+          </select></div>}
+          {activeTargetType === 'Duration' && <select aria-label="Duration measure" value={durationView} onChange={event => setDurationView(event.target.value)}>
+            <option value="Total Duration">Total duration</option><option value="Total Count">Occurrence count</option><option value="Average Duration">Average duration</option>
+          </select>}
+          {activeTargetType === 'FluencyRate' && <select aria-label="Fluency rate measure" value={rateView} onChange={event => setRateView(event.target.value)}>
+            <option value="Rate per Day">{aggregation === 'Per Day' ? 'Occurrences per day' : 'Occurrence count'}</option><option value="Rate per Minute">Rate per minute</option><option value="Rate per Hour">Rate per hour</option>
+          </select>}
+          {activeTargetType === 'Frequency' && <select aria-label="Frequency measure" value={frequencyView} onChange={event => setFrequencyView(event.target.value)}>
+            <option value="Raw Frequency">Occurrence count</option><option value="Rate per Minute">Rate per minute</option><option value="Rate per Hour">Rate per hour</option>
+          </select>}
+          {availableTargetTypes.length > 0 && activeTargetType !== 'Anecdotal' && tabTargets.length > 1 && <div className="control-field"><label htmlFor="summary-mode">Summary</label>
+            <select id="summary-mode" value={summaryMode} onChange={event => updatePreferences({ summaryMode: event.target.value })}>
+              {availableSummaryModes(activeTargetType).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select></div>}
+          {activeCategoryTab === 'Behavior' && <label className="toggle-control"><input type="checkbox" checked={behaviorZeroOut} onChange={event => setBehaviorZeroOut(event.target.checked)} />Include measured zeros</label>}</div></fieldset>
+              <fieldset className="chart-settings__group"><legend>Trend & average</legend>
+                <div className="chart-settings__toggles">
           <label className="toggle-control"><input type="checkbox" checked={showAverageLine} disabled={averageValue === null || !canEdit} onChange={event => setShowAverageLine(event.target.checked)} />Average</label>
           <label className="toggle-control"><input type="checkbox" checked={showTrendLine} disabled={!trendlinePoints || !canEdit} onChange={event => setShowTrendLine(event.target.checked)} /><TrendingUp size={15} />Trend</label>
           {showTrendLine && <select aria-label="Trend calculation" className="toggle-control" disabled={!canEdit} value={trendMethod} onChange={event => setTrendMethod(event.target.value)}>
             <option value="regression">Linear regression</option><option value="directional">First-to-last direction</option><option value="split-middle">Split-middle (line of progress)</option>
           </select>}
-          <details className="chart-settings">
-            <summary><span className="chart-settings__title"><Settings2 size={16} aria-hidden="true" />Chart settings</span>
-              <span className="chart-settings__summary">{enabledFunctions} overlay{enabledFunctions === 1 ? '' : 's'} · {describeAxisBounds(axisBounds)}</span>
-            </summary>
-            <div className="chart-settings__body">
+</div></fieldset>
               <fieldset className="chart-settings__group">
                 <legend>Graph display</legend>
                 <div className="chart-settings__toggles">
@@ -768,7 +795,7 @@ export default function ClientSpecificSection({
       </div>}
 
       <div className="panel-body">
-        {activeTargets.length === 0 ? <EmptyState title={activeCategoryTab === 'Behavior' ? 'Choose a behavior to compare.' : 'Choose a program to begin.'} description="Select a target or program from the explorer list to plot its observations." />
+        {activeTargets.length > 0 && activeTargetType && tabTargets.length === 0 ? <EmptyState title="No targets plotted" description="Enable targets in the selected measurement group to compare their observations." action={{ label: 'Show targets', onClick: () => setTargetsIncluded(activeTargets.filter(target => target.type === activeTargetType).map(target => ({ targetId: target.id, measurementType: target.type })), true) }} /> : activeTargets.length === 0 ? <EmptyState title={activeCategoryTab === 'Behavior' ? 'Choose a behavior to compare.' : 'Choose a program to begin.'} description="Select a target or program from the explorer list to plot its observations." />
           : availableTargetTypes.length === 0 ? <EmptyState title="No observations for this program yet." description="Record a fictional observation to begin its timeline. Program definitions are visible in the clinical context rail." action={{ label: 'Record an observation', onClick: () => onRecordClick(activeTargets[0]) }} />
             : activeTargetType === 'Anecdotal' ? <AnecdotalTableView key={selectedProgramId} targets={activeTargets.filter(target => target.type === 'Anecdotal' && visibleTargetIds.has(target.id))}
               sessions={filteredSessions.filter(session => session.qualitativeEntry && visibleTargetIds.has(session.targetId))} />

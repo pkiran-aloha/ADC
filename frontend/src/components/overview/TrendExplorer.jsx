@@ -29,6 +29,7 @@ export default function TrendExplorer({
   onSelectBehaviorPreset,
   onSelectProgramGroup,
   onSelectTargetItem,
+  onSetTargetsIncluded,
   insights = [],
   focusedEntry = null,
   annotationTarget = null,
@@ -50,14 +51,19 @@ export default function TrendExplorer({
   children
 }) {
   const [query, setQuery] = useState('');
-  const [listScope, setListScope] = useState('All');
+  const listScope = selection.activeCategoryTab;
+  const [searchProgram, setSearchProgram] = useState(selection.selectedProgramId);
+  if (searchProgram !== selection.selectedProgramId) {
+    setSearchProgram(selection.selectedProgramId);
+    setQuery('');
+  }
+  const [expandedChart, setExpandedChart] = useState(false);
+  const [showContext, setShowContext] = useState(false);
   const itemRefs = useRef([]);
-  const targetListRef = useRef(null);
   const contextTabRefs = useRef([]);
   const [contextTab, setContextTab] = useState('context');
 
   const categoryOptions = useMemo(() => ([
-    { value: 'All', label: 'All', accessibleLabel: 'All categories' },
     { value: 'SkillAcquisition', label: 'Skills', accessibleLabel: 'Skill acquisition' },
     {
       value: 'Behavior',
@@ -67,8 +73,8 @@ export default function TrendExplorer({
   ]), [allBehaviors.length]);
 
   const filteredGroups = useMemo(
-    () => filterExplorerGroups(catalog.groups, { query, category: listScope }),
-    [catalog.groups, query, listScope]
+    () => filterExplorerGroups(catalog.groups.filter(group => listScope !== 'SkillAcquisition' || group.id === selection.selectedProgramId), { query, category: listScope }),
+    [catalog.groups, query, listScope, selection.selectedProgramId]
   );
 
   const flatTargets = useMemo(
@@ -82,7 +88,7 @@ export default function TrendExplorer({
   );
 
   function handleCategorySwitch(nextScope) {
-    setListScope(nextScope);
+    setQuery('');
     if (nextScope === 'SkillAcquisition' || nextScope === 'Behavior') {
       onSelectCategory(nextScope);
     }
@@ -116,7 +122,11 @@ export default function TrendExplorer({
   let runningIndex = 0;
 
   return (
-    <div className="trend-explorer">
+    <div className={`trend-explorer${expandedChart ? ' trend-explorer--expanded' : ''}${showContext ? ' trend-explorer--context' : ''}`}>
+      <div className="explorer-layout-controls">
+        <button type="button" className="button button--secondary" aria-pressed={expandedChart} onClick={() => setExpandedChart(value => !value)}>{expandedChart ? 'Restore target pane' : 'Expand chart'}</button>
+        <button type="button" className="button button--secondary" aria-expanded={showContext && !expandedChart} onClick={() => { setExpandedChart(false); setShowContext(value => !value); }}>{showContext ? 'Hide context' : 'Show context & annotations'}</button>
+      </div>
       <nav className="trend-explorer__list" aria-label="Target explorer">
         <div className="explorer-head">
           <div className="explorer-current-scope">
@@ -125,11 +135,10 @@ export default function TrendExplorer({
               ? `Behavior reduction · ${selection.selectedBehaviorIds.length} selected`
               : `Skill acquisition · ${skillPrograms.find(program => program.id === selection.selectedProgramId)?.name || 'Choose a program'}`}</strong>
             {activeTarget && <span className="explorer-current-scope__focus">Analysis focus · {activeTarget.name}</span>}
-            <details className="explorer-change-selection">
-              <summary>Change selection</summary>
+            <div className="explorer-change-selection">
               <div className="explorer-selection-controls">
                 <div className="explorer-search">
-            <label htmlFor="explorer-search">Search targets or programs</label>
+            <label htmlFor="explorer-search">{listScope === 'SkillAcquisition' ? 'Search targets in this program' : 'Search targets or programs'}</label>
             <div className="explorer-search__input">
               <Search size={16} aria-hidden="true" />
               <input
@@ -218,11 +227,11 @@ export default function TrendExplorer({
 
                 <p className="explorer-count" role="status" aria-live="polite">{summary}</p>
               </div>
-            </details>
+            </div>
           </div>
         </div>
 
-        <details className="explorer-target-list" ref={targetListRef}>
+        <details className="explorer-target-list" open>
           <summary>Browse targets <span>· {flatTargets.length} target{flatTargets.length === 1 ? '' : 's'}</span></summary>
           <div className="explorer-groups">
           {filteredGroups.length === 0 ? (
@@ -231,7 +240,7 @@ export default function TrendExplorer({
               <button
                 type="button"
                 className="button button--secondary"
-                onClick={() => { setQuery(''); setListScope('All'); }}
+                onClick={() => setQuery('')}
               >
                 Reset search
               </button>
@@ -254,8 +263,20 @@ export default function TrendExplorer({
                       : group.progressLabel}
                   </small>
                 </button>
-                <ul className="explorer-targets">
-                  {group.targets.map(entry => {
+                {Object.entries(Object.groupBy(group.targets, entry => entry.measurementType)).map(([type, entries]) => {
+                  const included = entries.filter(entry => selection.visibleTargetIds.has(entry.targetId));
+                  const skill = listScope === 'SkillAcquisition';
+                  return <section className="explorer-measurement-group" key={type} aria-label={`${MEASUREMENT_LABELS[type]} targets`}>
+                    <h4>{MEASUREMENT_LABELS[type]}</h4>
+                    {skill && <div className="explorer-group-actions">
+                      <label><input type="checkbox" aria-label={`Plot all ${MEASUREMENT_LABELS[type]} targets`} checked={included.length === entries.length}
+                        ref={node => { if (node) node.indeterminate = included.length > 0 && included.length < entries.length; }}
+                        onChange={event => onSetTargetsIncluded(entries, event.target.checked)} /> {included.length}/{entries.length} enabled</label>
+                      <button type="button" onClick={() => onSetTargetsIncluded(entries, true)}>Show all</button>
+                      <button type="button" onClick={() => onSetTargetsIncluded(entries, false)}>Hide all</button>
+                    </div>}
+                    <ul className="explorer-targets">
+                  {entries.map(entry => {
                     const currentFlatIndex = runningIndex;
                     runningIndex += 1;
                     const { plotted, focused } = isExplorerTargetSelected(entry, selection);
@@ -264,20 +285,15 @@ export default function TrendExplorer({
                       ? `, ${entry.flags.map(flag => flag.label).join('; ')}`
                       : '';
                     return (
-                      <li key={entry.targetId}>
+                      <li key={entry.targetId} className="explorer-target-row">
+                        {skill && <input type="checkbox" aria-label={`Plot ${entry.targetName}`} checked={selection.visibleTargetIds.has(entry.targetId)} onChange={event => onSetTargetsIncluded([entry], event.target.checked)} /> }
                         <button
                           type="button"
                           ref={element => { itemRefs.current[currentFlatIndex] = element; }}
                           className={`explorer-target${focused ? ' explorer-target--active' : plotted ? ' explorer-target--plotted' : ''}`}
                           aria-current={focused ? 'true' : undefined}
                           aria-label={`${entry.targetName}, ${group.name}, ${entry.phaseLabel}, ${entry.deltaLabel} (${entry.statusText})${reasonText}`}
-                            onClick={() => {
-                              onSelectTargetItem(entry);
-                              if (targetListRef.current) {
-                                targetListRef.current.open = false;
-                                requestAnimationFrame(() => targetListRef.current?.querySelector('summary')?.focus());
-                              }
-                            }}
+                          onClick={() => onSelectTargetItem(entry)}
                           onKeyDown={event => onItemKeyDown(event, currentFlatIndex)}
                         >
                           <span className="explorer-target__row">
@@ -292,7 +308,8 @@ export default function TrendExplorer({
                       </li>
                     );
                   })}
-                </ul>
+                </ul></section>;
+                })}
               </div>
             );
           })}
