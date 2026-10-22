@@ -577,3 +577,36 @@ button.heat-cell:focus-visible { outline: 2px solid var(--accent); outline-offse
   .chart-insight { grid-template-columns: minmax(0, 1fr); }
   .chart-insight .button { justify-self: start; }
 }
+
+/* Target workspace: browsing persists; the chart gets the available width. */
+.shell-layout:has(#workflow-panel-target-analysis:not([hidden])) { max-width: none; }
+.app-main:has(#workflow-panel-target-analysis:not([hidden])) { padding-inline: clamp(0.75rem, 1.5vw, 2rem); }
+.workspace-content:has(#workflow-panel-target-analysis:not([hidden])) { max-width: none; }
+.trend-explorer { grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr); }
+.explorer-layout-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; padding: 0.65rem 1rem; border-bottom: 1px solid var(--line); }
+.trend-explorer:not(.trend-explorer--context) > .trend-explorer__rail { display: none; }
+.trend-explorer--context > .trend-explorer__rail { grid-column: 1 / -1; border-top: 1px solid var(--line); }
+.trend-explorer--expanded { grid-template-columns: minmax(0, 1fr); }
+.trend-explorer--expanded > .trend-explorer__list,
+.trend-explorer--expanded > .trend-explorer__rail { display: none; }
+.explorer-target-list .explorer-groups { max-height: min(65dvh, 46rem); overflow-y: auto; overscroll-behavior: contain; }
+.explorer-target-row { display: flex; gap: 0.4rem; align-items: center; }
+.explorer-target-row > input { flex: 0 0 auto; width: 1.1rem; height: 1.1rem; margin: 0.25rem; }
+.explorer-target-row > button { flex: 1; min-width: 0; }
+.explorer-measurement-group { margin-top: 0.8rem; }
+.explorer-measurement-group h4 { font-size: 0.8rem; margin-bottom: 0.4rem; }
+.explorer-group-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 0.7rem; color: var(--muted); }
+.explorer-group-actions button { min-height: 2.75rem; color: var(--accent); text-decoration: underline; }
+.measurement-toolbar { display: grid; gap: 0.75rem; }
+.measurement-toolbar .view-controls { display: grid; grid-template-columns: auto minmax(7rem, 12rem) auto minmax(7rem, 12rem); align-items: center; justify-content: start; gap: 0.5rem 0.75rem; }
+.chart-toolbar { align-items: start; gap: 0.75rem; }
+.chart-options { display: flex; flex-wrap: wrap; align-items: start; gap: 0.75rem; }
+.chart-settings__fields { align-items: center; }
+@media (max-width: 899px) {
+  .trend-explorer { grid-template-columns: minmax(0, 1fr); }
+  .explorer-target-list .explorer-groups { max-height: 18rem; }
+}
+@media (max-width: 639px) {
+  .measurement-toolbar .view-controls { grid-template-columns: auto minmax(0, 1fr); }
+  .chart-options { width: 100%; }
+}

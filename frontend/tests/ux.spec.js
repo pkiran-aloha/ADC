@@ -6,7 +6,6 @@ import buildTargetHealth from '../src/utils/targetHealth.js';
 import { buildInterventionTimeline } from '../src/utils/interventionTimeline.js';
 import { durationFilterForDate, weekCountFor } from '../src/utils/analyticsScope.js';
 import { ALL_PROGRAMS_ID, cumulativeMasterySeries } from '../src/utils/targetAnalytics.js';
-import { buildExplorerCatalog } from '../src/utils/trendExplorer.js';
 
 const read = promisify(readFile);
 const seed = JSON.parse(readFileSync(new URL('../../data/clinicalSeed.json', import.meta.url), 'utf8'));
@@ -63,21 +62,15 @@ async function download(page, trigger, option) {
   return { name: file.suggestedFilename(), bytes: await read(await file.path()) };
 }
 async function openTargetSelection(page) {
-  const disclosure = page.locator('#target-analysis details.explorer-change-selection');
-  if (!(await disclosure.evaluate(element => element.open))) await disclosure.locator('summary').click();
+  await expect(page.locator('#target-program, .explorer-behavior-picker').first()).toBeVisible();
 }
 async function selectProgram(page, programId) {
   await openTargetSelection(page);
   await page.locator('#target-program').selectOption(programId);
 }
-// The target list collapses itself after a selection, so a test that needs it open must
-// say so rather than assume the previous click left it expanded.
-async function openBrowseTargets(page) {
-  const browse = page.locator('#target-analysis .explorer-target-list');
-  if (!(await browse.evaluate(element => element.open))) await browse.locator('summary').click();
-  return browse;
-}
 async function openAnnotations(page) {
+  const show = page.getByRole('button', { name: 'Show context & annotations', exact: true });
+  if (await show.isVisible()) await show.click();
   await page.getByRole('tab', { name: 'Annotations', exact: true }).click();
 }
 async function record(page, target) {
@@ -1376,82 +1369,50 @@ test('skill mastery aggregates all programs by default and follows the shared ra
   await accessible(page);
 });
 
-test('trend explorer keeps scope visible, makes target browsing compact and organizes context in tabs', async ({ page }) => {
+test('skill explorer scopes programs, compares compatible targets and preserves browsing', async ({ page }) => {
   await open(page, 'Target analysis');
-  const catalog = buildExplorerCatalog({ programs, sessions: clientSessions, asOfDate: seed.asOfDate });
   const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
-  const rail = page.getByRole('complementary', { name: 'Target context, annotations and details', exact: true });
   const browse = nav.locator('.explorer-target-list');
-
-  await expect(nav.getByText('Current selection', { exact: true })).toBeVisible();
-  await expect(nav.locator('.explorer-current-scope__focus')).toBeVisible();
-  await expect(browse.locator('summary')).toContainText('Browse targets');
-  await expect(browse).not.toHaveAttribute('open', '');
-  await expect(page.locator('.trend-explorer__center svg.chart-svg')).toBeVisible();
-  await openBrowseTargets(page);
-  await expect(nav.locator('.explorer-group')).toHaveCount(catalog.counts.programs);
-  await expect(nav.locator('.explorer-target')).toHaveCount(catalog.counts.targets);
-
-  // Context and decision details are organized around the graph; the right rail stays concise.
-  await expect(rail.getByRole('heading', { name: 'Clinical context', exact: true })).toBeVisible();
-  await rail.getByRole('tab', { name: 'Annotations', exact: true }).click();
-  await expect(rail.getByRole('heading', { name: 'Annotations', exact: true })).toBeVisible();
-  await rail.getByRole('tab', { name: 'Target details', exact: true }).click();
-  await expect(rail.getByRole('heading', { name: 'Target definition', exact: true })).toBeVisible();
-  await expect(rail).toContainText('Discriminative stimuli:');
-  await expect(rail).toContainText('Mastery:');
-  await rail.getByRole('tab', { name: /^Context/ }).click();
-  await accessible(page);
-
-  // Search and category changes stay in Change selection; the live scope remains outside it.
-  await nav.locator('.explorer-change-selection > summary').click();
-  const search = page.getByLabel('Search targets or programs');
-  await search.fill('Community Helpers');
-  await expect(nav.locator('.explorer-target')).toHaveCount(1);
-  await expect(nav.locator('.explorer-count')).toContainText('1 target across 1 program matching “Community Helpers”');
-  const helpersRow = nav.locator('.explorer-target').first();
-  await helpersRow.click();
-  await expect(helpersRow).toHaveAttribute('aria-current', 'true');
-  await expect(browse).not.toHaveAttribute('open', '');
-  await expect(rail.locator('.rail-target-summary')).toContainText('Label Community Helpers');
-  await page.getByRole('button', { name: 'Clear target search' }).click();
-  await expect(nav.locator('.explorer-target')).toHaveCount(catalog.counts.targets);
-  await openBrowseTargets(page);
-  await expect(nav.locator('.explorer-target')).toHaveCount(catalog.counts.targets);
-
-  // Keyboard arrow, End and Home keys move focus across target rows. Selecting a target
-  // closes the list and returns focus to its persistent summary.
-  const firstItem = nav.locator('.explorer-target').first();
-  const secondItem = nav.locator('.explorer-target').nth(1);
-  const lastItem = nav.locator('.explorer-target').last();
-  await firstItem.focus();
+  await expect(browse).toHaveAttribute('open', '');
+  await expect(nav.locator('.explorer-target')).toHaveCount(skillProgram.targets.length);
+  await expect(nav.locator('.explorer-group')).toHaveCount(1);
+  const first = nav.locator('.explorer-target').first();
+  const second = nav.locator('.explorer-target').nth(1);
+  await first.click();
+  await expect(first).toBeFocused();
+  await expect(browse).toHaveAttribute('open', '');
   await page.keyboard.press('ArrowDown');
-  await expect(secondItem).toBeFocused();
-  await page.keyboard.press('End');
-  await expect(lastItem).toBeFocused();
-  await page.keyboard.press('Home');
-  await expect(firstItem).toBeFocused();
+  await expect(second).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(second).toBeFocused();
+  await expect(browse).toHaveAttribute('open', '');
 
-  // The rail tab list supports arrow navigation as well as pointer/touch.
-  const contextTab = rail.getByRole('tab', { name: /^Context/ });
-  await contextTab.focus();
-  await page.keyboard.press('ArrowRight');
-  await expect(rail.getByRole('tab', { name: 'Annotations', exact: true })).toBeFocused();
-  await page.keyboard.press('ArrowRight');
-  await expect(rail.getByRole('tab', { name: 'Target details', exact: true })).toBeFocused();
+  const group = nav.locator('.explorer-measurement-group').first();
+  await group.getByRole('button', { name: 'Hide all', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'No targets plotted', exact: true })).toBeVisible();
+  await group.getByRole('button', { name: 'Show all', exact: true }).click();
+  const checks = group.locator('.explorer-target-row input[type=checkbox]');
+  await expect(checks.first()).toBeChecked();
+  await checks.first().uncheck();
+  await expect(checks.first()).not.toBeChecked();
+  if (await checks.count() > 1) await expect(checks.nth(1)).toBeChecked();
+  await checks.first().check();
 
-  // Selecting a behavior target directly in the explorer switches chart and visible scope.
-  await openBrowseTargets(page);
-  const firstBehavior = behaviorPrograms[0].targets[0];
-  const behaviorRow = nav.locator('.explorer-target').filter({
-    has: page.locator('.explorer-target__name', { hasText: firstBehavior.name })
-  }).first();
-  await behaviorRow.click();
-  await expect(browse.locator('summary')).toBeFocused();
-  await expect(page.getByRole('button', { name: `Edit chart title: ${firstBehavior.name}` })).toBeVisible();
-  await expect(nav.locator('.explorer-current-scope__focus')).toContainText(firstBehavior.name);
-  await rail.getByRole('tab', { name: 'Target details', exact: true }).click();
-  await expect(rail).toContainText('Function hypothesis:');
+  const search = page.getByLabel('Search targets in this program', { exact: true });
+  await search.fill('no-such-target');
+  await expect(nav.locator('.explorer-target')).toHaveCount(0);
+  await page.locator('#target-program').selectOption(skillPrograms[1].id);
+  await expect(search).toHaveValue('');
+  await expect(nav.locator('.explorer-target')).toHaveCount(skillPrograms[1].targets.length);
+  await expect(nav.locator('.explorer-program__name')).toHaveText(skillPrograms[1].name);
+
+  await page.getByRole('button', { name: 'Expand chart', exact: true }).click();
+  await expect(nav).not.toBeVisible();
+  await page.getByRole('button', { name: 'Restore target pane', exact: true }).click();
+  await expect(nav).toBeVisible();
+  await expect(page.locator('#target-program')).toHaveValue(skillPrograms[1].id);
+  await page.getByRole('button', { name: 'Show context & annotations', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Annotations', exact: true })).toBeVisible();
   await accessible(page);
 });
 
