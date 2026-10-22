@@ -101,7 +101,15 @@ export default function TrendExplorer({
     <div className="trend-explorer">
       <nav className="trend-explorer__list" aria-label="Target explorer">
         <div className="explorer-head">
-          <div className="explorer-search">
+          <div className="explorer-current-scope">
+            <span className="explorer-current-scope__label">Current selection</span>
+            <strong>{selection.activeCategoryTab === 'Behavior'
+              ? `${selection.selectedBehaviorIds.length} behavior${selection.selectedBehaviorIds.length === 1 ? '' : 's'}`
+              : (skillPrograms.find(program => program.id === selection.selectedProgramId)?.name || 'Choose a program')}</strong>
+            <details className="explorer-change-selection">
+              <summary>Change selection</summary>
+              <div className="explorer-selection-controls">
+                <div className="explorer-search">
             <label htmlFor="explorer-search">Search targets or programs</label>
             <div className="explorer-search__input">
               <Search size={16} aria-hidden="true" />
@@ -189,7 +197,10 @@ export default function TrendExplorer({
             </div>
           )}
 
-          <p className="explorer-count" role="status" aria-live="polite">{summary}</p>
+                <p className="explorer-count" role="status" aria-live="polite">{summary}</p>
+              </div>
+            </details>
+          </div>
         </div>
 
         <div className="explorer-groups">
