@@ -1,7 +1,9 @@
 import { TrendingUp, Activity, Target, AlertTriangle } from '../ui/Icons';
 
 // Five portfolio status cards. Each card is a filter for the health matrix, so a reviewer
-// moves from "how is the learner doing?" to the items behind the number in one click.
+// moves from "how is the learner doing?" to the items behind the number in one click. The
+// matrix is its own overview module, so pressing a card also travels to it (App handles the
+// scroll and focus); the accessible name says so instead of implying a filter in place.
 const CARDS = [
   {
     id: 'improving', tone: 'positive', icon: TrendingUp, label: 'Improving',
@@ -51,7 +53,7 @@ export default function ClientKpiStrip({ kpis, activeFilter, onFilterChange, ran
             className={`kpi-card kpi-card--${card.tone}${pressed ? ' kpi-card--active' : ''}`}
             aria-pressed={pressed}
             disabled={count === 0}
-            aria-label={`${card.label}: ${card.value(kpis)}. ${description}. Filter the target health matrix.`}
+            aria-label={`${card.label}: ${card.value(kpis)}. ${description}. Filter the target health matrix and move to it.`}
             onClick={() => onFilterChange(pressed ? null : card.id)}
           >
             <span className="kpi-card__top">

@@ -14,6 +14,7 @@ import ReportsSection from '../src/components/ReportsSection.jsx';
 import OverallMasterySection from '../src/components/OverallMasterySection.jsx';
 import ProgressHeatmap from '../src/components/overview/ProgressHeatmap.jsx';
 import PortfolioTriage from '../src/components/overview/PortfolioTriage.jsx';
+import TargetHealthMatrix from '../src/components/overview/TargetHealthMatrix.jsx';
 import InterventionTimeline from '../src/components/overview/InterventionTimeline.jsx';
 import OverviewScopeControls from '../src/components/overview/OverviewScopeControls.jsx';
 import TrendExplorer from '../src/components/overview/TrendExplorer.jsx';
@@ -112,11 +113,19 @@ const cases = [
   }, ['Progress', 'Rows follow the program scope']],
   ['PortfolioTriage', PortfolioTriage, {
     programs, sessions, asOfDate: SEED_AS_OF_DATE, onOpenTarget: noop, onUseInReport: noop
-  }, ['Clinical attention center', 'Target health matrix', 'Recent successes']],
+  }, ['Clinical attention center', 'Recent successes', 'Portfolio status for the last 90 days']],
   ['PortfolioTriage (shared 90-day scope)', PortfolioTriage, {
     programs: scopedPrograms, sessions: clientSessions, asOfDate: SEED_AS_OF_DATE,
-    windowDays: scopeWindow.days, rangePhrase: scopeWindow.phrase, onOpenTarget: noop, onUseInReport: noop
-  }, ['Clinical attention center', 'Target health matrix', 'over the last 90 days']],
+    windowDays: scopeWindow.days, rangePhrase: scopeWindow.phrase, onOpenTarget: noop, onUseInReport: noop,
+    filter: 'needsReview', onFilterChange: noop, onViewAll: noop
+  }, ['Clinical attention center', 'Recent successes', 'over the last 90 days']],
+  ['TargetHealthMatrix', TargetHealthMatrix, {
+    programs, sessions, asOfDate: SEED_AS_OF_DATE, onOpen: noop, onClearFilter: noop
+  }, ['Target health matrix', 'Clinical item', 'Forecast', 'Current level', 'for the last 90 days']],
+  ['TargetHealthMatrix (KPI filter, shared 30-day scope)', TargetHealthMatrix, {
+    programs: scopedPrograms, sessions: clientSessions, asOfDate: SEED_AS_OF_DATE, windowDays: 30,
+    rangePhrase: scopeWindow.phrase, filter: 'needsReview', onOpen: noop, onClearFilter: noop
+  }, ['Target health matrix', 'Filtered: Needs review', 'Clear filter', 'Clinical item', 'Trend']],
   ['OverviewScopeControls', OverviewScopeControls, {
     programScope: 'all', rangeId: '90D', window: scopeWindow, counts: scopeCounts,
     onProgramScopeChange: noop, onRangeChange: noop
