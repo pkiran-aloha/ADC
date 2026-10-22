@@ -119,7 +119,10 @@ test('default dashboard has accessible names, contrast and semantic sections', a
   await expect(page.getByRole('heading', { name: 'Progress overview', level: 1 })).toBeVisible();
   await expect(page.getByRole('button', { name: 'About skill mastery' })).toHaveAttribute('aria-expanded', 'false');
   const sectionNavigation = page.getByRole('navigation', { name: 'Progress overview sections' });
-  await expect(sectionNavigation.getByRole('link')).toHaveCount(4);
+  // Portfolio status, mastery, the progress map, the target health matrix and the timeline.
+  await expect(sectionNavigation.getByRole('link')).toHaveCount(5);
+  await expect(sectionNavigation.getByRole('link').nth(3)).toHaveText('Target health matrix');
+  await expect(sectionNavigation.getByRole('link').nth(4)).toHaveText('Intervention timeline');
   const timelineLink = sectionNavigation.getByRole('link', { name: 'Intervention timeline' });
   await timelineLink.focus();
   await page.keyboard.press('Enter');
@@ -1130,15 +1133,24 @@ test('portfolio triage summarizes trends, filters the matrix and drills into a t
   await expect(page.getByRole('heading', { name: 'Clinical attention center' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Target health matrix' })).toBeVisible();
 
-  // A KPI card filters the matrix to exactly the items its number represents.
+  // A KPI card filters the matrix to exactly the items its number represents. The matrix is a
+  // separate module lower on the page, so pressing the card also takes the reviewer there and
+  // the matrix announces what it now shows.
   const reviewCard = triage.locator('.kpi-card[data-filter="needsReview"]');
   await reviewCard.click();
+  await expect(page.locator('#overview-matrix')).toBeFocused();
   await expect(reviewCard).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.health-matrix tbody tr.health-matrix__row')).toHaveCount(health.kpis.needsReview);
-  await expect(page.getByRole('button', { name: 'Clear filter' })).toBeVisible();
+  // The panel <section> and its scrollable table wrapper are both named regions, so read the
+  // filter chip itself rather than matching a region by a shared prefix.
+  await expect(page.locator('.health-matrix-panel .matrix-filter')).toContainText(`Filtered: Needs review · ${health.kpis.needsReview} of ${health.items.length}`);
+  await expect(page.locator('.health-matrix-panel [role="status"]')).toContainText(`Showing ${health.kpis.needsReview} of ${health.items.length} targets`);
   await accessible(page);
+  // Clearing keeps the reviewer in the table instead of dropping focus to the document body.
   await page.getByRole('button', { name: 'Clear filter' }).click();
+  await expect(page.locator('.health-matrix-panel')).toBeFocused();
   await expect(page.locator('.health-matrix tbody tr.health-matrix__row')).toHaveCount(health.items.length);
+  await expect(page.locator('.health-matrix-panel [role="status"]')).toContainText(`Filter cleared. Showing all ${health.items.length} targets`);
 
   // An attention card opens that target in the target analysis via the focus channel.
   const firstAttention = page.locator('.attention-card').first();
@@ -1507,44 +1519,58 @@ test('reports collapse the builder after generating and preview the document in 
 test('overview modules can be reordered by keyboard and the order survives a reload', async ({ page }) => {
   await open(page);
   const order = page.locator('.module-order');
-  await expect(order.locator('.module-order__summary')).toContainText('Attention & target health › Intervention timeline › Skill mastery › Weekly progress map');
+  await expect(order.locator('.module-order__summary')).toContainText(
+    'Portfolio status & attention › Skill mastery › Weekly progress map › Target health matrix › Intervention timeline');
+
+  // The default page order closes with the target health matrix and the intervention timeline.
+  const ids = ['overview-triage', 'overview-mastery', 'overview-progress-map', 'overview-matrix', 'overview-timeline'];
+  const readOrder = () => page.evaluate(destinationIds => [...destinationIds]
+    .sort((a, b) => document.getElementById(a).compareDocumentPosition(document.getElementById(b)) & 4 ? -1 : 1), ids);
+  expect(await readOrder()).toEqual(ids);
+  await expect(page.getByRole('heading', { name: 'Clinical attention center' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Target health matrix' })).toBeVisible();
 
   await order.locator('summary').click();
   const items = order.locator('.module-order__item');
-  await expect(items).toHaveCount(4);
-  await expect(items.first()).toContainText('Attention & target health');
+  await expect(items).toHaveCount(5);
+  await expect(items.first()).toContainText('Portfolio status & attention');
+  await expect(items.nth(3)).toContainText('Target health matrix');
+  await expect(items.nth(4)).toContainText('Intervention timeline');
   // The first module cannot move up and the last cannot move down.
-  await expect(order.getByRole('button', { name: 'Move Attention & target health up' })).toBeDisabled();
-  await expect(order.getByRole('button', { name: 'Move Weekly progress map down' })).toBeDisabled();
+  await expect(order.getByRole('button', { name: 'Move Portfolio status & attention up' })).toBeDisabled();
+  await expect(order.getByRole('button', { name: 'Move Intervention timeline down' })).toBeDisabled();
 
   // Reordering is a plain button press, so it works with keyboard, touch and pointer alike.
-  const moveUp = order.getByRole('button', { name: 'Move Weekly progress map up' });
+  const moveUp = order.getByRole('button', { name: 'Move Target health matrix up' });
   await moveUp.focus();
   await page.keyboard.press('Enter');
-  await expect(items.nth(2)).toContainText('Weekly progress map');
-  await expect(order.locator('.module-order__footer [role="status"]')).toContainText('Weekly progress map moved up to position 3 of 4');
+  await expect(items.nth(2)).toContainText('Target health matrix');
+  await expect(items.nth(3)).toContainText('Weekly progress map');
+  await expect(order.locator('.module-order__footer [role="status"]')).toContainText('Target health matrix moved up to position 3 of 5');
 
   // The page, the section links and the DOM reading order follow the same order.
-  const readOrder = () => page.evaluate(() => ['overview-triage', 'overview-timeline', 'overview-mastery', 'overview-progress-map']
-    .sort((a, b) => document.getElementById(a).compareDocumentPosition(document.getElementById(b)) & 4 ? -1 : 1));
-  expect(await readOrder()).toEqual(['overview-triage', 'overview-timeline', 'overview-progress-map', 'overview-mastery']);
+  expect(await readOrder()).toEqual(['overview-triage', 'overview-mastery', 'overview-matrix', 'overview-progress-map', 'overview-timeline']);
   const links = page.getByRole('navigation', { name: 'Progress overview sections' }).getByRole('link');
-  await expect(links).toHaveCount(4);
-  expect(await links.allTextContents()).toEqual(['Attention & target health', 'Intervention timeline', 'Weekly progress map', 'Skill mastery']);
+  await expect(links).toHaveCount(5);
+  expect(await links.allTextContents()).toEqual(
+    ['Portfolio status & attention', 'Skill mastery', 'Target health matrix', 'Weekly progress map', 'Intervention timeline']);
+  await expect(page.locator('#overview-matrix')).toBeVisible();
   await expect(page.locator('#overview-progress-map')).toBeVisible();
-  await expect(page.locator('#overview-mastery')).toBeVisible();
   await accessible(page);
 
   await page.reload();
-  await expect(page.locator('.module-order__summary')).toContainText('Attention & target health › Intervention timeline › Weekly progress map › Skill mastery');
+  await expect(page.locator('.module-order__summary')).toContainText(
+    'Portfolio status & attention › Skill mastery › Target health matrix › Weekly progress map › Intervention timeline');
   // The section link still lands on the moved module and focuses it.
-  await page.getByRole('navigation', { name: 'Progress overview sections' }).getByRole('link', { name: 'Weekly progress map' }).click();
-  await expect(page.locator('#overview-progress-map')).toBeFocused();
+  await page.getByRole('navigation', { name: 'Progress overview sections' }).getByRole('link', { name: 'Target health matrix' }).click();
+  await expect(page.locator('#overview-matrix')).toBeFocused();
 
   await page.locator('.module-order summary').click();
   await page.getByRole('button', { name: 'Reset order', exact: true }).click();
-  await expect(page.locator('.module-order__item').first()).toContainText('Attention & target health');
-  await expect(page.locator('#overview-mastery')).toBeVisible();
+  await expect(page.locator('.module-order__item').first()).toContainText('Portfolio status & attention');
+  await expect(page.locator('.module-order__item').last()).toContainText('Intervention timeline');
+  // Reset restores the default closing order rather than the previous session's arrangement.
+  expect(await readOrder()).toEqual(ids);
 });
 
 test('shared page headers keep one primary action and move secondary actions into overflow', async ({ page }) => {

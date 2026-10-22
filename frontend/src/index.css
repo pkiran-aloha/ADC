@@ -1127,7 +1127,13 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 .health-delta--attention { color: var(--color-amber-700); }
 .health-delta--neutral { color: var(--color-slate-500); }
 
-.matrix-filter { display: inline-flex; align-items: center; gap: 0.5rem; }
+/* The filter chip states the active KPI and its count, and it can be long on narrow screens;
+   wrapping it (and the Clear filter button beside it) keeps the panel header inside the page. */
+.matrix-filter { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; max-width: 100%; }
+.matrix-filter .stat-chip { white-space: normal; text-align: left; }
+/* The matrix is its own overview module and receives focus after a KPI filter or a cleared
+   filter, so its panel shows where focus went even though the section is not a control. */
+.health-matrix-panel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .health-matrix { min-width: 46rem; }
 .health-matrix__row { cursor: pointer; }
 .health-matrix__row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

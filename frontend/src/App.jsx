@@ -33,6 +33,7 @@ const ClientSpecificSection = lazy(() => import('./components/ClientSpecificSect
 const AbcDataSection = lazy(() => import('./components/AbcDataSection'));
 const ProgressHeatmap = lazy(() => import('./components/overview/ProgressHeatmap'));
 const PortfolioTriage = lazy(() => import('./components/overview/PortfolioTriage'));
+const TargetHealthMatrix = lazy(() => import('./components/overview/TargetHealthMatrix'));
 const InterventionTimeline = lazy(() => import('./components/overview/InterventionTimeline'));
 const ServiceQualitySection = lazy(() => import('./components/ServiceQualitySection'));
 const ReportsSection = lazy(() => import('./components/ReportsSection'));
@@ -73,6 +74,10 @@ export default function App() {
   // It persists in this browser and never changes a calculation or hides a module.
   const [overviewOrder, setOverviewOrder] = useState(() => readOverviewOrder());
   const [orderMessage, setOrderMessage] = useState('');
+  // The KPI card the reviewer pressed. It lives here because the target health matrix is its
+  // own overview module: the cards and the table they filter are no longer in one component,
+  // and the filter must survive either module being reordered.
+  const [healthFilter, setHealthFilter] = useState(null);
   const [recordOpen, setRecordOpen] = useState(false);
   const [recordTargetId, setRecordTargetId] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
@@ -261,6 +266,25 @@ export default function App() {
     const target = program?.targets.find(entry => entry.id === event.targetId);
     if (program && target) openTargetFocus({ program, target, date: event.date });
   }
+  // KPI cards filter the target health matrix, which is its own module further down the page.
+  // Applying a filter therefore also takes the reviewer to the table it describes; clearing it
+  // (from the card or from the matrix) simply restores the full table. The matrix announces
+  // the new filter and its count through its own status region.
+  function changeHealthFilter(filterId) {
+    setHealthFilter(filterId);
+    if (!filterId) return;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    whenSectionReady('overview-matrix', section => {
+      section.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+      section.focus({ preventScroll: true });
+    });
+  }
+  // A new learner starts from an unfiltered matrix; a filter chosen for one client's targets
+  // should never silently describe another's.
+  function selectClient(clientId) {
+    setSelectedClientId(clientId);
+    setHealthFilter(null);
+  }
   function changeProgramScope(programScope) {
     setOverviewScope(value => ({ ...value, programScope }));
   }
@@ -333,7 +357,7 @@ export default function App() {
 
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">Skip to analytics</a>
-    <Header clients={clients} selectedClientId={selectedClientId} onSelectClient={setSelectedClientId}
+    <Header clients={clients} selectedClientId={selectedClientId} onSelectClient={selectClient}
       onOpenRecordModal={() => openRecorder()} onResetData={() => setResetOpen(true)}
       onOpenNavigation={() => setNavigationOpen(true)} navigationOpen={navigationOpen}
       onOpenManualEntry={() => setEntryTab('entry')} onOpenImport={() => setEntryTab('import')}
@@ -368,7 +392,7 @@ export default function App() {
                 <div className="empty-state-icon ml-0"><User size={26} /></div>
                 <h2>Start with a client.</h2>
                 <p>Choose a fictional client to explore their programs and observations. Each workspace keeps its records separate.</p>
-                <div className="client-choices">{clients.map(client => <button key={client.id} type="button" className="client-choice" onClick={() => setSelectedClientId(client.id)}>
+                <div className="client-choices">{clients.map(client => <button key={client.id} type="button" className="client-choice" onClick={() => selectClient(client.id)}>
                   <span className="client-avatar" aria-hidden="true">{initials(client.name)}</span>
                   <div><strong>{client.name}</strong><small>{client.code} · {client.location}</small></div><ArrowRight size={20} />
                 </button>)}</div>
@@ -402,8 +426,16 @@ export default function App() {
                   if (id === 'triage') return <div key="triage" id="overview-triage" className="overview-section-anchor" tabIndex={-1}>
                     <Suspense fallback={<AnalyticsSkeleton />}>
                       <PortfolioTriage key={`triage-${selectedClientId}`} programs={scopedPrograms} sessions={clientSessions} asOfDate={SEED_AS_OF_DATE}
-                        windowDays={scopeWindow.days} rangePhrase={scopeWindow.phrase}
+                        windowDays={scopeWindow.days} rangePhrase={scopeWindow.phrase} filter={healthFilter}
+                        onFilterChange={changeHealthFilter} onViewAll={() => changeHealthFilter('needsReview')}
                         onOpenTarget={openHealthItem} onUseInReport={() => activateWorkflow('reports')} />
+                    </Suspense>
+                  </div>;
+                  if (id === 'matrix') return <div key="matrix" id="overview-matrix" className="overview-section-anchor" tabIndex={-1}>
+                    <Suspense fallback={<AnalyticsSkeleton />}>
+                      <TargetHealthMatrix key={`matrix-${selectedClientId}`} programs={scopedPrograms} sessions={clientSessions}
+                        asOfDate={SEED_AS_OF_DATE} windowDays={scopeWindow.days} rangePhrase={scopeWindow.phrase}
+                        filter={healthFilter} onClearFilter={() => setHealthFilter(null)} onOpen={openHealthItem} />
                     </Suspense>
                   </div>;
                   if (id === 'timeline') return <div key="timeline" id="overview-timeline" className="overview-section-anchor" tabIndex={-1}>
