@@ -62,6 +62,15 @@ jobs:
         working-directory: frontend
         run: npx playwright test
 
+      - name: Preserve failed browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-regression-diagnostics
+          path: frontend/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
         with:
