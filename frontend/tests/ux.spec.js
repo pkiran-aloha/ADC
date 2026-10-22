@@ -1141,7 +1141,9 @@ test('portfolio triage summarizes trends, filters the matrix and drills into a t
   await expect(page.locator('#overview-matrix')).toBeFocused();
   await expect(reviewCard).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.health-matrix tbody tr.health-matrix__row')).toHaveCount(health.kpis.needsReview);
-  await expect(page.getByRole('region', { name: 'Target health matrix' })).toContainText(`Filtered: Needs review · ${health.kpis.needsReview} of ${health.items.length}`);
+  // The panel <section> and its scrollable table wrapper are both named regions, so read the
+  // filter chip itself rather than matching a region by a shared prefix.
+  await expect(page.locator('.health-matrix-panel .matrix-filter')).toContainText(`Filtered: Needs review · ${health.kpis.needsReview} of ${health.items.length}`);
   await expect(page.locator('.health-matrix-panel [role="status"]')).toContainText(`Showing ${health.kpis.needsReview} of ${health.items.length} targets`);
   await accessible(page);
   // Clearing keeps the reviewer in the table instead of dropping focus to the document body.
