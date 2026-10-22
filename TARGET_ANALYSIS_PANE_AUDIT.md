@@ -1,5 +1,7 @@
 # Target analysis left-pane audit
 
+> **Current status (22 October 2026):** At the user's request, Target analysis has been restored to the 21 October snapshot at `fe8b9b3` (after PR #16, before the next-day UX refinements). The auto-closing list, separate browse/change-selection disclosures, rail tabs, consolidated Chart settings, program-first target grouping, and expandable chart workspace described below are historical findings or proposals—not the current UI. The current page is again the always-visible three-pane explorer with the original chart toolbar/popovers and context rail. Analytics and data semantics were not changed.
+
 ## Scope and verification
 Audited main snapshot d051d7a, its first-parent diff, and the history of TrendExplorer. Traced rendering, selection callbacks, pure selection helpers, chart resets, focus management, CSS breakpoints, workflow mounting and existing browser-test expectations. Ran `node --test tests/trendExplorer.test.mjs`: 12/12 passed. This is a source/history audit; no browser session or visual/mobile verification was performed. No application code changed.
 
