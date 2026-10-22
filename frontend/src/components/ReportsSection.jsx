@@ -22,6 +22,7 @@ export default function ReportsSection({
   standards = null, canEdit = true, viewOnlyReason = ''
 }) {
   const [templateId, setTemplateId] = useState(REPORT_TEMPLATES[0].id);
+  const [reportView, setReportView] = useState('builder');
   const [range, setRange] = useState('3 months');
   const [scope, setScope] = useState('skill');
   const [includeRoster, setIncludeRoster] = useState(true);
@@ -108,7 +109,7 @@ export default function ReportsSection({
   </section>;
 
   return <section id="reports" className="panel" aria-labelledby="reports-title" tabIndex={-1}>
-    <SectionHeader id="reports-title" title="Reports" description="One downloadable, print-ready document containing as many learner graphs as you select, plus a target list by status."
+    <SectionHeader id="reports-title" title="Reports" description="Create a clinical report or review targets by status."
       help="Pick a template and the programs to include. Every graph is drawn from the recorded data in the chosen range, with mastery criteria, phase changes and notes already applied. Download the HTML for an archive copy, or open the print view to save a PDF."
       actions={<ExportMenu label="Export reports" onExport={type => { if (type === 'report') downloadReport(); if (type === 'roster') downloadRoster(); }} formats={[
         { id: 'report', label: 'Print-ready report · HTML', disabled: !reportModel.counts.targets },
@@ -116,8 +117,12 @@ export default function ReportsSection({
       ]} />} />
     <div className="panel-body">
       {!canEdit && <p className="view-only-notice" role="status">{viewOnlyReason}</p>}
+      <SegmentedControl label="Report task" value={reportView} onChange={setReportView} options={[
+        { value: 'builder', label: 'Build a report' },
+        { value: 'roster', label: `Target roster (${roster.length})` }
+      ]} className="report-task-switcher" />
       <div className="reports-layout">
-        <article className="reports-builder" aria-labelledby="report-builder-title">
+        <article className="reports-builder" aria-labelledby="report-builder-title" hidden={reportView !== 'builder'}>
           <h3 id="report-builder-title">Report builder</h3>
           <div className="control-field"><label htmlFor="report-template">Template</label>
             <select id="report-template" value={templateId} onChange={event => setTemplateId(event.target.value)}>
@@ -151,7 +156,7 @@ export default function ReportsSection({
           <p className="field-hint">Second-observer and supervision records stay with the session in the report narrative and are excluded from every graph total.</p>
         </article>
 
-        <article className="reports-roster" aria-labelledby="roster-title">
+        <article className="reports-roster" aria-labelledby="roster-title" hidden={reportView !== 'roster'}>
           <h3 id="roster-title">Targets by status</h3>
           <SegmentedControl label="Target status" value={rosterFilter} onChange={setRosterFilter} options={ROSTER_FILTERS.map(item => ({ value: item.value, label: item.label.split(' ')[0] }))} className="roster-filter" />
           <div className="form-row roster-filter-row">

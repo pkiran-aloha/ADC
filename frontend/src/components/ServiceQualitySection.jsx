@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import SectionHeader from './ui/SectionHeader';
+import SectionJumpNav from './ui/SectionJumpNav';
 import { getObservationKey } from '../utils/analyticsMetrics';
 import { formatChartDate, CHART_GRID, CHART_MUTED, CHART_INK } from '../utils/chartTheme';
 import { addDays, mean } from '../utils/stats';
@@ -70,7 +71,7 @@ export default function ServiceQualitySection({ client, serviceSessions, session
   const weekPeak = Math.max(1, ...week.map(day => day.observations));
 
   return <section id="service-quality" className="panel" aria-labelledby="service-quality-title" tabIndex={-1}>
-    <SectionHeader id="service-quality-title" title="Service & data quality" description="Dosage against authorization, attendance, agreement between observers, procedural fidelity and supervision."
+    <SectionHeader id="service-quality-title" title="Service & data quality" description="Review dosage, attendance, measurement reliability, and supervision."
       help="Trustworthy graphs need enough treatment, reliable measurement (IOA) and treatment delivered as written (procedural fidelity). Supervision percentages here cover this client’s sessions only; the BACB 5% requirement applies to each RBT’s total monthly hours across clients." />
     <div className="panel-body">
       <dl className="quality-kpis" aria-label={`${client.name}'s service and data quality summary`}>
@@ -80,7 +81,14 @@ export default function ServiceQualitySection({ client, serviceSessions, session
           <span className={`stat-chip stat-chip--${ioaCoverage >= (standards?.ioa?.minimumCoveragePercent ?? 20) ? 'positive' : 'attention'}`}>{ioaCoverage >= (standards?.ioa?.minimumCoveragePercent ?? 20) ? 'Meets ≥ 20%' : 'Below 20%'}</span></dd></div>
         <div className="kpi"><dt>Procedural fidelity</dt><dd><strong>{fidelityRecent.length ? `${formatNumber(mean(fidelityRecent))}%` : '–'}</strong><small>{fidelityRecent.length} checks · {fidelityRecent.filter(value => value < fidelityMinimum).length} below {fidelityMinimum}%</small></dd></div>
       </dl>
-      <article className="abc-card abc-card--wide live-activity" aria-labelledby="activity-title">
+      <SectionJumpNav label="Service and data quality sections" items={[
+        { id: 'service-activity', label: 'Today’s activity' },
+        { id: 'service-hours', label: 'Service hours' },
+        { id: 'service-measurement', label: 'Measurement quality' },
+        { id: 'service-cancellations', label: 'Cancellations' },
+        { id: 'service-supervision', label: 'RBT supervision' }
+      ]} />
+      <article id="service-activity" className="abc-card abc-card--wide live-activity section-anchor" aria-labelledby="activity-title" tabIndex={-1}>
         <div className="abc-card-head">
           <h3 id="activity-title">Session activity · {formatLongDate(activity.date)}</h3>
           <span className="stat-chip stat-chip--neutral">Demo clock {activity.clock}</span>
@@ -94,7 +102,9 @@ export default function ServiceQualitySection({ client, serviceSessions, session
             <span className={`stat-chip stat-chip--${activity.pending.length ? 'attention' : 'positive'}`}>{activity.pending.length ? `${activity.pending.length} pending` : 'All clear'}</span></dd></div>
           <div className="kpi"><dt>Elapsed session time</dt><dd><strong>{formatNumber(activity.elapsedMinutes / 60)} h</strong><small>of {formatNumber(week.reduce((sum, day) => sum + day.minutes, 0) / 60)} h scheduled this week</small></dd></div>
         </dl>
-        {activity.appointments.length ? <div className="data-table-scroll" tabIndex={0} role="region" aria-label="Today's appointments with recording progress">
+        {activity.appointments.length ? <details className="service-appointments">
+          <summary>Appointment details · {activity.appointments.length} today{activity.pending.length > 0 ? ` · ${activity.pending.length} need documentation` : ''}</summary>
+          <div className="data-table-scroll" tabIndex={0} role="region" aria-label="Today's appointments with recording progress">
           <table className="stat-table">
             <caption className="sr-only">Appointments on {activity.date} with recording progress and documentation status</caption>
             <thead><tr><th scope="col">Time</th><th scope="col">Appointment</th><th scope="col">Therapist</th><th scope="col">State</th><th scope="col">Observations</th><th scope="col">Documentation</th></tr></thead>
@@ -109,7 +119,8 @@ export default function ServiceQualitySection({ client, serviceSessions, session
                 {item.minutesRecorded ? <small className="block text-slate-500">{formatNumber(item.minutesRecorded)} min recorded</small> : null}</>}</td>
             </tr>)}</tbody>
           </table>
-        </div> : <p className="field-hint">No appointments on the schedule for this fictional day.</p>}
+          </div>
+        </details> : <p className="field-hint">No appointments on the schedule for this fictional day.</p>}
         <div className="week-strip" role="img" aria-label="Observation counts for the last seven days">
           {week.map(day => <div key={day.date}>
             <span className="week-strip-bar" style={{ height: `${Math.max(3, Math.round((64 * day.observations) / weekPeak))}px` }} title={`${day.date}: ${day.observations} observations, ${day.appointments} appointments`} />
@@ -119,22 +130,22 @@ export default function ServiceQualitySection({ client, serviceSessions, session
         </div>
       </article>
       <div className="quality-grid">
-        <article className="abc-card abc-card--wide" aria-labelledby="hours-title">
+        <article id="service-hours" className="abc-card abc-card--wide section-anchor" aria-labelledby="hours-title" tabIndex={-1}>
           <h3 id="hours-title">Weekly service hours</h3>
           <HoursChart weekly={weekly} authorized={client.authorizedHoursPerWeek} />
           <ul className="prompt-legend">{CODES.map(item => <li key={item.code}><i style={{ background: item.color }} />{item.label}</li>)}<li><i className="legend-hatch" />Cancelled</li><li><i className="legend-line" />Authorized</li></ul>
         </article>
-        <article className="abc-card" aria-labelledby="ioa-trend-title">
+        <article id="service-measurement" className="abc-card section-anchor" aria-labelledby="ioa-trend-title" tabIndex={-1}>
           <h3 id="ioa-trend-title">Measurement quality by week</h3>
           <QualityChart weekly={weekly} coverageGoal={standards?.ioa?.minimumCoveragePercent ?? 20} fidelityGoal={fidelityMinimum} />
           <ul className="prompt-legend"><li><i style={{ background: '#527d82' }} />IOA coverage (% of sessions)</li><li><i style={{ background: '#a36959' }} />Fidelity (% of steps)</li></ul>
         </article>
-        <article className="abc-card" aria-labelledby="cancel-title">
+        <article id="service-cancellations" className="abc-card section-anchor" aria-labelledby="cancel-title" tabIndex={-1}>
           <h3 id="cancel-title">Cancellations</h3>
           {cancellations.length ? <ul className="bar-list">{cancellations.map(([reason, count]) => <li key={reason}><span>{reason}</span><i style={{ width: `${(100 * count) / cancellations[0][1]}%`, background: '#9b7a3d' }} /><b>{count}</b></li>)}</ul>
             : <p className="field-hint">No cancelled sessions.</p>}
         </article>
-        <article className="abc-card abc-card--wide" aria-labelledby="supervision-title">
+        <article id="service-supervision" className="abc-card abc-card--wide section-anchor" aria-labelledby="supervision-title" tabIndex={-1}>
           <h3 id="supervision-title">RBT supervision on this case</h3>
           <p className="abc-card-note">BACB: at least {minimum}% of each RBT’s monthly service hours supervised, with at least {contactsNeeded} contacts, one observing the RBT with a client. Overlap sessions below are on this client only.</p>
           <div className="data-table-scroll" tabIndex={0} role="region" aria-label="RBT supervision by month">

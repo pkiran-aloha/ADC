@@ -158,7 +158,7 @@ const cases = [
     detailPrograms: [skillPrograms[0]],
     activeTarget: firstSkillTarget,
     children: createElement('div', null, 'Center chart workspace')
-  }, ['Search targets or programs', 'Center chart workspace', 'Clinical context', 'Plateau prompt', 'Target definition', 'Discriminative stimuli:']],
+  }, ['Search targets or programs', 'Center chart workspace', 'Clinical context', 'clinical decision prompt', 'Review decision prompts', 'Target definition', 'Discriminative stimuli:']],
   ['ClientSpecificSection (focus drilldown)', ClientSpecificSection, {
     client, programs, sessions, serviceSessions, abcEntries, annotations,
     templates: PROMPT_HIERARCHY_TEMPLATES, standards: CLINICAL_STANDARDS,

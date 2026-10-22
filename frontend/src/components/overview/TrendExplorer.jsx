@@ -12,11 +12,10 @@ import {
 
 const LIFECYCLE_TONE = { mastered: 'positive', paused: 'attention', ended: 'neutral', active: 'neutral' };
 
-// Phase 3 Trend explorer: wraps Target analysis in a three-pane layout without removing
-// any existing chart control, deep link or focus-request behaviour.
-//   Left pane   — searchable target list grouped by program, with phase and 90d trend delta.
-//   Center pane — existing TargetChart, full toolbar, inspector and visual analysis.
-//   Right rail  — clinical insights (`buildInsights`), annotations and visible definitions.
+// Target explorer: current scope stays visible while target browsing and selection changes
+// remain on demand. The center keeps the graph primary; the context rail separates status,
+// annotations and definitions into keyboard-operable tabs. Full decision details live in
+// Visual analysis, with one priority insight summarized next to the graph.
 export default function TrendExplorer({
   catalog,
   selection,
@@ -47,11 +46,15 @@ export default function TrendExplorer({
   viewOnlyReason = '',
   detailPrograms = [],
   activeTarget = null,
+  onReviewInsights,
   children
 }) {
   const [query, setQuery] = useState('');
   const [listScope, setListScope] = useState('All');
   const itemRefs = useRef([]);
+  const targetListRef = useRef(null);
+  const contextTabRefs = useRef([]);
+  const [contextTab, setContextTab] = useState('context');
 
   const categoryOptions = useMemo(() => ([
     { value: 'All', label: 'All', accessibleLabel: 'All categories' },
@@ -92,6 +95,21 @@ export default function TrendExplorer({
     itemRefs.current[nextIndex]?.focus();
   }
 
+  function onContextTabKeyDown(event) {
+    const tabs = ['context', 'annotations', 'details'];
+    const index = tabs.indexOf(document.activeElement?.dataset?.contextTab);
+    if (index < 0) return;
+    let nextIndex = null;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (index + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = tabs.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    setContextTab(tabs[nextIndex]);
+    contextTabRefs.current[nextIndex]?.focus();
+  }
+
   const singleAnnotationScope = selection.activeCategoryTab !== 'Behavior'
     || selection.selectedBehaviorIds.length <= 1;
 
@@ -104,8 +122,9 @@ export default function TrendExplorer({
           <div className="explorer-current-scope">
             <span className="explorer-current-scope__label">Current selection</span>
             <strong>{selection.activeCategoryTab === 'Behavior'
-              ? `${selection.selectedBehaviorIds.length} behavior${selection.selectedBehaviorIds.length === 1 ? '' : 's'}`
-              : (skillPrograms.find(program => program.id === selection.selectedProgramId)?.name || 'Choose a program')}</strong>
+              ? `Behavior reduction · ${selection.selectedBehaviorIds.length} selected`
+              : `Skill acquisition · ${skillPrograms.find(program => program.id === selection.selectedProgramId)?.name || 'Choose a program'}`}</strong>
+            {activeTarget && <span className="explorer-current-scope__focus">Analysis focus · {activeTarget.name}</span>}
             <details className="explorer-change-selection">
               <summary>Change selection</summary>
               <div className="explorer-selection-controls">
@@ -203,7 +222,9 @@ export default function TrendExplorer({
           </div>
         </div>
 
-        <div className="explorer-groups">
+        <details className="explorer-target-list" ref={targetListRef}>
+          <summary>Browse targets <span>· {flatTargets.length} target{flatTargets.length === 1 ? '' : 's'}</span></summary>
+          <div className="explorer-groups">
           {filteredGroups.length === 0 ? (
             <div className="explorer-empty">
               <p><strong>No matching targets.</strong> Try another search term or show all categories.</p>
@@ -250,7 +271,13 @@ export default function TrendExplorer({
                           className={`explorer-target${focused ? ' explorer-target--active' : plotted ? ' explorer-target--plotted' : ''}`}
                           aria-current={focused ? 'true' : undefined}
                           aria-label={`${entry.targetName}, ${group.name}, ${entry.phaseLabel}, ${entry.deltaLabel} (${entry.statusText})${reasonText}`}
-                          onClick={() => onSelectTargetItem(entry)}
+                            onClick={() => {
+                              onSelectTargetItem(entry);
+                              if (targetListRef.current) {
+                                targetListRef.current.open = false;
+                                requestAnimationFrame(() => targetListRef.current?.querySelector('summary')?.focus());
+                              }
+                            }}
                           onKeyDown={event => onItemKeyDown(event, currentFlatIndex)}
                         >
                           <span className="explorer-target__row">
@@ -269,54 +296,44 @@ export default function TrendExplorer({
               </div>
             );
           })}
-        </div>
+          </div>
+        </details>
       </nav>
 
       <div className="trend-explorer__center">
         {children}
       </div>
 
-      <aside className="trend-explorer__rail" aria-label="Clinical context">
-        <section className="rail-card" aria-labelledby="explorer-insights-title">
-          <div className="rail-card__head">
-            <h3 id="explorer-insights-title">Clinical context</h3>
-            {focusedEntry && (
-              <span className={`health-delta health-delta--${focusedEntry.tone}`}>
-                {focusedEntry.deltaLabel}
-              </span>
-            )}
+      <aside className="trend-explorer__rail" aria-label="Target context, annotations and details">
+        <div className="rail-tabs" role="tablist" aria-label="Target analysis details" onKeyDown={onContextTabKeyDown}>
+          {[
+            { id: 'context', label: 'Context' },
+            { id: 'annotations', label: 'Annotations' },
+            { id: 'details', label: 'Target details' }
+          ].map((tab, index) => <button key={tab.id} type="button" role="tab" id={`explorer-${tab.id}-tab`}
+            data-context-tab={tab.id} aria-selected={contextTab === tab.id} aria-controls={`explorer-${tab.id}-panel`}
+            tabIndex={contextTab === tab.id ? 0 : -1} ref={node => { contextTabRefs.current[index] = node; }}
+            onClick={() => setContextTab(tab.id)}>{tab.label}{tab.id === 'context' && insights.length > 0 ? ` (${insights.length})` : ''}</button>)}
+        </div>
+
+        <section className="rail-card" id="explorer-context-panel" role="tabpanel" tabIndex={0} aria-labelledby="explorer-context-tab" hidden={contextTab !== 'context'}>
+          <div className="rail-card__head"><h3>Clinical context</h3>
+            {focusedEntry && <span className={`health-delta health-delta--${focusedEntry.tone}`}>{focusedEntry.deltaLabel}</span>}
           </div>
-          {focusedEntry && (
-            <p className="rail-target-summary">
-              <strong>{focusedEntry.targetName}</strong>
-              <span>
-                <span className={`stat-chip stat-chip--${LIFECYCLE_TONE[focusedEntry.lifecycle] || 'neutral'}`}>
-                  {focusedEntry.phaseLabel}
-                </span>
-                <small>{focusedEntry.statusText} (90d)</small>
-              </span>
-            </p>
-          )}
-          {insights.length > 0 ? (
-            <ul className="insight-list rail-insights">
-              {insights.map(insight => (
-                <li key={insight.title} className={`insight insight--${insight.tone}`}>
-                  <strong>{insight.title}</strong>
-                  <p>{insight.detail}</p>
-                  <small>{insight.reference}</small>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="field-hint">
-              {activeTarget
-                ? 'No decision prompts for the currently plotted range.'
-                : 'Select a target to inspect clinical decision prompts.'}
-            </p>
-          )}
+          {focusedEntry ? <p className="rail-target-summary">
+            <strong>{focusedEntry.targetName}</strong>
+            <span><span className={`stat-chip stat-chip--${LIFECYCLE_TONE[focusedEntry.lifecycle] || 'neutral'}`}>{focusedEntry.phaseLabel}</span>
+              <small>{focusedEntry.statusText} · 90 days</small></span>
+          </p> : <p className="field-hint">Select a target to see its current phase and recent status.</p>}
+          <p className="field-hint">{insights.length
+            ? `${insights.length} clinical decision prompt${insights.length === 1 ? '' : 's'} for this chart. Review the full details in Progress & decisions below.`
+            : activeTarget ? 'No decision prompts for the currently plotted range.' : 'Select a target to inspect clinical decision prompts.'}</p>
+          {insights.length > 0 && <button type="button" className="button button--secondary rail-review-insights" onClick={onReviewInsights}>
+            Review decision prompts
+          </button>}
         </section>
 
-        <section className="rail-card" aria-labelledby="explorer-annotations-title">
+        <section className="rail-card" id="explorer-annotations-panel" role="tabpanel" tabIndex={0} aria-labelledby="explorer-annotations-tab" hidden={contextTab !== 'annotations'}>
           <div className="rail-card__head">
             <h3 id="explorer-annotations-title">Annotations</h3>
           </div>
@@ -405,7 +422,9 @@ export default function TrendExplorer({
           )}
         </section>
 
-        <ProgramDetails programs={detailPrograms} activeTarget={activeTarget} />
+        <section className="rail-card" id="explorer-details-panel" role="tabpanel" tabIndex={0} aria-labelledby="explorer-details-tab" hidden={contextTab !== 'details'}>
+          <ProgramDetails programs={detailPrograms} activeTarget={activeTarget} />
+        </section>
       </aside>
     </div>
   );

@@ -1,14 +1,29 @@
 # Page-estate and analytics visibility audit
 
 **Audit date:** 22 October 2026  
-**Status:** Findings and recommendations only; no UI changes made.  
+**Status:** First-pass implementation completed on 22 October 2026; browser-level and manual accessibility validation remain pending.
 **Purpose:** Identify avoidable vertical space and interaction overhead that delays access to useful analytics, then propose a compact, accessible information hierarchy. This supplements—not replaces—the broader usability, accessibility and visual-system work in [`UX_AUDIT.md`](UX_AUDIT.md).
 
 ## Executive summary
 
+The findings below document the baseline hierarchy reviewed before the implementation update; the current first-pass changes and verification limits are summarized in the implementation update below.
+
 The largest opportunity is **Target analysis**. Its explorer begins with search, category switching, a program/behavior chooser and a result count before users reach the selected targets and chart. The visual-analysis panel and clinical context then add further stacked content. These controls are useful, but the page makes setup compete with the primary task (reading the graph), especially on laptop-height and mobile viewports.
 
 The recommendation is not to hide essential controls or shrink clinical text. Instead, keep the active selection visible and compact, make secondary selection tools reveal-on-demand, reduce duplicated introductions, and let the chart/insight area claim the first viewport. Apply the same principle selectively to overview, ABC, service-quality and reports: show high-value summary or primary work first, make detail progressive, and avoid collapsing unrelated workflows into one long page.
+
+## Implementation update — 22 October 2026
+
+A first implementation pass now applies the main recommendations without changing data, clinical defaults, measurement semantics or analytic calculations:
+
+- **Target analysis:** shortened repeated introductory copy; kept current category/program and analysis focus visible; placed search/category/program controls in a native **Change selection** disclosure; made the grouped target list a separate **Browse targets** disclosure; kept frequent chart controls in view and moved graph display, overlays, marker/orientation, suppression and axis controls into one native **Chart settings** disclosure. A priority insight is summarized beside the graph; the right rail separates **Context**, **Annotations** and **Target details** with keyboard-operable tabs, while full decision prompts remain in **Progress & decisions**. The target list expands into normal page flow rather than creating another nested vertical scroll region.
+- **Progress overview, ABC, and service quality:** added labeled in-page section navigation with focusable destinations and sticky-header offsets. Service appointment rows are now on demand while the high-level activity and documentation counts remain visible.
+- **Reports and shared headers:** added a Build a report / Target roster task switcher that keeps each view mounted, and standardized responsive header/action spacing.
+- **Regression coverage:** updated the Playwright selectors for collapsed selection/annotation controls and report switching; added checks for keyboard disclosure use, rail tabs, scope/focus, section navigation, report export, appointment details, and insight-to-decision focus. Updated the server-render smoke expectation for the condensed context rail.
+
+**Local verification:** production build passed; lint passed with 0 warnings and 0 errors; all 138 Node tests passed; server-render smoke passed for all analytics sections (three portal dialogs are intentionally skipped because they require a browser); `git diff --check` passed. Playwright discovered 142 desktop/mobile scenarios, but execution could not start because the Chromium headless-shell binary is absent. Browser installation was blocked by unavailable package/CDN connections, so **no browser assertions or axe scans ran in this round**. There was also no screenshot/fold review, physical-device check, or manual screen-reader test. Treat responsive visual fit, live focus behavior, and all axe outcomes as unverified until Chromium and assistive-technology checks are available.
+
+**Not completed in this pass:** report parameters are not sticky or collapsible after generation, and there is no in-page generated-report preview or focus transfer (the existing HTML download/print behavior is unchanged). Shared headers have consistent responsive spacing, but their actions were not fully reorganized into a universal primary-action/overflow hierarchy. No user-controlled module reordering was added to the overview; the new section links are the implemented navigation option.
 
 ## Audit method and confidence
 
@@ -49,13 +64,15 @@ The exact placement of the target list is an implementation choice: a desktop co
 - **Respect reduced motion and user settings:** transitions are optional and subtle; density/pane state should not unexpectedly reset on navigation.
 - **Measure outcomes:** compare time/scroll to first meaningful chart, first-viewport chart visibility, task completion for switching target/range, error rate, and accessibility checks—not just pixels saved.
 
-## Suggested implementation sequence (for a later phase)
+## Follow-up validation checklist
 
-1. Prototype the Target analysis selection summary + on-demand selector, with desktop and mobile variants.
-2. Consolidate primary and advanced chart controls without changing defaults or analytic calculations.
-3. De-duplicate explanatory copy and determine which insight belongs beside the graph versus in the analysis tabs.
-4. Review overview and other long workflows for section navigation and summary/detail ordering.
-5. Validate with browser screenshots and manual keyboard/touch checks at the viewport sizes above; run existing lint, unit, smoke, Playwright and axe checks where available.
+- [x] Prototype the Target analysis selection summary and on-demand selector, with responsive variants.
+- [x] Consolidate primary and advanced chart controls without changing defaults or analytic calculations.
+- [x] De-duplicate explanatory copy; summarize one priority insight beside the graph and keep full prompts in the analysis panel.
+- [x] Add section navigation and summary/detail ordering to overview, ABC observations, service quality and reports.
+- [x] Run production build, lint, unit tests, server-render smoke and diff checks.
+- [ ] Validate browser screenshots and keyboard/touch focus behavior at 1440×900, 1280×800, 1024×768, 390×844 and 320px width; run Playwright/axe when Chromium is available.
+- [ ] Complete a manual screen-reader and physical-device review before considering this production-ready.
 
 ## Non-goals
 
