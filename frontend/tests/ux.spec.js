@@ -29,13 +29,90 @@ async function open(page, tab = 'Progress overview') {
   await page.goto('./');
   await activate(page, tab);
 }
-// The workspace shows one workflow at a time. Switch through the tab strip, the same
-// control on every breakpoint, and wait until the selection is committed.
-async function activate(page, tab) {
+// Most interaction tests need an analyzed chart; do that through the same explicit
+// selection journey the practitioner uses rather than relying on a preselected graph.
+async function activate(page, tab, { prepareAnalysis = true } = {}) {
   const button = page.getByRole('tab', { name: tab, exact: true });
   await button.click();
   await expect(button).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tabpanel', { name: tab, exact: true })).toBeVisible();
+  if (tab === 'Target analysis' && prepareAnalysis) await ensureTargetAnalysisReady(page);
+}
+async function openTargetSelection(page) {
+  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
+  const change = nav.getByRole('button', { name: 'Change selection', exact: true });
+  if (await change.count()) await change.click();
+  await expect(nav.getByRole('group', { name: 'Analysis category', exact: true })).toBeVisible();
+}
+async function finishSelection(page, preferredMeasurement = '') {
+  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
+  const families = nav.locator('.explorer-family__chip');
+  if (await families.count()) {
+    let family = preferredMeasurement
+      ? families.filter({ hasText: new RegExp(preferredMeasurement, 'i') }).first()
+      : families.filter({ hasText: /Trial by trial/i }).first();
+    if (!await family.count()) family = families.filter({ hasNotText: /Anecdotal/i }).first();
+    if (!await family.count()) family = families.first();
+    if (await family.count() && await family.getAttribute('aria-pressed') !== 'true') await family.click();
+  }
+  const selectAll = nav.getByRole('button', { name: 'Select all compatible targets', exact: true });
+  if (await selectAll.count() && await selectAll.isEnabled()) await selectAll.click();
+  const analyze = nav.getByRole('button', { name: 'View analysis', exact: true });
+  if (await analyze.count()) await analyze.click();
+}
+async function ensureTargetAnalysisReady(page) {
+  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
+  await nav.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+  if (!await nav.count()) return;
+  if (await page.locator('#target-analysis .chart-control-strip').count()) return;
+  await openTargetSelection(page);
+  const categories = nav.getByRole('group', { name: 'Analysis category', exact: true });
+  const programsChoice = categories.getByRole('button', { name: /Programs/ });
+  if (await programsChoice.getAttribute('aria-pressed') !== 'true') await programsChoice.click();
+  const picker = page.locator('#target-program');
+  if (await picker.count() && !await picker.inputValue()) {
+    const clientId = await page.getByLabel('Current client').inputValue();
+    const initialProgram = seed.programs.find(program => program.clientId === clientId && program.category === 'SkillAcquisition')?.id || '';
+    if (initialProgram) await picker.selectOption(initialProgram);
+  }
+  await finishSelection(page);
+}
+async function selectProgram(page, programId, preferredMeasurement = '') {
+  await openTargetSelection(page);
+  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
+  const categories = nav.getByRole('group', { name: 'Analysis category', exact: true });
+  const programsChoice = categories.getByRole('button', { name: /Programs/ });
+  if (await programsChoice.getAttribute('aria-pressed') !== 'true') await programsChoice.click();
+  await page.locator('#target-program').selectOption(programId);
+  await finishSelection(page, preferredMeasurement);
+}
+async function changeMeasurement(page, label) {
+  await openTargetSelection(page);
+  await finishSelection(page, label);
+}
+async function clearTargetSelection(nav) {
+  const checked = nav.locator('.explorer-target__check:checked');
+  while (await checked.count()) await checked.first().uncheck();
+}
+async function selectOnlyTarget(page, target) {
+  await openTargetSelection(page);
+  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
+  const rows = nav.locator('.explorer-target');
+  for (let index = 0; index < await rows.count(); index++) {
+    const row = rows.nth(index);
+    const checkbox = row.locator('.explorer-target__check');
+    if (await checkbox.isChecked() && !(await row.innerText()).includes(target.name)) await checkbox.uncheck();
+  }
+  const targetRow = rows.filter({ hasText: target.name }).first();
+  const checkbox = targetRow.locator('.explorer-target__check');
+  if (!await checkbox.isChecked()) await checkbox.check();
+  await nav.getByRole('button', { name: 'View analysis', exact: true }).click();
+}
+async function selectBehaviorAnalysis(page, measurement = 'Frequency') {
+  await openTargetSelection(page);
+  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
+  await nav.getByRole('group', { name: 'Analysis category', exact: true }).getByRole('button', { name: /Behaviors/ }).click();
+  await finishSelection(page, measurement);
 }
 async function accessible(page) {
   await page.evaluate(async () => {
@@ -61,14 +138,6 @@ async function download(page, trigger, option) {
   expect(await file.failure()).toBeNull();
   await expect(page.getByRole('button', { name: trigger, exact: true })).toBeFocused();
   return { name: file.suggestedFilename(), bytes: await read(await file.path()) };
-}
-async function openTargetSelection(page) {
-  // Target analysis opens on the Programs category, so the program selector is visible.
-  await expect(page.locator('#target-program')).toBeVisible();
-}
-async function selectProgram(page, programId) {
-  await openTargetSelection(page);
-  await page.locator('#target-program').selectOption(programId);
 }
 async function openContext(page) {
   // Clinical context, annotations and target details share the always-visible right rail.
@@ -219,28 +288,31 @@ test('behavior comparison is a category-first multi-select that never mixes meas
   await open(page, 'Target analysis');
   await openTargetSelection(page);
   const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
-  await page.getByRole('group', { name: 'Analysis category', exact: true }).getByRole('button', { name: /Behaviors/ }).click();
+  await nav.getByRole('group', { name: 'Analysis category', exact: true }).getByRole('button', { name: /Behaviors/ }).click();
+  await nav.locator('.explorer-family__chip').filter({ hasText: 'Frequency' }).click();
 
-  // Every behavior reduction target is listed in the pane with a plot checkbox.
+  // Every behavior-reduction target is listed, while only the selected family can be plotted.
   const behaviors = programs.filter(program => program.category === 'BehaviorReduction').flatMap(program => program.targets);
   await expect(nav.locator('.explorer-target')).toHaveCount(behaviors.length);
-  await expect(nav.locator('.explorer-target__check').first()).toBeChecked();
+  const compatible = behaviors.filter(target => target.type === 'Frequency');
+  await expect(nav.locator('.explorer-target__check').first()).not.toBeChecked();
 
-  // Quick picks replace the old popover and apply only compatible behaviors, saying why.
+  // Behavior shortcuts are secondary and scoped to the selected measurement family.
+  await nav.locator('.explorer-presets-details summary').click();
   const presets = nav.getByRole('group', { name: 'Behavior quick picks' });
   await expect(presets.getByRole('button').first()).toBeVisible();
   await presets.getByRole('button').first().click();
-  const compatible = behaviors.filter(target => target.type === behaviors[0].type);
   if (compatible.length < behaviors.length) {
     await expect(nav.locator('.explorer-notice')).toContainText(/use a different measurement type/);
     await nav.getByRole('button', { name: 'Dismiss selection note' }).click();
   }
 
-  // A behavior measured a different way is disabled rather than silently summed.
   const incompatible = nav.locator('.explorer-target--incompatible input[type="checkbox"]');
   expect(await incompatible.count()).toBe(behaviors.length - compatible.length);
-  await expect(nav.getByLabel('Show missing dates')).toHaveCount(0);
+  await nav.getByRole('button', { name: 'View analysis', exact: true }).click();
+  await page.locator('.chart-display-menu summary').click();
   await expect(page.getByLabel('Show missing dates')).toBeVisible();
+  await expect(page.getByLabel('Show missing dates')).toBeEnabled();
   await accessible(page);
 });
 
@@ -263,18 +335,22 @@ test('chart title updates persist after refresh and overlay controls are keyboar
   await expect(page.locator('#target-analysis .chart-caption')).not.toContainText('Regression:');
 });
 
-test('mastery and all-hidden target states explain a path forward', async ({ page }) => {
+test('mastery and cleared target selections explain a path forward', async ({ page }) => {
   await open(page);
   const pending = programs.find(program => program.category === 'SkillAcquisition' && program.targets.every(target => !['Maintenance', 'Generalization', 'Completed'].includes(target.phase)));
   await page.locator('#mastery-prog').selectOption(pending.id);
   await expect(page.getByRole('heading', { name: 'Mastery is still ahead.' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Export mastery', exact: true })).toBeDisabled();
   await activate(page, 'Target analysis');
-  const legend = page.locator('#target-analysis .target-legend').first();
-  for (const target of skillProgram.targets.filter(item => item.type === 'TrialByTrial')) await legend.getByRole('button', { name: target.name, exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'No series are visible.' })).toBeVisible();
-  await legend.getByRole('button', { name: skillProgram.targets[0].name, exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'No series are visible.' })).toHaveCount(0);
+  await openTargetSelection(page);
+  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
+  await clearTargetSelection(nav);
+  await expect(nav.getByRole('button', { name: 'View analysis', exact: true })).toHaveCount(0);
+  await expect(page.locator('.analysis-guidance')).toContainText('Select targets to analyze');
+  const firstCompatible = nav.locator('.explorer-target__check:not(:disabled)').first();
+  await firstCompatible.check();
+  await nav.getByRole('button', { name: 'View analysis', exact: true }).click();
+  await expect(page.locator('#target-analysis .chart-control-strip')).toBeVisible();
 });
 
 test('recording validation stays inline and focuses the first invalid input', async ({ page }) => {
@@ -405,18 +481,19 @@ test('the vertical axis can be fixed by the clinician and recovers from a bad ra
   await open(page, 'Target analysis');
   const chart = page.locator('#target-analysis svg.chart-svg');
   await expect(chart).toContainText('100');
-  await page.getByRole('button', { name: /^Y axis/ }).click();
-  const popup = page.getByRole('group', { name: /^Y axis/ });
-  await popup.getByLabel('Minimum').fill('40');
-  await popup.getByLabel('Maximum').fill('120');
+  const display = page.locator('#target-analysis .chart-display-menu');
+  await display.locator('summary').click();
+  const popup = display.locator('.chart-menu__panel');
+  await popup.getByLabel('Minimum', { exact: true }).fill('40');
+  await popup.getByLabel('Maximum', { exact: true }).fill('120');
   await expect(chart).toContainText('120');
-  await expect(page.getByRole('button', { name: /^Y axis/ })).toContainText('40–120');
+  await expect(popup).toContainText('Y-axis range · 40–120');
   // A reversed range is reported instead of silently rescaling the chart.
-  await popup.getByLabel('Maximum').fill('20');
+  await popup.getByLabel('Maximum', { exact: true }).fill('20');
   await expect(popup.getByText(/greater than/)).toBeVisible();
   await expect(chart).toContainText('120');
   await popup.getByRole('button', { name: 'Use automatic scale' }).click();
-  await expect(page.getByRole('button', { name: /^Y axis/ })).toContainText('automatic');
+  await expect(popup).toContainText('Y-axis range · automatic');
   await expect(chart).toContainText('100');
   await accessible(page);
 });
@@ -426,16 +503,15 @@ test('every measurement type can be drawn as bars, points or a cumulative record
   const chart = page.locator('#target-analysis svg.chart-svg');
   await expect(chart.locator('path[stroke-width="2.2"]').first()).toBeVisible();
   await expectChartOptionsVisible(page);
-  await page.getByLabel('Plot', { exact: true }).selectOption('bars');
+  await page.locator('#target-chart-type').selectOption('bars');
   await expect(chart.locator('rect[rx="2"]').first()).toBeVisible();
-  await page.getByLabel('Plot', { exact: true }).selectOption('points');
+  await page.locator('#target-chart-type').selectOption('points');
   await expect(chart.locator('circle[r="4.6"]').first()).toBeVisible();
   // Percentages have no meaningful cumulative record, so that option stays unavailable.
-  await expect(page.getByLabel('Plot', { exact: true }).locator('option[value="cumulative"]')).toBeDisabled();
+  expect(await page.locator('#target-chart-type option[value="cumulative"]').evaluate(option => option.disabled)).toBe(true);
   const program = programs.find(item => item.targets.some(target => target.type === 'Frequency'));
-  await selectProgram(page, program.id);
-  await page.getByRole('button', { name: 'Frequency', exact: true }).click();
-  await page.getByLabel('Plot', { exact: true }).selectOption('cumulative');
+  await selectProgram(page, program.id, 'Frequency');
+  await page.locator('#target-chart-type').selectOption('cumulative');
   await expect(chart).toContainText('Cumulative Occurrence count');
   await accessible(page);
 });
@@ -450,7 +526,9 @@ test('phase labels sit in their own strip, clear of every plotted point', async 
   const stripBox = await strip.boundingBox();
   const pointBox = await chart.locator('rect[width="9"]').first().boundingBox();
   expect(stripBox.y + stripBox.height).toBeLessThan(pointBox.y);
-  await page.getByRole('button', { name: 'Phase labels', exact: true }).click();
+  const display = page.locator('#target-analysis .chart-display-menu');
+  await display.locator('summary').click();
+  await display.getByLabel('Phase labels').uncheck();
   await expect(strip).toHaveCount(0);
   expect(await chart.locator('line[stroke-opacity="0.4"]').count()).toBeGreaterThan(0);
   await accessible(page);
@@ -460,11 +538,13 @@ test('value labels print each plotted measurement when the timeline is short', a
   await open(page, 'Target analysis');
   await page.getByLabel('Group by').selectOption('Weekly');
   const chart = page.locator('#target-analysis svg.chart-svg');
-  await page.getByRole('button', { name: 'Values', exact: true }).click();
+  const display = page.locator('#target-analysis .chart-display-menu');
+  await display.locator('summary').click();
+  await display.getByLabel('Values').check();
   const label = chart.locator('text[font-size="10"][paint-order="stroke"]').first();
   await expect(label).toBeVisible();
   expect(await label.textContent()).toMatch(/\d/);
-  await page.getByRole('button', { name: 'Values', exact: true }).click();
+  await display.getByLabel('Values').uncheck();
   await expect(chart.locator('text[font-size="10"][paint-order="stroke"]')).toHaveCount(0);
 });
 
@@ -484,8 +564,7 @@ test('behavior zero and untracked records stay distinct in local data and CSV', 
   expect(rows[0].value).toBe(0); expect(rows[0].missingDataMode).toBe('ZeroOut');
   expect(rows[1].value).toBeNull(); expect(rows[1].missingDataMode).toBe('DataNotTracked');
   expect(rows[1]).not.toHaveProperty('occurrenceCount');
-  await openTargetSelection(page);
-  await page.getByRole('group', { name: 'Analysis category', exact: true }).getByRole('button', { name: /Behaviors/ }).click();
+  await selectBehaviorAnalysis(page, 'Frequency');
   const output = await download(page, 'Export targets', 'Raw observations · CSV');
   const parsed = csv(output.bytes.toString());
   const mode = parsed[0].indexOf('Missing Data Mode'), value = parsed[0].indexOf('Value');
@@ -512,8 +591,8 @@ test('annotation add/edit uses the plotted target, validates ranges, and keeps m
   await open(page, 'Target analysis');
   const chosen = programs.find(program => program.category === 'SkillAcquisition' && program.id !== skillProgram.id && seed.sessionData.some(row => program.targets.some(target => target.id === row.targetId)));
   await selectProgram(page, chosen.id);
-  const type = await page.locator('.measurement-tabs button[aria-pressed="true"]').innerText();
-  const target = chosen.targets.find(item => item.type === Object.entries({ TrialByTrial: 'Trial by trial', Duration: 'Duration', Frequency: 'Frequency', IntervalData: 'Interval data', Anecdotal: 'Anecdotal', FluencyRate: 'Fluency / rate' }).find(([, label]) => label === type)[0]);
+  const target = chosen.targets.find(item => item.type === 'TrialByTrial')
+    || chosen.targets.find(item => item.type !== 'Anecdotal');
   // The mastery chart lives in the progress workflow; its selection must survive the trip.
   await activate(page, 'Progress overview');
   await page.locator('#mastery-prog').selectOption(chosen.id);
@@ -578,13 +657,13 @@ test('frequency views, narrative notes, data tables and log pagination remain fu
   await open(page, 'Target analysis');
   const frequencyProgram = programs.find(program => program.category === 'SkillAcquisition' && program.targets.some(target => target.type === 'Frequency'));
   await selectProgram(page, frequencyProgram.id);
-  await page.getByRole('button', { name: 'Frequency', exact: true }).click();
+  await changeMeasurement(page, 'Frequency');
   await expectChartOptionsVisible(page);
   await page.getByLabel('Frequency measure').selectOption('Rate per Minute');
   await page.locator('#target-analysis summary').filter({ hasText: 'View plotted data table' }).click();
   await expect(page.locator('#target-analysis .data-table')).toContainText('per minute');
   await selectProgram(page, skillProgram.id);
-  await page.getByRole('button', { name: 'Anecdotal', exact: true }).click();
+  await changeMeasurement(page, 'Anecdotal');
   await expect(page.getByRole('heading', { name: 'Observation notes', exact: true })).toBeVisible();
   await activate(page, 'ABC observations');
   await page.locator('#abc-observations').getByRole('button', { name: 'Log', exact: true }).click();
@@ -722,7 +801,7 @@ test('session pagination and weekly/monthly labels follow the actual grouped dat
 test('clinician splitting and all-hidden clinician recovery only use the active target', async ({ page }) => {
   await open(page, 'Target analysis');
   const targets = skillProgram.targets.filter(target => target.type === 'TrialByTrial');
-  for (const target of targets.slice(1)) await page.locator('#target-analysis .target-legend').first().getByRole('button', { name: target.name, exact: true }).click();
+  await selectOnlyTarget(page, targets[0]);
   await page.getByLabel('Split by clinician').check();
   const legend = page.locator('#target-analysis .target-legend').nth(1);
   const since = new Date(`${seed.asOfDate}T23:59:59`);
@@ -733,11 +812,12 @@ test('clinician splitting and all-hidden clinician recovery only use the active 
   await expect(page.getByRole('heading', { name: 'No series are visible.' })).toBeVisible();
   await legend.getByRole('button', { name: names[0], exact: true }).click();
   await expect(page.getByRole('heading', { name: 'No series are visible.' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Monochrome', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Monochrome', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const display = page.locator('#target-analysis .chart-display-menu');
+  await display.locator('summary').click();
+  await display.getByLabel('Monochrome').check();
   const grid = page.locator('#target-analysis svg.chart-svg line[stroke-dasharray="3 3"]');
   expect(await grid.count()).toBeGreaterThan(0);
-  await page.locator('#target-analysis').getByRole('button', { name: 'Gridlines', exact: true }).click();
+  await display.getByLabel('Gridlines').uncheck();
   await expect(grid).toHaveCount(0);
   await accessible(page);
 });
@@ -820,6 +900,7 @@ test('out-of-range data is not mislabeled as hidden series and has a recovery ac
     localStorage.setItem('welina_sessions', JSON.stringify(rows.map(row => ids.includes(row.targetId) ? { ...row, timestamp: '2026-01-14T10:00:00' } : row)));
   }, skillProgram.targets.map(target => target.id));
   await page.reload();
+  await selectProgram(page, skillProgram.id);
   await expect(page.getByRole('heading', { name: 'No measured observations in this range.' })).toBeVisible();
   await page.getByRole('button', { name: 'Change date range', exact: true }).click();
   await expect(page.locator('#target-date-range')).toBeFocused();
@@ -944,7 +1025,8 @@ test('default controls provide 44px pointer targets or full-sized associated lab
   for (const tab of ['Progress overview', 'Target analysis', 'ABC observations', 'Service & data quality', 'Reports']) {
     await activate(page, tab);
     const small = await page.evaluate(() => [...document.querySelectorAll('button,a,select,summary,input,textarea')]
-      .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')
+      .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden'
+        && !element.closest('details:not([open])'))
       .map(element => {
         const rect = element.getBoundingClientRect();
         const label = element.labels?.[0]?.getBoundingClientRect();
@@ -1011,14 +1093,15 @@ test('chart functions add median, criterion, projection, envelope and split-midd
   await open(page, 'Target analysis');
   await page.locator('#target-date-range').selectOption('6 months');
   const helpers = skillProgram.targets.find(target => target.phase === 'Acquisition' && target.type === 'TrialByTrial');
-  await page.getByLabel('Analyze target').selectOption(helpers.id);
-  await page.getByRole('button', { name: /^Chart functions/ }).click();
-  const menu = page.getByRole('group', { name: /^Chart functions/ });
+  await selectOnlyTarget(page, helpers);
+  const more = page.locator('#target-analysis .chart-more-menu');
+  await more.locator('summary').click();
+  const menu = more.locator('.chart-menu__panel');
   for (const name of ['Median line', 'Mastery criterion line', 'Projection (80% band)', 'Stability envelope', 'Condition means', 'IOA markers']) {
     await menu.getByRole('checkbox', { name: new RegExp(`^${name.replace(/[()]/g, '\\$&')}`) }).check();
   }
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: 'Chart functions (6)' })).toBeFocused();
+  await more.locator('summary').click();
+  await expect(more.locator('summary')).toBeFocused();
   const svg = page.locator('#target-analysis svg.chart-svg');
   await expect(svg).toContainText('Median:');
   await expect(svg).toContainText('Criterion ≥ 80');
@@ -1057,7 +1140,7 @@ test('prompt levels and celeration views show the data behind accuracy and fluen
   await page.getByRole('group', { name: 'Chart view' }).getByRole('button', { name: 'Prompt levels', exact: true }).click();
   await expect(page.locator('#target-analysis svg.chart-svg title').first()).toHaveText('Prompt levels');
   const fluency = programs.find(program => program.targets.some(target => target.type === 'FluencyRate'));
-  await selectProgram(page, fluency.id);
+  await selectProgram(page, fluency.id, 'Fluency / rate');
   await page.locator('#target-date-range').selectOption('3 months');
   await page.getByRole('group', { name: 'Chart view' }).getByRole('button', { name: 'Celeration', exact: true }).click();
   await expect(page.locator('#target-analysis svg.chart-svg')).toContainText('/wk');
@@ -1207,8 +1290,9 @@ test('view-only analytics access keeps reading and exporting but blocks every ch
   await expect(page.locator('.view-only-notice').first()).toContainText('View-only analytics access');
   await expect(page.getByRole('button', { name: 'Record observation', exact: true })).toBeDisabled();
   await expect(page.locator('#target-analysis .annotation-actions button').first()).toBeDisabled();
-  await page.getByRole('button', { name: 'Graph view', exact: true }).click();
-  await expect(page.getByLabel('Include dates without data')).toBeDisabled();
+  const display = page.locator('#target-analysis .chart-display-menu');
+  await display.locator('summary').click();
+  await expect(display.getByLabel('Show missing dates')).toBeDisabled();
   // Phones keep the data-entry actions in the drawer, so open it before checking them.
   if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: 'Open workspace navigation' }).click();
   await expect((await visibleTrigger(page, 'Add data'))).toBeDisabled();
@@ -1363,40 +1447,58 @@ test('skill mastery aggregates all programs by default and follows the shared ra
   await accessible(page);
 });
 
-test('target analysis starts with Programs, Behaviors and ABC Data, gates measurement types and keeps the clinical rail', async ({ page }) => {
-  await open(page, 'Target analysis');
+test('target analysis guides category, program, measurement and compatible targets before graphing', async ({ page }) => {
+  await page.goto('./');
+  await activate(page, 'Target analysis', { prepareAnalysis: false });
   const catalog = buildExplorerCatalog({ programs, sessions: clientSessions, asOfDate: seed.asOfDate });
   const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
   const rail = page.getByRole('complementary', { name: 'Clinical context', exact: true });
   const categoryGroup = nav.getByRole('group', { name: 'Analysis category', exact: true });
 
-  // The first-level choice is the kind of clinical data, before any target selection.
   await expect(categoryGroup.getByRole('button')).toHaveCount(3);
   await expect(categoryGroup.getByRole('button', { name: /Programs/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(categoryGroup.getByRole('button', { name: /Behaviors/ })).toBeVisible();
   await expect(categoryGroup.getByRole('button', { name: /ABC data/i })).toBeVisible();
+  await expect(page.locator('#target-program')).toHaveValue('');
+  await expect(page.locator('.analysis-guidance')).toContainText('Choose a program');
+  await expect(nav.locator('.explorer-family__chip')).toHaveCount(0);
+  await expect(page.locator('.trend-explorer__center svg.chart-svg')).toHaveCount(0);
 
-  // Step 1: a program is chosen. Step 2: its measurement types. Step 3: its targets.
+  // Program selection reveals its measurement types; compatible target rows wait for a type.
   const program = skillPrograms[0];
-  await expect(page.locator('#target-program')).toHaveValue(program.id);
+  await page.locator('#target-program').selectOption(program.id);
   const familyChips = nav.locator('.explorer-family__chip');
   await expect(familyChips.first()).toBeVisible();
-  await expect(familyChips.filter({ hasText: 'Trial by trial' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(familyChips.filter({ hasText: 'Trial by trial' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(nav.locator('.explorer-target')).toHaveCount(0);
+  await familyChips.filter({ hasText: 'Trial by trial' }).click();
   await expect(nav.locator('.explorer-target')).toHaveCount(program.targets.length);
-  await expect(nav.locator('.explorer-count')).toContainText('targets plotted');
+  await expect(nav.locator('.explorer-count')).toContainText('0 of');
 
-  // A target measured differently cannot join the analysis: it is disabled and says why.
+  // Different data definitions are explained and cannot be selected with trial-by-trial data.
   const incompatible = nav.locator('.explorer-target--incompatible');
   if (await incompatible.count()) {
-    const blocked = incompatible.first().locator('input[type="checkbox"]');
-    await expect(blocked).toBeDisabled();
+    await expect(incompatible.first().locator('input[type="checkbox"]')).toBeDisabled();
     await expect(incompatible.first().locator('.explorer-target__reason')).toContainText(/can.t be plotted with/);
   }
+  const search = page.getByLabel('Search targets in this selection');
+  await search.fill(program.targets[0].name);
+  await expect(nav.locator('.explorer-target')).toHaveCount(1);
+  await nav.getByRole('button', { name: 'Clear target search' }).click();
+  await expect(nav.locator('.explorer-target')).toHaveCount(program.targets.length);
+  const boxes = nav.locator('.explorer-target__check');
+  await boxes.first().focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(boxes.nth(1)).toBeFocused();
 
-  // Compatible targets plot together, and the clinical rail keeps insights and annotations.
-  const trialChecks = nav.locator('.explorer-target').filter({ has: page.locator('.explorer-target__name') }).locator('input[type="checkbox"]:not([disabled])');
-  await expect(trialChecks.first()).toBeChecked();
-  await trialChecks.nth(1).click();
+  await nav.getByRole('button', { name: 'Select all compatible targets', exact: true }).click();
+  const selectedCount = await nav.locator('.explorer-target__check:checked').count();
+  expect(selectedCount).toBeGreaterThan(0);
+  await nav.getByRole('button', { name: 'View analysis', exact: true }).click();
+  await expect(nav.getByRole('button', { name: 'Change selection', exact: true })).toBeVisible();
+  await expect(nav.locator('.explorer-selection-summary')).toContainText(`${selectedCount} targets selected`);
+  await expect(nav.locator('.explorer-selection-summary')).toContainText('Trial by trial');
+  await expect(nav.locator('.explorer-selection-summary')).toContainText('1 month');
   await expect(rail.getByRole('heading', { name: 'Clinical context', exact: true })).toBeVisible();
   await expect(rail.getByRole('heading', { name: 'Annotations', exact: true })).toBeVisible();
   await expect(rail.getByRole('heading', { name: 'Target definition', exact: true })).toBeVisible();
@@ -1404,42 +1506,34 @@ test('target analysis starts with Programs, Behaviors and ABC Data, gates measur
   await expect(page.locator('.trend-explorer__center svg.chart-svg')).toBeVisible();
   await accessible(page);
 
-  // Search is scoped to the visible selection and never changes the plotted chart.
-  const search = page.getByLabel('Search targets in this selection');
-  const firstName = program.targets[0].name;
-  await search.fill(firstName);
-  await expect(nav.locator('.explorer-target')).toHaveCount(1);
-  await nav.getByRole('button', { name: 'Clear target search' }).click();
-  await expect(nav.locator('.explorer-target')).toHaveCount(program.targets.length);
-
-  // Keyboard arrows move between target checkboxes without collapsing the list.
-  const boxes = nav.locator('.explorer-target__check');
-  await boxes.first().focus();
-  await page.keyboard.press('ArrowDown');
-  await expect(boxes.nth(1)).toBeFocused();
-
-  // Changing the measurement type clears incompatible selections and explains why.
-  const durationChip = familyChips.filter({ hasText: 'Frequency' });
-  if (await durationChip.count()) {
-    await durationChip.first().click();
+  // Changing measurement keeps compatibility explicit and does not silently replace targets.
+  await nav.getByRole('button', { name: 'Change selection', exact: true }).click();
+  const frequency = nav.locator('.explorer-family__chip').filter({ hasText: 'Frequency' });
+  if (await frequency.count()) {
+    await frequency.click();
     await expect(nav.locator('.explorer-notice')).toContainText(/different data types can.t share one analysis/);
-    await expect(familyChips.filter({ hasText: 'Frequency' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(frequency).toHaveAttribute('aria-pressed', 'true');
+    await expect(nav.locator('.explorer-target__check:checked')).toHaveCount(0);
     await nav.getByRole('button', { name: 'Dismiss selection note' }).click();
   }
 
-  // Behaviors lists behavior reduction targets only, with frequency, duration and interval types.
+  // Behaviors exposes only behavior-reduction measurement choices and ABC retains its workflow.
   await categoryGroup.getByRole('button', { name: /Behaviors/ }).click();
   await expect(page.locator('#target-program')).toHaveCount(0);
+  const behaviorFrequency = nav.locator('.explorer-family__chip').filter({ hasText: 'Frequency' });
+  await expect(behaviorFrequency).toBeVisible();
+  if (await behaviorFrequency.getAttribute('aria-pressed') !== 'true') await behaviorFrequency.click();
   const behaviorRows = nav.locator('.explorer-target');
   const behaviorTargetCount = behaviorPrograms.flatMap(group => group.targets).length;
   await expect(behaviorRows).toHaveCount(behaviorTargetCount);
-  await expect(nav.locator('.explorer-family__chip').filter({ hasText: 'Frequency' })).toBeVisible();
-  const firstBehavior = behaviorPrograms[0].targets[0];
+  const firstBehavior = behaviorPrograms.flatMap(group => group.targets).find(target => target.type === 'Frequency');
   await expect(nav.locator('.explorer-target').filter({ has: page.locator('.explorer-target__name', { hasText: firstBehavior.name }) })).toBeVisible();
+  const behaviorCheck = nav.locator('.explorer-target').filter({ hasText: firstBehavior.name }).locator('input[type="checkbox"]');
+  await behaviorCheck.check();
+  await nav.getByRole('button', { name: 'View analysis', exact: true }).click();
   await expect(rail).toContainText('Function hypothesis:');
 
-  // ABC Data keeps the existing workspace in the centre and the antecedent → behavior →
-  // consequence structure in the selection pane.
+  await nav.getByRole('button', { name: 'Change selection', exact: true }).click();
   await categoryGroup.getByRole('button', { name: /ABC data/i }).click();
   await expect(nav.getByRole('region', { name: 'Antecedent options' })).toBeVisible();
   await expect(nav.getByRole('region', { name: 'Behavior options' })).toBeVisible();
@@ -1449,9 +1543,10 @@ test('target analysis starts with Programs, Behaviors and ABC Data, gates measur
   await expect(page.locator('#target-analysis-abc svg.chart-svg')).toBeVisible();
   await accessible(page);
 
-  // Returning to Programs restores the program-scoped selection.
   await categoryGroup.getByRole('button', { name: /Programs/ }).click();
   await expect(page.locator('#target-program')).toHaveValue(program.id);
+  const restoredTrialFamily = nav.locator('.explorer-family__chip').filter({ hasText: 'Trial by trial' });
+  if (await restoredTrialFamily.count() && await restoredTrialFamily.getAttribute('aria-pressed') !== 'true') await restoredTrialFamily.click();
   await expect(nav.locator('.explorer-target')).toHaveCount(program.targets.length);
   expect(catalog.counts.targets).toBeGreaterThan(program.targets.length);
 });
