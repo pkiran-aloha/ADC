@@ -1699,3 +1699,20 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
    not sticky: the app already has a sticky header and tab bar, and a third sticky band
    would collide with them at zoom and on short screens. */
 .report-preview__footer-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; padding-top: 0.35rem; }
+
+/* Behavior quick picks: the presets that used to live in a popover now sit inline and
+   only ever select targets that share the active measurement type. */
+.explorer-presets { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.explorer-preset {
+  min-height: 1.9rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: #fff;
+  color: var(--color-slate-700);
+  font-size: 0.6875rem;
+  line-height: 1.2;
+}
+.explorer-preset:hover:not(:disabled) { border-color: var(--color-brand-300); background: var(--color-brand-50); }
+.explorer-preset[aria-pressed='true'] { border-color: var(--accent); background: var(--color-brand-50); color: var(--color-brand-800); font-weight: 600; }
+.explorer-preset:disabled { opacity: 0.5; cursor: not-allowed; }

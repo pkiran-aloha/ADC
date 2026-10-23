@@ -31,6 +31,8 @@ export default function TrendExplorer({
   onToggleTarget,
   onSelectAllCompatible,
   onClearTargets,
+  behaviorPresets = [],
+  onSelectBehaviorPreset,
   totalCompatibleTargets = 0,
   notice = null,
   onDismissNotice,
@@ -80,6 +82,7 @@ export default function TrendExplorer({
   // Selection counts describe the whole program/behavior roster, not the filtered list,
   // so the caption stays steady while a search is active.
   const allEntries = useMemo(() => activeGroups.flatMap(group => group.targets), [activeGroups]);
+  const byId = useMemo(() => new Map(catalog.items.map(entry => [entry.targetId, entry])), [catalog.items]);
 
   const selectedCount = useMemo(
     () => allEntries.filter(entry => selectedTargetIds.has(entry.targetId)).length,
@@ -172,6 +175,29 @@ export default function TrendExplorer({
           <AbcScopePanel summary={abcSummary} />
         ) : (
           <div className="explorer-body">
+            {isBehaviorMode && behaviorPresets.length > 1 && (
+              <div className="explorer-presets" role="group" aria-label="Behavior quick picks">
+                {behaviorPresets.map(preset => {
+                  const compatible = preset.ids.filter(id => familyKeyOf(byId.get(id)) === activeFamilyKey);
+                  const pressed = compatible.length > 0 && compatible.length === selectedTargetIds.size
+                    && compatible.every(id => selectedTargetIds.has(id));
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className="explorer-preset"
+                      aria-pressed={pressed}
+                      disabled={!compatible.length}
+                      aria-label={`${preset.label}: ${compatible.length} compatible ${compatible.length === 1 ? 'behavior' : 'behaviors'}`}
+                      onClick={() => onSelectBehaviorPreset?.(preset.ids)}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {familyOptions.length > 0 && (
               <fieldset className="explorer-family">
                 <legend>

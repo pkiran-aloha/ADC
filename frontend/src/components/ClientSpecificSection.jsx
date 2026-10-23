@@ -33,7 +33,7 @@ import {
   minimumTrialsFor, graphStandards, preferenceSummary, eligibleChartRows
 } from '../utils/graphPreferences';
 import { observationType } from '../utils/observations';
-import { availableSummaryModes, resolveSummaryMode, summaryLabel, withSummarySeries, groupTargetsByStage } from '../utils/groupSeries';
+import { availableSummaryModes, resolveSummaryMode, summaryLabel, withSummarySeries, behaviorPresets, groupTargetsByStage } from '../utils/groupSeries';
 import { buildInsights } from '../utils/insights';
 import { buildExplorerCatalog, toggleExplorerSelection } from '../utils/trendExplorer';
 import {
@@ -245,6 +245,9 @@ export default function ClientSpecificSection({
   // every program to see how it is going (feedback: progress in the Skill Acquisition selector).
   const programProgressMap = useMemo(() => new Map(skillPrograms.map(program => [program.id, programProgress(program, clientSessions)])), [skillPrograms, clientSessions]);
   const targetStages = useMemo(() => groupTargetsByStage(activeTargets.filter(target => target.type === activeTargetType)), [activeTargets, activeTargetType]);
+  // Quick picks (all behaviors, by function, by program) were previously inside a popover;
+  // they now sit directly in the Behaviors pane and only ever select compatible targets.
+  const behaviorQuickPicks = useMemo(() => behaviorPresets(allBehaviors), [allBehaviors]);
   const graphPolicyMinimum = minimumTrialsFor(preferences, standards);
   const titleContext = `${client?.id}-${activeCategoryTab}-${selectedProgramId}-${selectedBehaviorIds.join(',')}`;
   const defaultTitle = activeCategoryTab === 'SkillAcquisition' ? (currentSelectedProgram?.name || 'Program observations')
@@ -364,6 +367,18 @@ export default function ClientSpecificSection({
       return;
     }
     setSelectedSkillIds(toggleExplorerSelection(selectedSkillTargetIds, entry, activeFamilyKey));
+  }
+
+  // A preset applies only the targets that share the active measurement type; the rest are
+  // named in the note so a clinician knows why a behavior was not plotted.
+  function applyBehaviorPreset(ids) {
+    resetView(false);
+    const compatible = ids.filter(id => familyKeyOf(allBehaviors.find(behavior => behavior.id === id)) === activeFamilyKey);
+    setSelectedBehaviorIds(compatible);
+    const skipped = ids.length - compatible.length;
+    announce(skipped > 0
+      ? `${compatible.length} of ${ids.length} behaviors plotted — ${skipped} use a different measurement type and can’t share this analysis.`
+      : '', skipped > 0 ? 'attention' : 'info');
   }
 
   function selectAllCompatible() {
@@ -782,6 +797,8 @@ export default function ClientSpecificSection({
       selectedTargetIds={activeCategoryTab === 'SkillAcquisition' ? selectedSkillTargetIds : new Set(selectedBehaviorIds)}
       onToggleTarget={toggleTarget}
       onSelectAllCompatible={selectAllCompatible}
+      behaviorPresets={behaviorQuickPicks}
+      onSelectBehaviorPreset={applyBehaviorPreset}
       onClearTargets={clearTargetSelection}
       totalCompatibleTargets={activeCategoryTab === 'SkillAcquisition' ? compatibleTargets.length : targetsInFamily(allBehaviors, activeFamilyKey).length}
       notice={selectionNotice}
