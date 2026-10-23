@@ -66,7 +66,7 @@ jobs:
         run: npm run build
 
       - name: Set up .NET 8
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
@@ -115,22 +115,37 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
 
-      # Headless shell is all these tests use, so only that download is needed. Each
-      # attempt is time-boxed and retried: a transient CDN reset is not a deployment failure.
+      # `--with-deps` shells out to apt, which has no socket timeout of its own: a stalled
+      # mirror sat on the deployment for the full job budget. The runner image already
+      # ships Chromium's shared libraries, so the browser is fetched without apt, every
+      # attempt is killed after 150s, and apt is only paid for if the launch check fails.
       - name: Install Chromium for UX regression checks
         working-directory: frontend
-        timeout-minutes: 8
+        timeout-minutes: 10
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           set -euo pipefail
+          installed=''
           for attempt in 1 2 3; do
-            if npx playwright install --with-deps --only-shell --no-progress chromium; then
-              exit 0
+            echo "Chromium download attempt ${attempt}/3"
+            if timeout --kill-after=10s 150s npx playwright install --only-shell --no-progress chromium; then
+              installed=1
+              break
             fi
-            echo "::warning::Playwright browser install failed (attempt ${attempt}/3); retrying."
-            sleep 15
+            echo "::warning::Chromium download stalled or failed (attempt ${attempt}/3)."
+            sleep 10
           done
-          echo "::error::Could not install Chromium after three attempts."
-          exit 1
+          if [ -z "$installed" ]; then
+            echo "::error::Could not download Chromium after three attempts."
+            exit 1
+          fi
+          if node -e "const { chromium } = require('@playwright/test'); chromium.launch().then(browser => browser.close()).then(() => process.exit(0), error => { console.error(error.message); process.exit(1); });"; then
+            echo 'Chromium launches with the libraries already on the runner.'
+          else
+            echo '::warning::Chromium could not launch; installing system dependencies.'
+            timeout --kill-after=10s 300s npx playwright install --with-deps --only-shell --no-progress chromium
+          fi
 
       - name: Verify accessible desktop and mobile flows under the Pages path
         working-directory: frontend
@@ -138,7 +153,7 @@ jobs:
 
       - name: Preserve failed browser diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: browser-regression-diagnostics-${{ matrix.shard }}
           path: frontend/test-results/
