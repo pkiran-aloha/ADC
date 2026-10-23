@@ -1442,20 +1442,6 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
   .trend-explorer__center > .chart-footer { padding-inline: 1rem; }
 }
 
-/* Target analysis: keep current scope visible while making setup progressive. */
-.explorer-current-scope { display: grid; gap: 0.2rem; min-width: 0; }
-.explorer-current-scope__label { color: var(--muted); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.02em; }
-.explorer-current-scope > strong { overflow: hidden; color: var(--ink); font-size: 0.8125rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.explorer-change-selection { margin-top: 0.2rem; }
-.explorer-change-selection > summary { width: fit-content; min-height: 2.75rem; display: inline-flex; align-items: center; color: var(--accent); cursor: pointer; font-size: 0.75rem; font-weight: 600; }
-.explorer-change-selection > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 0.2rem; }
-.explorer-selection-controls { display: grid; gap: 0.65rem; padding: 0.65rem 0 0.15rem; }
-.explorer-selection-controls .explorer-search > label { font-size: 0.75rem; }
-@media (max-width: 899px) {
-  .explorer-head { padding: 0.75rem 1rem; }
-  .explorer-groups { max-height: 14rem; }
-}
-
 /* ---------------------------------------------------------------------------
    Overview module order: a clinician-controlled reading order for the four
    analytics modules. It is a reorder panel in normal page flow (no drag, no

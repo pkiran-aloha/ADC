@@ -254,3 +254,5 @@ Only `main` can publish: the deploy job checks the branch, and the repository's 
 - The workflow uses the built-in `GITHUB_TOKEN` and grants Pages/OIDC write permissions only to the deploy job. The checked-in `docs/` directory contains the platform wiki plus a legacy snapshot and is **not** the deployment source.
 
 **Hosting scope:** GitHub Pages serves only the static React frontend and its fictional, browser-local demo data. The .NET API is compiled as a validation check, not hosted by Pages; running the API in production requires a separate backend host.
+
+<!-- Deploy trigger: 2026-10-22T17:25:25Z -->

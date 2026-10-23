@@ -4,6 +4,8 @@
 **Status:** First-pass implementation completed on 22 October 2026; second pass on the documented follow-ups completed the same day, including browser-level (Playwright + axe) validation in this workspace. Manual screen-reader and physical-device review remain pending.
 **Purpose:** Identify avoidable vertical space and interaction overhead that delays access to useful analytics, then propose a compact, accessible information hierarchy. This supplements—not replaces—the broader usability, accessibility and visual-system work in [`UX_AUDIT.md`](UX_AUDIT.md).
 
+> **Current UI note (22 October 2026):** The Target analysis-specific refinements documented below were subsequently rolled back to the 21 October snapshot at `fe8b9b3`, per user request. The other page-estate work (overview order, report preview, ABC/service navigation and shared headers) remains. Treat the Target analysis implementation and verification notes in this audit as historical; the current target page again uses the always-visible three-pane explorer, original chart controls/popovers, and visible Refresh action.
+
 ## Executive summary
 
 The findings below document the baseline hierarchy reviewed before the implementation update; the current first-pass changes and verification limits are summarized in the implementation update below.
