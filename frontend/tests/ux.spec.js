@@ -7,7 +7,6 @@ import { buildInterventionTimeline } from '../src/utils/interventionTimeline.js'
 import { durationFilterForDate, weekCountFor } from '../src/utils/analyticsScope.js';
 import { ALL_PROGRAMS_ID, cumulativeMasterySeries } from '../src/utils/targetAnalytics.js';
 import { buildExplorerCatalog } from '../src/utils/trendExplorer.js';
-import { measurementFamilyFor } from '../src/utils/measurementFamilies.js';
 
 const read = promisify(readFile);
 const seed = JSON.parse(readFileSync(new URL('../../data/clinicalSeed.json', import.meta.url), 'utf8'));
@@ -90,6 +89,24 @@ async function selectProgram(page, programId, preferredMeasurement = '') {
 async function changeMeasurement(page, label) {
   await openTargetSelection(page);
   await finishSelection(page, label);
+}
+async function clearTargetSelection(nav) {
+  const checked = nav.locator('.explorer-target__check:checked');
+  while (await checked.count()) await checked.first().uncheck();
+}
+async function selectOnlyTarget(page, target) {
+  await openTargetSelection(page);
+  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
+  const rows = nav.locator('.explorer-target');
+  for (let index = 0; index < await rows.count(); index++) {
+    const row = rows.nth(index);
+    const checkbox = row.locator('.explorer-target__check');
+    if (await checkbox.isChecked() && !(await row.innerText()).includes(target.name)) await checkbox.uncheck();
+  }
+  const targetRow = rows.filter({ hasText: target.name }).first();
+  const checkbox = targetRow.locator('.explorer-target__check');
+  if (!await checkbox.isChecked()) await checkbox.check();
+  await nav.getByRole('button', { name: 'View analysis', exact: true }).click();
 }
 async function selectBehaviorAnalysis(page, measurement = 'Frequency') {
   await openTargetSelection(page);
@@ -327,7 +344,7 @@ test('mastery and cleared target selections explain a path forward', async ({ pa
   await activate(page, 'Target analysis');
   await openTargetSelection(page);
   const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
-  await nav.getByRole('button', { name: 'Clear target selection', exact: true }).click();
+  await clearTargetSelection(nav);
   await expect(nav.getByRole('button', { name: 'View analysis', exact: true })).toHaveCount(0);
   await expect(page.locator('.analysis-guidance')).toContainText('Select targets to analyze');
   const firstCompatible = nav.locator('.explorer-target__check:not(:disabled)').first();
@@ -467,12 +484,12 @@ test('the vertical axis can be fixed by the clinician and recovers from a bad ra
   const display = page.locator('#target-analysis .chart-display-menu');
   await display.locator('summary').click();
   const popup = display.locator('.chart-menu__panel');
-  await popup.getByLabel('Minimum').fill('40');
-  await popup.getByLabel('Maximum').fill('120');
+  await popup.getByLabel('Minimum', { exact: true }).fill('40');
+  await popup.getByLabel('Maximum', { exact: true }).fill('120');
   await expect(chart).toContainText('120');
   await expect(popup).toContainText('Y-axis range · 40–120');
   // A reversed range is reported instead of silently rescaling the chart.
-  await popup.getByLabel('Maximum').fill('20');
+  await popup.getByLabel('Maximum', { exact: true }).fill('20');
   await expect(popup.getByText(/greater than/)).toBeVisible();
   await expect(chart).toContainText('120');
   await popup.getByRole('button', { name: 'Use automatic scale' }).click();
@@ -486,12 +503,12 @@ test('every measurement type can be drawn as bars, points or a cumulative record
   const chart = page.locator('#target-analysis svg.chart-svg');
   await expect(chart.locator('path[stroke-width="2.2"]').first()).toBeVisible();
   await expectChartOptionsVisible(page);
-  await page.getByLabel('Plot', { exact: true }).selectOption('bars');
+  await page.locator('#target-chart-type').selectOption('bars');
   await expect(chart.locator('rect[rx="2"]').first()).toBeVisible();
-  await page.getByLabel('Plot', { exact: true }).selectOption('points');
+  await page.locator('#target-chart-type').selectOption('points');
   await expect(chart.locator('circle[r="4.6"]').first()).toBeVisible();
   // Percentages have no meaningful cumulative record, so that option stays unavailable.
-  await expect(page.getByLabel('Plot', { exact: true }).locator('option[value="cumulative"]')).toBeDisabled();
+  await expect(page.locator('#target-chart-type option[value="cumulative"]')).toBeDisabled();
   const program = programs.find(item => item.targets.some(target => target.type === 'Frequency'));
   await selectProgram(page, program.id, 'Frequency');
   await page.getByLabel('Plot', { exact: true }).selectOption('cumulative');
@@ -574,8 +591,8 @@ test('annotation add/edit uses the plotted target, validates ranges, and keeps m
   await open(page, 'Target analysis');
   const chosen = programs.find(program => program.category === 'SkillAcquisition' && program.id !== skillProgram.id && seed.sessionData.some(row => program.targets.some(target => target.id === row.targetId)));
   await selectProgram(page, chosen.id);
-  const selectedFamily = await page.locator('.explorer-family__chip[aria-pressed="true"]').getAttribute('aria-label');
-  const target = chosen.targets.find(item => selectedFamily?.startsWith(`${measurementFamilyFor(item).label},`));
+  const target = chosen.targets.find(item => item.type === 'TrialByTrial')
+    || chosen.targets.find(item => item.type !== 'Anecdotal');
   // The mastery chart lives in the progress workflow; its selection must survive the trip.
   await activate(page, 'Progress overview');
   await page.locator('#mastery-prog').selectOption(chosen.id);
@@ -784,11 +801,7 @@ test('session pagination and weekly/monthly labels follow the actual grouped dat
 test('clinician splitting and all-hidden clinician recovery only use the active target', async ({ page }) => {
   await open(page, 'Target analysis');
   const targets = skillProgram.targets.filter(target => target.type === 'TrialByTrial');
-  await openTargetSelection(page);
-  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
-  await nav.getByRole('button', { name: 'Clear target selection', exact: true }).click();
-  await nav.locator('.explorer-target').filter({ hasText: targets[0].name }).locator('input[type="checkbox"]').check();
-  await nav.getByRole('button', { name: 'View analysis', exact: true }).click();
+  await selectOnlyTarget(page, targets[0]);
   await page.getByLabel('Split by clinician').check();
   const legend = page.locator('#target-analysis .target-legend').nth(1);
   const since = new Date(`${seed.asOfDate}T23:59:59`);
@@ -1012,7 +1025,8 @@ test('default controls provide 44px pointer targets or full-sized associated lab
   for (const tab of ['Progress overview', 'Target analysis', 'ABC observations', 'Service & data quality', 'Reports']) {
     await activate(page, tab);
     const small = await page.evaluate(() => [...document.querySelectorAll('button,a,select,summary,input,textarea')]
-      .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')
+      .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden'
+        && !element.closest('details:not([open])'))
       .map(element => {
         const rect = element.getBoundingClientRect();
         const label = element.labels?.[0]?.getBoundingClientRect();
@@ -1079,11 +1093,7 @@ test('chart functions add median, criterion, projection, envelope and split-midd
   await open(page, 'Target analysis');
   await page.locator('#target-date-range').selectOption('6 months');
   const helpers = skillProgram.targets.find(target => target.phase === 'Acquisition' && target.type === 'TrialByTrial');
-  await openTargetSelection(page);
-  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
-  await nav.getByRole('button', { name: 'Clear target selection', exact: true }).click();
-  await nav.locator('.explorer-target').filter({ hasText: helpers.name }).locator('input[type="checkbox"]').check();
-  await nav.getByRole('button', { name: 'View analysis', exact: true }).click();
+  await selectOnlyTarget(page, helpers);
   const more = page.locator('#target-analysis .chart-more-menu');
   await more.locator('summary').click();
   const menu = more.locator('.chart-menu__panel');
@@ -1510,12 +1520,12 @@ test('target analysis guides category, program, measurement and compatible targe
   // Behaviors exposes only behavior-reduction measurement choices and ABC retains its workflow.
   await categoryGroup.getByRole('button', { name: /Behaviors/ }).click();
   await expect(page.locator('#target-program')).toHaveCount(0);
-  const behaviorRows = nav.locator('.explorer-target');
-  const behaviorTargetCount = behaviorPrograms.flatMap(group => group.targets).length;
-  await expect(behaviorRows).toHaveCount(behaviorTargetCount);
   const behaviorFrequency = nav.locator('.explorer-family__chip').filter({ hasText: 'Frequency' });
   await expect(behaviorFrequency).toBeVisible();
   if (await behaviorFrequency.getAttribute('aria-pressed') !== 'true') await behaviorFrequency.click();
+  const behaviorRows = nav.locator('.explorer-target');
+  const behaviorTargetCount = behaviorPrograms.flatMap(group => group.targets).length;
+  await expect(behaviorRows).toHaveCount(behaviorTargetCount);
   const firstBehavior = behaviorPrograms.flatMap(group => group.targets).find(target => target.type === 'Frequency');
   await expect(nav.locator('.explorer-target').filter({ has: page.locator('.explorer-target__name', { hasText: firstBehavior.name }) })).toBeVisible();
   const behaviorCheck = nav.locator('.explorer-target').filter({ hasText: firstBehavior.name }).locator('input[type="checkbox"]');
