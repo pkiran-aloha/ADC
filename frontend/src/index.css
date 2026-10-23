@@ -1833,7 +1833,7 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 .chart-overlay-group { padding-left: 0.65rem; border-left: 1px solid var(--line); }
 .chart-options-label { margin-right: 0.15rem; color: var(--muted); font-size: 0.6875rem; font-weight: 500; }
 .chart-add-action { min-height: 2.75rem; padding: 0.45rem 0.75rem; }
-.chart-options .toggle-control { min-height: 2.35rem; }
+.chart-options .toggle-control { min-height: 2.75rem; }
 .chart-menu { position: relative; }
 .chart-menu > summary {
   display: flex;

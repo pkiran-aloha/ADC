@@ -508,10 +508,10 @@ test('every measurement type can be drawn as bars, points or a cumulative record
   await page.locator('#target-chart-type').selectOption('points');
   await expect(chart.locator('circle[r="4.6"]').first()).toBeVisible();
   // Percentages have no meaningful cumulative record, so that option stays unavailable.
-  await expect(page.locator('#target-chart-type option[value="cumulative"]')).toBeDisabled();
+  expect(await page.locator('#target-chart-type option[value="cumulative"]').evaluate(option => option.disabled)).toBe(true);
   const program = programs.find(item => item.targets.some(target => target.type === 'Frequency'));
   await selectProgram(page, program.id, 'Frequency');
-  await page.getByLabel('Plot', { exact: true }).selectOption('cumulative');
+  await page.locator('#target-chart-type').selectOption('cumulative');
   await expect(chart).toContainText('Cumulative Occurrence count');
   await accessible(page);
 });
@@ -1545,6 +1545,8 @@ test('target analysis guides category, program, measurement and compatible targe
 
   await categoryGroup.getByRole('button', { name: /Programs/ }).click();
   await expect(page.locator('#target-program')).toHaveValue(program.id);
+  const restoredTrialFamily = nav.locator('.explorer-family__chip').filter({ hasText: 'Trial by trial' });
+  if (await restoredTrialFamily.count() && await restoredTrialFamily.getAttribute('aria-pressed') !== 'true') await restoredTrialFamily.click();
   await expect(nav.locator('.explorer-target')).toHaveCount(program.targets.length);
   expect(catalog.counts.targets).toBeGreaterThan(program.targets.length);
 });
