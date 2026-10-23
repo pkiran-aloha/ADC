@@ -26,6 +26,7 @@ import { supervisorObservations } from '../src/utils/observations.js';
 import { resolveScopeWindow, scopePrograms, weekCountFor } from '../src/utils/analyticsScope.js';
 import { ALL_PROGRAMS_ID, cumulativeMasterySeries } from '../src/utils/targetAnalytics.js';
 import { buildExplorerCatalog } from '../src/utils/trendExplorer.js';
+import { measurementFamilyFor, measurementFamilyOptions } from '../src/utils/measurementFamilies.js';
 
 const client = seed.clients[0];
 const programs = seed.programs.filter(program => program.clientId === client.id);
@@ -142,22 +143,25 @@ const cases = [
   }, ['Intervention timeline', 'No recorded changes in this range.']],
   ['TrendExplorer (three-pane shell)', TrendExplorer, {
     catalog: explorerCatalog,
-    selection: {
-      activeCategoryTab: 'SkillAcquisition',
-      selectedProgramId: skillPrograms[0].id,
-      selectedBehaviorIds: [firstBehaviorTarget.id],
-      activeTargetType: firstSkillTarget.type,
-      visibleTargetIds: new Set(skillPrograms[0].targets.map(target => target.id)),
-      analysisTargetId: firstSkillTarget.id
-    },
+    dataCategory: 'Programs',
+    onDataCategoryChange: noop,
+    selectedProgramId: skillPrograms[0].id,
+    onSelectProgram: noop,
+    familyOptions: measurementFamilyOptions(skillPrograms[0].targets),
+    activeFamilyKey: measurementFamilyFor(firstSkillTarget).key,
+    onSelectFamily: noop,
+    selectedTargetIds: new Set(skillPrograms[0].targets
+      .filter(target => measurementFamilyFor(target).key === measurementFamilyFor(firstSkillTarget).key)
+      .map(target => target.id)),
+    onToggleTarget: noop,
+    onSelectAllCompatible: noop,
+    onClearTargets: noop,
+    totalCompatibleTargets: skillPrograms[0].targets
+      .filter(target => measurementFamilyFor(target).key === measurementFamilyFor(firstSkillTarget).key).length,
+    notice: { tone: 'attention', text: 'Measurement type set to Frequency. 1 incompatible target was cleared.' },
+    onDismissNotice: noop,
+    abcSummary: { entryCount: 0, behaviorTargetCount: behaviorTargets.length, antecedents: [], behaviors: [], consequences: [] },
     skillPrograms,
-    allBehaviors: behaviorTargets,
-    onSelectCategory: noop,
-    onSelectProgramDropdown: noop,
-    onToggleBehaviorId: noop,
-    onSelectBehaviorPreset: noop,
-    onSelectProgramGroup: noop,
-    onSelectTargetItem: noop,
     insights: [{ tone: 'attention', title: 'Plateau prompt', detail: 'Check teaching steps.', reference: 'Lane & Gast (2014)' }],
     focusedEntry: explorerCatalog.items[0],
     annotationTarget: firstSkillTarget,
@@ -167,7 +171,18 @@ const cases = [
     detailPrograms: [skillPrograms[0]],
     activeTarget: firstSkillTarget,
     children: createElement('div', null, 'Center chart workspace')
-  }, ['Search targets or programs', 'Center chart workspace', 'Clinical context', 'Annotations', 'Target definition', 'Discriminative stimuli:']],
+  }, ['Programs', 'Behaviors', 'ABC Data', 'Measurement type', 'Search targets', 'Center chart workspace', 'Clinical context', 'Annotations', 'Target definition', 'Discriminative stimuli:']],
+  ['ClientSpecificSection (ABC data category)', ClientSpecificSection, {
+    client, programs, sessions, serviceSessions, abcEntries,
+    abcConfiguration: seed.abcConfigurations[0], annotations,
+    templates: PROMPT_HIERARCHY_TEMPLATES, standards: CLINICAL_STANDARDS,
+    initialFocus: { clientId: client.id, category: 'Behavior', behaviorIds: [firstBehaviorTarget.id], targetType: firstBehaviorTarget.type },
+    onAddPhaseLineClick: noop, onAddPhaseRangeClick: noop, onAddGraphNoteClick: noop,
+    onDeletePhaseLine: noop, onDeletePhaseRange: noop, onDeleteGraphNote: noop,
+    onRefresh: noop, onEditAnnotation: noop, onRecordClick: noop, onManualEntryClick: noop,
+    onCorrectObservation: noop, onDeleteObservation: noop, onProgramStatusChange: noop,
+    canEdit: true, supervisionRecords
+  }, ['Programs', 'Behaviors', 'ABC Data', 'Clinical context']],
   ['ClientSpecificSection (focus drilldown)', ClientSpecificSection, {
     client, programs, sessions, serviceSessions, abcEntries, annotations,
     templates: PROMPT_HIERARCHY_TEMPLATES, standards: CLINICAL_STANDARDS,

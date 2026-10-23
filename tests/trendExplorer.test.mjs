@@ -111,22 +111,20 @@ test('filterExplorerGroups narrows by category and case-insensitive search witho
   assert.deepEqual(filterExplorerGroups(catalog.groups, { query: 'zzzz-no-such-target' }), []);
 });
 
-test('selectExplorerTarget isolates a clicked skill target and switches to its measurement tab', () => {
+test('selectExplorerTarget narrows the analysis to the clicked target and its measurement family', () => {
   const client = seed.clients[0];
   const programs = seed.programs.filter(program => program.clientId === client.id);
   const sessions = seed.sessionData.filter(row => row.clientId === client.id);
   const catalog = buildExplorerCatalog({ programs, sessions, asOfDate: seed.asOfDate });
   const target = catalog.items.find(entry => entry.targetName === 'Label Community Helpers');
 
-  const next = selectExplorerTarget(target, programs);
+  const next = selectExplorerTarget(target);
   assert.equal(next.category, 'SkillAcquisition');
   assert.equal(next.selectedProgramId, target.programId);
-  assert.equal(next.requestedTargetType, target.measurementType);
+  assert.equal(next.requestedTargetType, target.familyKey);
   assert.equal(next.analysisTargetId, target.targetId);
   assert.equal(next.annotationTargetId, target.targetId);
-  assert.equal(next.hiddenTargetIds.has(target.targetId), false);
-  const program = programs.find(item => item.id === target.programId);
-  assert.equal(next.hiddenTargetIds.size, program.targets.length - 1);
+  assert.deepEqual(next.selectedTargetIds, [target.targetId]);
 });
 
 test('selectExplorerTarget opens a behavior reduction target directly in one click', () => {
@@ -136,10 +134,10 @@ test('selectExplorerTarget opens a behavior reduction target directly in one cli
   const catalog = buildExplorerCatalog({ programs, sessions, asOfDate: seed.asOfDate });
   const behavior = catalog.items.find(entry => entry.category === 'BehaviorReduction');
 
-  const next = selectExplorerTarget(behavior, programs);
+  const next = selectExplorerTarget(behavior);
   assert.equal(next.category, 'Behavior');
   assert.deepEqual(next.selectedBehaviorIds, [behavior.targetId]);
-  assert.equal(next.requestedTargetType, behavior.measurementType);
+  assert.equal(next.requestedTargetType, behavior.familyKey);
   assert.equal(next.analysisTargetId, behavior.targetId);
 });
 
@@ -153,7 +151,9 @@ test('selectExplorerProgram restores all targets in a program to the chart', () 
   const resetSkill = selectExplorerProgram(skillGroup);
   assert.equal(resetSkill.category, 'SkillAcquisition');
   assert.equal(resetSkill.selectedProgramId, skillGroup.id);
-  assert.equal(resetSkill.hiddenTargetIds.size, 0);
+  // null means "auto-select the compatible measurement family" for the new program.
+  assert.equal(resetSkill.selectedTargetIds, null);
+  assert.equal(resetSkill.requestedTargetType, '');
 
   const behaviorGroup = catalog.groups.find(group => group.category === 'BehaviorReduction');
   const resetBehavior = selectExplorerProgram(behaviorGroup);
@@ -226,4 +226,114 @@ test('every target across all 5 clients in clinicalSeed is accounted for in buil
   }
   assert.equal(totalPrograms, 37);
   assert.equal(totalTargets, 66);
+});
+
+// ---------------------------------------------------------------------------
+// Selection hierarchy: Programs / Behaviors / ABC, measurement families and the
+// rule that incompatible data types never share one analysis.
+// ---------------------------------------------------------------------------
+import {
+  ANALYSIS_CATEGORIES, measurementFamilyFor, measurementFamilyOptions, defaultFamilyKey,
+  isCompatibleWithFamily, pruneSelectionToFamily, selectionScopeCaption, familyChangeNotice,
+  incompatibilityReason, familyKeyOf, familyTypeOf
+} from '../frontend/src/utils/measurementFamilies.js';
+import { toggleExplorerSelection } from '../frontend/src/utils/trendExplorer.js';
+
+test('ANALYSIS_CATEGORIES exposes Programs, Behaviors and ABC Data with spoken names', () => {
+  assert.deepEqual(ANALYSIS_CATEGORIES.map(entry => entry.value), ['Programs', 'Behaviors', 'Abc']);
+  assert.deepEqual(ANALYSIS_CATEGORIES.map(entry => entry.label), ['Programs', 'Behaviors', 'ABC Data']);
+  for (const option of ANALYSIS_CATEGORIES) assert.ok(option.accessibleLabel);
+});
+
+test('measurementFamilyFor separates interval schedules and trial-by-trial variants', () => {
+  assert.equal(measurementFamilyFor({ type: 'Frequency' }).key, 'Frequency');
+  assert.equal(measurementFamilyFor({ type: 'Frequency' }).label, 'Frequency');
+  assert.equal(measurementFamilyFor({ type: 'IntervalData', intervalType: 'Partial' }).key, 'IntervalData|Partial');
+  assert.equal(measurementFamilyFor({ type: 'IntervalData', intervalType: 'Whole' }).label, 'Interval data · Whole');
+  assert.notEqual(
+    measurementFamilyFor({ type: 'IntervalData', intervalType: 'Momentary' }).key,
+    measurementFamilyFor({ type: 'IntervalData', intervalType: 'Whole' }).key
+  );
+  // Binary and prompt-based trials are the same percent-correct axis, so they share a family.
+  assert.equal(measurementFamilyFor({ type: 'TrialByTrial' }).key, 'TrialByTrial');
+  assert.equal(measurementFamilyFor({ type: 'TrialByTrial' }).variant, 'Binary');
+  assert.equal(measurementFamilyFor({ type: 'TrialByTrial', promptHierarchyId: 'most-to-least' }).variant, 'Customized');
+  assert.equal(familyTypeOf('IntervalData|Whole'), 'IntervalData');
+  assert.equal(familyKeyOf({ measurementType: 'Duration' }), 'Duration');
+});
+
+test('measurementFamilyOptions orders skill types clinically and marks families without data', () => {
+  const targets = [
+    { id: 'a', type: 'Anecdotal' },
+    { id: 'b', type: 'TrialByTrial' },
+    { id: 'c', type: 'TrialByTrial', promptHierarchyId: 'verbal-fading' },
+    { id: 'd', type: 'Frequency' },
+    { id: 'e', type: 'IntervalData', intervalType: 'Partial' }
+  ];
+  const options = measurementFamilyOptions(targets, { typesWithData: new Set(['TrialByTrial', 'Frequency', 'Anecdotal']) });
+  assert.deepEqual(options.map(option => option.type), ['TrialByTrial', 'Frequency', 'IntervalData', 'Anecdotal']);
+  assert.equal(options[0].count, 2);
+  assert.deepEqual(options[0].variants, ['Binary', 'Customized']);
+  assert.equal(options[2].hasData, false);
+  assert.equal(defaultFamilyKey(options), 'TrialByTrial');
+  assert.equal(defaultFamilyKey(measurementFamilyOptions([{ id: 'x', type: 'Duration' }], { typesWithData: new Set() })), 'Duration');
+});
+
+test('behavior measurement options exclude skill-only data types', () => {
+  const targets = [
+    { id: 'a', type: 'Frequency' }, { id: 'b', type: 'Duration' },
+    { id: 'c', type: 'IntervalData', intervalType: 'Whole' }, { id: 'd', type: 'TrialByTrial' }
+  ];
+  const options = measurementFamilyOptions(targets, { order: ['Frequency', 'Duration', 'IntervalData'] });
+  assert.deepEqual(options.map(option => option.key), ['Frequency', 'Duration', 'IntervalData|Whole']);
+});
+
+test('incompatible targets can never be selected together and pruning explains what was dropped', () => {
+  const targets = [
+    { id: 'tbt-1', name: 'Receptive ID', type: 'TrialByTrial' },
+    { id: 'tbt-2', name: 'Expressive ID', type: 'TrialByTrial' },
+    { id: 'frq-1', name: 'Requests', type: 'Frequency' }
+  ];
+  const options = measurementFamilyOptions(targets);
+  const family = 'TrialByTrial';
+
+  let selected = new Set();
+  for (const target of targets) selected = toggleExplorerSelection(selected, target, family);
+  assert.deepEqual([...selected], ['tbt-1', 'tbt-2'], 'frequency target is never added to a trial-by-trial selection');
+
+  const { kept, removed, removedLabels } = pruneSelectionToFamily(['tbt-1', 'tbt-2', 'frq-1'], targets, 'Frequency');
+  assert.deepEqual(kept, ['frq-1']);
+  assert.deepEqual(removed, ['tbt-1', 'tbt-2']);
+  assert.deepEqual(removedLabels, ['Receptive ID', 'Expressive ID']);
+
+  assert.equal(isCompatibleWithFamily({ type: 'Frequency' }, family), false);
+  assert.equal(isCompatibleWithFamily({ type: 'TrialByTrial' }, family), true);
+  assert.match(incompatibilityReason({ measurementType: 'Frequency' }, family, options), /can’t be plotted with trial by trial/i);
+
+  const notice = familyChangeNotice({ familyLabel: 'Frequency', removedLabels });
+  assert.match(notice, /2 incompatible targets were cleared/);
+  assert.match(notice, /different data types can’t share one analysis/);
+});
+
+test('selectionScopeCaption states program, measurement type and plotted count', () => {
+  assert.equal(
+    selectionScopeCaption({ category: 'Programs', programName: 'Expressive Language', familyLabel: 'Trial by trial', selectedCount: 2, totalCount: 4 }),
+    'Expressive Language · Trial by trial · 2 of 4 targets plotted'
+  );
+  assert.equal(
+    selectionScopeCaption({ category: 'Behaviors', familyLabel: 'Frequency', selectedCount: 1, totalCount: 3 }),
+    'Behavior reduction · Frequency · 1 of 3 targets plotted'
+  );
+});
+
+test('explorer catalog entries carry their measurement family for compatibility checks', () => {
+  const client = seed.clients[0];
+  const programs = seed.programs.filter(program => program.clientId === client.id);
+  const sessions = seed.sessionData.filter(row => row.clientId === client.id);
+  const catalog = buildExplorerCatalog({ programs, sessions, asOfDate: seed.asOfDate });
+  for (const entry of catalog.items) {
+    assert.ok(entry.familyKey, `missing family key for ${entry.targetName}`);
+    assert.ok(entry.familyLabel);
+    assert.equal(entry.familyKey, measurementFamilyFor({ type: entry.measurementType }).key);
+  }
 });

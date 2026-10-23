@@ -1415,6 +1415,175 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
   border-radius: 0.5rem;
 }
 
+/* ------------------------------------------------------------------ */
+/* Target analysis selection hierarchy: category → program/measure →  */
+/* compatible targets. Compact by design so the chart keeps the width. */
+/* ------------------------------------------------------------------ */
+.explorer-categories--primary.segmented-control { display: flex; width: 100%; }
+.explorer-categories--primary.segmented-control button {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-inline: 0.3rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.explorer-step { display: flex; align-items: flex-start; gap: 0.4rem; min-width: 0; }
+.explorer-step--plain { margin: 0; align-items: center; font-size: 0.75rem; color: var(--color-slate-600); line-height: 1.4; }
+.explorer-step .control-field { flex: 1 1 auto; min-width: 0; }
+.explorer-step__number {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: var(--color-brand-100);
+  color: var(--color-brand-700);
+  font-size: 0.625rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.explorer-step--plain .explorer-step__number,
+.explorer-step-label .explorer-step__number { margin-top: 0.1rem; }
+.explorer-step-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.explorer-body { display: grid; gap: 0.65rem; padding: 0.75rem 0.875rem 0.9rem; min-width: 0; }
+
+.explorer-family { display: grid; gap: 0.35rem; margin: 0; padding: 0; border: 0; min-width: 0; }
+.explorer-family > legend {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.explorer-family__chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.explorer-family__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.9rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-slate-700);
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+.explorer-family__chip small {
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--color-slate-100);
+  color: var(--muted);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+}
+.explorer-family__chip:hover:not(:disabled) { border-color: var(--color-brand-300); background: var(--color-brand-50); }
+.explorer-family__chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.explorer-family__chip[aria-pressed='true'] small { background: #fff; color: var(--color-brand-700); }
+.explorer-family__chip:disabled { cursor: not-allowed; opacity: 0.55; }
+.explorer-family__hint { margin: 0; color: var(--muted); font-size: 0.6875rem; line-height: 1.45; }
+
+.explorer-targets-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.5rem; }
+.explorer-targets-head > div:first-child { display: grid; gap: 0.15rem; min-width: 0; }
+.explorer-bulk { display: flex; gap: 0.25rem; }
+.explorer-bulk button {
+  min-height: 1.9rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: #fff;
+  color: var(--color-slate-700);
+  font-size: 0.6875rem;
+}
+.explorer-bulk button:hover:not(:disabled) { border-color: var(--color-brand-300); background: var(--color-brand-50); }
+.explorer-bulk button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.explorer-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0.65rem 0.875rem 0;
+  padding: 0.45rem 0.4rem 0.45rem 0.6rem;
+  border: 1px solid var(--color-amber-200);
+  border-radius: 0.5rem;
+  background: var(--color-amber-50);
+  color: var(--color-amber-900);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+.explorer-notice--info { border-color: var(--color-brand-200); background: var(--color-brand-50); color: var(--color-brand-800); }
+.explorer-notice p { margin: 0; min-width: 0; }
+.explorer-notice .icon-button { flex: none; width: 1.75rem; min-height: 1.75rem; color: inherit; }
+
+.explorer-group-label {
+  display: grid;
+  margin: 0 0 0.15rem;
+  padding: 0 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-slate-800);
+}
+.explorer-group-label small { font-size: 0.6875rem; font-weight: 400; color: var(--muted); }
+
+/* Target rows are labelled checkboxes: the checkbox is the plot/compare decision, the
+   rest of the row carries the phase and trend context. */
+.explorer-target {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.explorer-target__check {
+  flex: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0.2rem 0 0;
+  accent-color: var(--accent);
+}
+.explorer-target__check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.explorer-target__body { display: grid; gap: 0.28rem; min-width: 0; flex: 1 1 auto; }
+.explorer-target--incompatible { cursor: not-allowed; background: var(--color-slate-50); border-style: dashed; opacity: 0.85; }
+.explorer-target--incompatible .explorer-target__name { color: var(--color-slate-600); }
+.explorer-target__reason { color: var(--color-amber-800); font-size: 0.6875rem; line-height: 1.4; }
+.explorer-groups { max-height: 22rem; }
+
+.abc-scope-block { display: grid; gap: 0.25rem; padding: 0.5rem 0.55rem; border: 1px solid var(--line); border-radius: 0.5rem; background: #fff; }
+.abc-scope-block h3 { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0; font-size: 0.75rem; font-weight: 600; color: var(--color-slate-800); }
+.abc-scope-block h3 span { color: var(--muted); font-size: 0.6875rem; font-weight: 400; font-variant-numeric: tabular-nums; }
+.abc-scope-block ul { display: grid; gap: 0.1rem; margin: 0; padding-left: 1rem; color: var(--color-slate-700); font-size: 0.75rem; line-height: 1.4; }
+.abc-scope-block .field-hint { margin: 0; }
+.explorer-abc .field-hint { margin: 0; }
+
+/* ABC Data keeps its own workspace inside the centre pane of Target analysis. */
+.trend-explorer--abc { grid-template-columns: minmax(14rem, 15.25rem) minmax(0, 1fr); }
+.abc-embedded { display: block; min-width: 0; }
+.abc-embedded .analysis-filters { padding: 1rem 1.25rem 0.25rem; }
+.abc-embedded .panel-body { padding: 0 1.25rem 1.25rem; }
+.abc-embedded .definition-details { margin-inline: 1.25rem; }
+
 @media (max-width: 1279px) {
   .trend-explorer { grid-template-columns: minmax(14rem, 15.5rem) minmax(0, 1fr); }
   .trend-explorer__list { border-radius: 0; }
