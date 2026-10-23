@@ -120,9 +120,9 @@ export function familyTypeOf(value) {
   return key.split('|')[0];
 }
 
-// Options for the measurement-type chooser. `typesWithData` lets a family that has no
-// plotted observations in the client's data stay visible but be unselectable, so the
-// hierarchy still explains what the program measures.
+// Options for the measurement-type chooser. `typesWithData` annotates families with
+// existing observations; families without records remain selectable so clinicians can
+// deliberately inspect an empty state or begin recording the chosen measurement.
 export function measurementFamilyOptions(targets = [], {
   typesWithData = null, order = SKILL_MEASUREMENT_ORDER
 } = {}) {

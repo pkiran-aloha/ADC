@@ -21,6 +21,7 @@ import {
   scopePrograms, weekCountFor
 } from './utils/analyticsScope';
 import { ALL_PROGRAMS_ID, cumulativeMasterySeries, resolveMasterySelection } from './utils/targetAnalytics';
+import { measurementFamilyFor } from './utils/measurementFamilies';
 import OverviewScopeControls from './components/overview/OverviewScopeControls';
 import OverviewModuleOrder from './components/overview/OverviewModuleOrder';
 import SectionJumpNav from './components/ui/SectionJumpNav';
@@ -244,7 +245,8 @@ export default function App() {
     setFocusRequest({
       clientId: selectedClientId, nonce: Date.now(), category: program.category === 'BehaviorReduction' ? 'Behavior' : 'SkillAcquisition',
       programId: program.category === 'SkillAcquisition' ? program.id : undefined, behaviorIds: program.category === 'BehaviorReduction' ? [target.id] : undefined,
-      targetType: target.type, durationFilter: focusDate ? durationFilterForDate(focusDate, SEED_AS_OF_DATE) : '3 months',
+      targetType: target.type, measurementFamilyKey: measurementFamilyFor(target).key,
+      durationFilter: focusDate ? durationFilterForDate(focusDate, SEED_AS_OF_DATE) : '3 months',
       aggregation, selectedKey: focusDate || week, analysisTargetId: target.id
     });
     activateWorkflow('target-analysis', { scrollToTop: false });

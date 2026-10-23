@@ -80,7 +80,7 @@ const cases = [
     onRefresh: noop, onEditAnnotation: noop, onRecordClick: noop, onManualEntryClick: noop,
     onCorrectObservation: noop, onDeleteObservation: noop, onProgramStatusChange: noop,
     canEdit: true, supervisionRecords
-  }, ['Visual analysis', 'record']],
+  }, ['Choose a program', 'Measurement type', 'ABC Data']],
   ['ClientSpecificSection (view only)', ClientSpecificSection, {
     client, programs, sessions, serviceSessions, abcEntries, annotations,
     templates: PROMPT_HIERARCHY_TEMPLATES, standards: CLINICAL_STANDARDS,
@@ -171,7 +171,7 @@ const cases = [
     detailPrograms: [skillPrograms[0]],
     activeTarget: firstSkillTarget,
     children: createElement('div', null, 'Center chart workspace')
-  }, ['Programs', 'Behaviors', 'ABC Data', 'Measurement type', 'Search targets', 'Center chart workspace', 'Clinical context', 'Annotations', 'Target definition', 'Discriminative stimuli:']],
+  }, ['Programs', 'Behaviors', 'ABC Data', 'Change selection', 'Center chart workspace', 'Clinical context', 'Annotations', 'Target definition', 'Discriminative stimuli:']],
   ['ClientSpecificSection (ABC data category)', ClientSpecificSection, {
     client, programs, sessions, serviceSessions, abcEntries,
     abcConfiguration: seed.abcConfigurations[0], annotations,
