@@ -540,10 +540,12 @@ function AbcScopePanel({ summary }) {
         {summary ? `${summary.entryCount} observations · ${summary.behaviorTargetCount} behavior targets` : 'Loading ABC structure…'}
       </p>
       {structure.map(([label, values]) => (
-        <section className="abc-scope-block" key={label} aria-label={`${label} options`}>
+        <section className="abc-scope-block" key={label}>
           <h3>{label}<span>{values.length}</span></h3>
           {values.length
-            ? <ul>{values.map(value => <li key={value}>{value}</li>)}</ul>
+            ? <div className="abc-scope-scroll" role="region" tabIndex={0} aria-label={`${label} options`}>
+              <ul>{values.map(value => <li key={value}>{value}</li>)}</ul>
+            </div>
             : <p className="field-hint">Not configured for this client.</p>}
         </section>
       ))}
