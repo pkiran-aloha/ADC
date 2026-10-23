@@ -1573,7 +1573,19 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 .abc-scope-block { display: grid; gap: 0.25rem; padding: 0.5rem 0.55rem; border: 1px solid var(--line); border-radius: 0.5rem; background: #fff; }
 .abc-scope-block h3 { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0; font-size: 0.75rem; font-weight: 600; color: var(--color-slate-800); }
 .abc-scope-block h3 span { color: var(--muted); font-size: 0.6875rem; font-weight: 400; font-variant-numeric: tabular-nums; }
-.abc-scope-block ul { display: grid; gap: 0.1rem; margin: 0; padding-left: 1rem; color: var(--color-slate-700); font-size: 0.75rem; line-height: 1.4; }
+.abc-scope-block ul {
+  display: grid;
+  gap: 0.1rem;
+  max-height: 7.5rem;
+  margin: 0;
+  padding: 0 0.15rem 0 1rem;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  color: var(--color-slate-700);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  scrollbar-width: thin;
+}
 .abc-scope-block .field-hint { margin: 0; }
 .explorer-abc .field-hint { margin: 0; }
 
