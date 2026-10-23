@@ -465,7 +465,8 @@ export default function App() {
             {workflowVisible('target-analysis') && <WorkflowPanel id="target-analysis" active={activeSection === 'target-analysis'}>
               <Suspense fallback={<AnalyticsSkeleton />}>
                 <ClientSpecificSection key={`${selectedClientId}-${clientFocus?.nonce || 0}`} client={currentClient} programs={programs} sessions={sessions} annotations={annotations}
-                  serviceSessions={serviceSessions} abcEntries={abcEntries} templates={PROMPT_HIERARCHY_TEMPLATES} standards={CLINICAL_STANDARDS} initialFocus={clientFocus}
+                  serviceSessions={serviceSessions} abcEntries={abcEntries} abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
+                  templates={PROMPT_HIERARCHY_TEMPLATES} standards={CLINICAL_STANDARDS} initialFocus={clientFocus}
                   onAddPhaseLineClick={target => openAnnotation('line', target)}
                   onAddPhaseRangeClick={target => openAnnotation('range', target)}
                   onAddGraphNoteClick={target => openAnnotation('note', target)}

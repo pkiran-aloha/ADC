@@ -63,8 +63,8 @@ async function download(page, trigger, option) {
   return { name: file.suggestedFilename(), bytes: await read(await file.path()) };
 }
 async function openTargetSelection(page) {
-  // In the original explorer, search and program controls are immediately visible.
-  await expect(page.locator('#target-program, .explorer-behavior-picker').first()).toBeVisible();
+  // Target analysis opens on the Programs category, so the program selector is visible.
+  await expect(page.locator('#target-program')).toBeVisible();
 }
 async function selectProgram(page, programId) {
   await openTargetSelection(page);
@@ -215,20 +215,31 @@ test('help works with keyboard and touch without leaving the viewport', async ({
   await expect(popup).toHaveCount(0);
 });
 
-test('behavior comparison opens on click, supports checkboxes and dismisses with Escape', async ({ page }) => {
+test('behavior comparison is a category-first multi-select that never mixes measurement types', async ({ page }) => {
   await open(page, 'Target analysis');
   await openTargetSelection(page);
-  await page.getByRole('button', { name: /Behavior reduction/ }).click();
-  const trigger = page.getByRole('button', { name: /Choose behaviors/ });
-  await trigger.click();
-  const popup = page.getByRole('group', { name: /Choose behaviors/ });
-  const checkboxes = popup.getByRole('checkbox');
-  await expect(checkboxes).toHaveCount(programs.filter(program => program.category === 'BehaviorReduction').length);
-  await checkboxes.nth(1).check();
-  await expect(trigger).toContainText('(2)');
-  await checkboxes.nth(1).press('Escape');
-  await expect(popup).toHaveCount(0);
-  await expect(trigger).toBeFocused();
+  const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
+  await page.getByRole('group', { name: 'Analysis category', exact: true }).getByRole('button', { name: /Behaviors/ }).click();
+
+  // Every behavior reduction target is listed in the pane with a plot checkbox.
+  const behaviors = programs.filter(program => program.category === 'BehaviorReduction').flatMap(program => program.targets);
+  await expect(nav.locator('.explorer-target')).toHaveCount(behaviors.length);
+  await expect(nav.locator('.explorer-target__check').first()).toBeChecked();
+
+  // Quick picks replace the old popover and apply only compatible behaviors, saying why.
+  const presets = nav.getByRole('group', { name: 'Behavior quick picks' });
+  await expect(presets.getByRole('button').first()).toBeVisible();
+  await presets.getByRole('button').first().click();
+  const compatible = behaviors.filter(target => target.type === behaviors[0].type);
+  if (compatible.length < behaviors.length) {
+    await expect(nav.locator('.explorer-notice')).toContainText(/use a different measurement type/);
+    await nav.getByRole('button', { name: 'Dismiss selection note' }).click();
+  }
+
+  // A behavior measured a different way is disabled rather than silently summed.
+  const incompatible = nav.locator('.explorer-target--incompatible input[type="checkbox"]');
+  expect(await incompatible.count()).toBe(behaviors.length - compatible.length);
+  await expect(nav.getByLabel('Show missing dates')).toHaveCount(0);
   await expect(page.getByLabel('Show missing dates')).toBeVisible();
   await accessible(page);
 });
@@ -474,7 +485,7 @@ test('behavior zero and untracked records stay distinct in local data and CSV', 
   expect(rows[1].value).toBeNull(); expect(rows[1].missingDataMode).toBe('DataNotTracked');
   expect(rows[1]).not.toHaveProperty('occurrenceCount');
   await openTargetSelection(page);
-  await page.getByRole('button', { name: /Behavior reduction/ }).click();
+  await page.getByRole('group', { name: 'Analysis category', exact: true }).getByRole('button', { name: /Behaviors/ }).click();
   const output = await download(page, 'Export targets', 'Raw observations · CSV');
   const parsed = csv(output.bytes.toString());
   const mode = parsed[0].indexOf('Missing Data Mode'), value = parsed[0].indexOf('Value');
@@ -1352,59 +1363,97 @@ test('skill mastery aggregates all programs by default and follows the shared ra
   await accessible(page);
 });
 
-test('trend explorer groups targets with phase and delta, searches, navigates by keyboard and exposes the clinical rail', async ({ page }) => {
+test('target analysis starts with Programs, Behaviors and ABC Data, gates measurement types and keeps the clinical rail', async ({ page }) => {
   await open(page, 'Target analysis');
   const catalog = buildExplorerCatalog({ programs, sessions: clientSessions, asOfDate: seed.asOfDate });
   const nav = page.getByRole('navigation', { name: 'Target explorer', exact: true });
   const rail = page.getByRole('complementary', { name: 'Clinical context', exact: true });
+  const categoryGroup = nav.getByRole('group', { name: 'Analysis category', exact: true });
 
-  await expect(nav.locator('.explorer-group')).toHaveCount(catalog.counts.programs);
-  await expect(nav.locator('.explorer-target')).toHaveCount(catalog.counts.targets);
-  await expect(nav.locator('.explorer-count')).toContainText(`${catalog.counts.targets} targets across ${catalog.counts.programs} programs`);
-  await expect(page.locator('.trend-explorer__center svg.chart-svg')).toBeVisible();
+  // The first-level choice is the kind of clinical data, before any target selection.
+  await expect(categoryGroup.getByRole('button')).toHaveCount(3);
+  await expect(categoryGroup.getByRole('button', { name: /Programs/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(categoryGroup.getByRole('button', { name: /Behaviors/ })).toBeVisible();
+  await expect(categoryGroup.getByRole('button', { name: /ABC data/i })).toBeVisible();
 
-  // Clinical context, annotations and the selected target's definition are visible together.
+  // Step 1: a program is chosen. Step 2: its measurement types. Step 3: its targets.
+  const program = skillPrograms[0];
+  await expect(page.locator('#target-program')).toHaveValue(program.id);
+  const familyChips = nav.locator('.explorer-family__chip');
+  await expect(familyChips.first()).toBeVisible();
+  await expect(familyChips.filter({ hasText: 'Trial by trial' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(nav.locator('.explorer-target')).toHaveCount(program.targets.length);
+  await expect(nav.locator('.explorer-count')).toContainText('targets plotted');
+
+  // A target measured differently cannot join the analysis: it is disabled and says why.
+  const incompatible = nav.locator('.explorer-target--incompatible');
+  if (await incompatible.count()) {
+    const blocked = incompatible.first().locator('input[type="checkbox"]');
+    await expect(blocked).toBeDisabled();
+    await expect(incompatible.first().locator('.explorer-target__reason')).toContainText(/can.t be plotted with/);
+  }
+
+  // Compatible targets plot together, and the clinical rail keeps insights and annotations.
+  const trialChecks = nav.locator('.explorer-target').filter({ has: page.locator('.explorer-target__name') }).locator('input[type="checkbox"]:not([disabled])');
+  await expect(trialChecks.first()).toBeChecked();
+  await trialChecks.nth(1).click();
   await expect(rail.getByRole('heading', { name: 'Clinical context', exact: true })).toBeVisible();
   await expect(rail.getByRole('heading', { name: 'Annotations', exact: true })).toBeVisible();
   await expect(rail.getByRole('heading', { name: 'Target definition', exact: true })).toBeVisible();
   await expect(rail).toContainText('Discriminative stimuli:');
-  await expect(rail).toContainText('Mastery:');
+  await expect(page.locator('.trend-explorer__center svg.chart-svg')).toBeVisible();
   await accessible(page);
 
-  // Search filters the grouped list and updates the live status summary.
-  const search = page.getByLabel('Search targets or programs');
-  await search.fill('Community Helpers');
+  // Search is scoped to the visible selection and never changes the plotted chart.
+  const search = page.getByLabel('Search targets in this selection');
+  const firstName = program.targets[0].name;
+  await search.fill(firstName);
   await expect(nav.locator('.explorer-target')).toHaveCount(1);
-  await expect(nav.locator('.explorer-count')).toContainText('1 target across 1 program matching “Community Helpers”');
-  const helpersRow = nav.locator('.explorer-target').first();
-  await helpersRow.click();
-  await expect(helpersRow).toHaveAttribute('aria-current', 'true');
-  await expect(rail.locator('.rail-target-summary')).toContainText('Label Community Helpers');
-  await page.getByRole('button', { name: 'Clear target search' }).click();
-  await expect(nav.locator('.explorer-target')).toHaveCount(catalog.counts.targets);
+  await nav.getByRole('button', { name: 'Clear target search' }).click();
+  await expect(nav.locator('.explorer-target')).toHaveCount(program.targets.length);
 
-  // Keyboard arrow, End and Home keys move focus across target rows in the explorer list.
-  const firstItem = nav.locator('.explorer-target').first();
-  const secondItem = nav.locator('.explorer-target').nth(1);
-  const lastItem = nav.locator('.explorer-target').last();
-  await firstItem.focus();
+  // Keyboard arrows move between target checkboxes without collapsing the list.
+  const boxes = nav.locator('.explorer-target__check');
+  await boxes.first().focus();
   await page.keyboard.press('ArrowDown');
-  await expect(secondItem).toBeFocused();
-  await page.keyboard.press('End');
-  await expect(lastItem).toBeFocused();
-  await page.keyboard.press('Home');
-  await expect(firstItem).toBeFocused();
+  await expect(boxes.nth(1)).toBeFocused();
 
-  // Selecting a behavior reduction target directly in the explorer switches chart and rail in one click.
+  // Changing the measurement type clears incompatible selections and explains why.
+  const durationChip = familyChips.filter({ hasText: 'Frequency' });
+  if (await durationChip.count()) {
+    await durationChip.first().click();
+    await expect(nav.locator('.explorer-notice')).toContainText(/different data types can.t share one analysis/);
+    await expect(familyChips.filter({ hasText: 'Frequency' })).toHaveAttribute('aria-pressed', 'true');
+    await nav.getByRole('button', { name: 'Dismiss selection note' }).click();
+  }
+
+  // Behaviors lists behavior reduction targets only, with frequency, duration and interval types.
+  await categoryGroup.getByRole('button', { name: /Behaviors/ }).click();
+  await expect(page.locator('#target-program')).toHaveCount(0);
+  const behaviorRows = nav.locator('.explorer-target');
+  const behaviorTargetCount = behaviorPrograms.flatMap(group => group.targets).length;
+  await expect(behaviorRows).toHaveCount(behaviorTargetCount);
+  await expect(nav.locator('.explorer-family__chip').filter({ hasText: 'Frequency' })).toBeVisible();
   const firstBehavior = behaviorPrograms[0].targets[0];
-  const behaviorRow = nav.locator('.explorer-target').filter({
-    has: page.locator('.explorer-target__name', { hasText: firstBehavior.name })
-  }).first();
-  await behaviorRow.click();
-  await expect(behaviorRow).toHaveAttribute('aria-current', 'true');
-  await expect(page.getByRole('button', { name: `Edit chart title: ${firstBehavior.name}` })).toBeVisible();
+  await expect(nav.locator('.explorer-target').filter({ has: page.locator('.explorer-target__name', { hasText: firstBehavior.name }) })).toBeVisible();
   await expect(rail).toContainText('Function hypothesis:');
+
+  // ABC Data keeps the existing workspace in the centre and the antecedent → behavior →
+  // consequence structure in the selection pane.
+  await categoryGroup.getByRole('button', { name: /ABC data/i }).click();
+  await expect(nav.getByRole('region', { name: 'Antecedent options' })).toBeVisible();
+  await expect(nav.getByRole('region', { name: 'Behavior options' })).toBeVisible();
+  await expect(nav.getByRole('region', { name: 'Consequence options' })).toBeVisible();
+  await expect(page.locator('#target-analysis-abc')).toBeVisible();
+  await expect(page.getByRole('group', { name: 'ABC analysis', exact: true })).toBeVisible();
+  await expect(page.locator('#target-analysis-abc svg.chart-svg')).toBeVisible();
   await accessible(page);
+
+  // Returning to Programs restores the program-scoped selection.
+  await categoryGroup.getByRole('button', { name: /Programs/ }).click();
+  await expect(page.locator('#target-program')).toHaveValue(program.id);
+  await expect(nav.locator('.explorer-target')).toHaveCount(program.targets.length);
+  expect(catalog.counts.targets).toBeGreaterThan(program.targets.length);
 });
 
 test('reports collapse the builder after generating and preview the document in place', async ({ page }) => {

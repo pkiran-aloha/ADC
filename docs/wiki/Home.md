@@ -779,7 +779,7 @@ Above the modules sits a **Reorder modules** disclosure: the five modules listed
 
 This is the deepest screen in the workspace, arranged as a three-pane **Trend explorer** so a reviewer can choose a target, read its chart, and inspect its clinical context without losing sight of the data:
 
-- **Left pane — Target explorer (`Target explorer` navigation):** a searchable list of every target grouped under its program, with each item's current phase badge and 90-day direction-aware trend delta (reusing the same classification as the Progress overview, plus narrative notes for anecdotal targets). Keyboard `ArrowUp`/`ArrowDown`/`Home`/`End` move between target rows. Category pills (**All**, **Skills**, **Behaviors**), the **Program** selector, and **Choose behaviors** (for multi-behavior overlays) keep every existing selection path one click away.
+- **Left pane — Target explorer (`Target explorer` navigation):** the selection hierarchy starts with the kind of clinical data (**Programs**, **Behaviors**, **ABC Data**). Programs asks for a program, then a **measurement type**, then the compatible targets to plot; Behaviors asks for a measurement type and compatible behavior targets; ABC Data lists its antecedent, behavior and consequence structure while the existing ABC workspace stays in the centre. Every target row keeps its phase badge and 90-day direction-aware trend delta (the same classification as the Progress overview, plus narrative notes for anecdotal targets), and `ArrowUp`/`ArrowDown`/`Home`/`End` move between them.
 - **Center pane — Chart, toolbar and visual analysis:** the full measurement toolbar (**Date range**, **Chart view**, **Group by**, **Plot**, unit measures, **Summary**, **Split by clinician**), overlay toolbar (**Add data point**, **Average**, **Trend**, **Graph view**, **Chart functions**, **Y axis**, **Values**, **Phase labels**, **Gridlines**, **Monochrome**, **Include measured zeros**, **Show missing dates**), `TargetChart` (or specialist views), **Observation details** point inspector, the four-tab **Visual analysis** panel, the plotted data table, and series/clinician legends.
 - **Right rail — Clinical context (`Clinical context` complementary landmark):**
   1. **Clinical context** — the focused target's phase, 90-day trend status, and the data-based decision prompts from `buildInsights` (plateau, variability, prompt dependency, extinction burst, resurgence, mastery streak/projection, IOA warnings) right beside the graph.
@@ -790,13 +790,15 @@ On smaller viewports the three panes adapt cleanly: below `1280px` the clinical 
 
 ### 5.2.1 Choose what to analyze
 
-1. Search in **Search targets or programs** (matches target names, program names, treatment domains, measurement tools, phases, and review flags such as *plateau* or *variability*), or browse the grouped list directly.
-2. Select a **target row** to focus its measurement tab, isolate its series on the chart, and load its insights, annotations, and definition in one click — including behavior-reduction targets without switching category tabs first.
-3. Select a **program heading** (or use **Program**) to overlay all targets of the same measurement type in that program; use **Behaviors → Choose behaviors** to overlay multiple problem behaviors by preset or checkbox.
-4. Read the target's **Discriminative stimuli**, **Prompt hierarchy**, **Mastery** criterion, **Objective**, and downloadable **Learning materials** directly in the right rail, or expand **Program setup** for full teaching procedures and every target in the program.
-5. Set the **Date range** (3 days through 2 years) in the chart toolbar.
-6. Choose a **measurement tab** when a program spans multiple tools: Trial by trial, Duration, Frequency, Interval data, Anecdotal, Fluency / rate.
-7. For multiple targets, optionally add a **Summary** line: average of visible targets, or combined total. A combined total is not offered for percentages, because summing percentages is meaningless. For a single target, **Split by clinician** creates one series per recording clinician; each clinician can be hidden from the legend.
+1. Choose the category of clinical data: **Programs**, **Behaviors**, or **ABC Data**.
+2. In **Programs**, pick a **Program** (the selector shows its status and mastery progress), then a **measurement type** — Trial by trial (binary or customized, prompt-based), Frequency, Duration, Interval data (momentary, partial or whole interval), Rate / fluency, or Anecdotal. The target list then shows only that program's targets.
+3. In **Behaviors**, choose the measurement type — Frequency, Duration, or Interval data — then one or more behavior reduction targets from any behavior program.
+4. Tick **target checkboxes** to plot one or several compatible targets together; use **All** and **None** for the compatible group. Only targets recorded the same way can share one analysis: incompatible rows are disabled and state the reason, and changing the measurement type clears them with an explicit note.
+5. Search inside the current selection with **Search targets in this selection** (target name, measurement type, phase, or trend status); it filters the list without changing the chart.
+6. In **ABC Data**, read the configured antecedents, behaviors and consequences in the left pane while the existing ABC workspace — timeline chart, patterns, forecast and observation log — stays in the centre.
+7. Read the target's **Discriminative stimuli**, **Prompt hierarchy**, **Mastery** criterion, **Objective**, and downloadable **Learning materials** directly in the right rail, or expand **Program setup** for full teaching procedures and every target in the program.
+8. Set the **Date range** (3 days through 2 years) in the chart toolbar.
+9. For multiple targets, optionally add a **Summary** line: average of visible targets, or combined total. A combined total is not offered for percentages, because summing percentages is meaningless. For a single target, **Split by clinician** creates one series per recording clinician; each clinician can be hidden from the legend.
 
 ### 5.2.2 Chart anatomy
 

@@ -35,7 +35,13 @@ import {
 import { observationType } from '../utils/observations';
 import { availableSummaryModes, resolveSummaryMode, summaryLabel, withSummarySeries, behaviorPresets, groupTargetsByStage } from '../utils/groupSeries';
 import { buildInsights } from '../utils/insights';
-import { buildExplorerCatalog, selectExplorerProgram, selectExplorerTarget } from '../utils/trendExplorer';
+import { buildExplorerCatalog, toggleExplorerSelection } from '../utils/trendExplorer';
+import {
+  BEHAVIOR_MEASUREMENT_ORDER, SKILL_MEASUREMENT_ORDER, defaultFamilyKey, familyChangeNotice,
+  familyKeyOf, familyTypeOf, measurementFamilyFor, measurementFamilyOptions,
+  pruneSelectionToFamily, targetsInFamily
+} from '../utils/measurementFamilies';
+import AbcDataSection from './AbcDataSection';
 
 const FUNCTION_OPTIONS = [
   { key: 'median', label: 'Median line', hint: 'Central tendency that resists outliers' },
@@ -54,6 +60,7 @@ export default function ClientSpecificSection({
   sessions = [],
   serviceSessions = [],
   abcEntries = [],
+  abcConfiguration = null,
   templates = [],
   standards = null,
   asOfDate = SEED_AS_OF_DATE,
@@ -76,15 +83,28 @@ export default function ClientSpecificSection({
   viewOnlyReason = '',
   supervisionRecords = []
 }) {
-  const [activeCategoryTab, setActiveCategoryTab] = useState(initialFocus?.category || 'SkillAcquisition');
+  // The first-level choice inside Target analysis: Programs, Behaviors or ABC Data.
+  const [dataCategory, setDataCategory] = useState(() => {
+    if (initialFocus?.category === 'Behavior') return 'Behaviors';
+    if (initialFocus?.category === 'Abc' || initialFocus?.category === 'ABC') return 'Abc';
+    return 'Programs';
+  });
+  const activeCategoryTab = dataCategory === 'Behaviors' ? 'Behavior' : 'SkillAcquisition';
   const [selectedProgramId, setSelectedProgramId] = useState(() => initialFocus?.programId || programs.find(program => program.category === 'SkillAcquisition')?.id || '');
   const [selectedBehaviorIds, setSelectedBehaviorIds] = useState(() => {
     if (initialFocus?.behaviorIds) return initialFocus.behaviorIds;
     const first = programs.find(program => program.category === 'BehaviorReduction')?.targets[0]?.id;
     return first ? [first] : [];
   });
-  const [requestedTargetType, setActiveTargetType] = useState(initialFocus?.targetType || '');
-  const [hiddenTargetIds, setHiddenTargetIds] = useState(() => new Set(initialFocus?.hiddenTargetIds || []));
+  // Stored as a measurement-family key (for example IntervalData|Partial) so different
+  // interval schedules cannot be combined; the target type is derived from it.
+  const [requestedFamilyKey, setRequestedFamilyKey] = useState(() => (
+    initialFocus?.targetType ? measurementFamilyFor({ type: initialFocus.targetType }).key : ''
+  ));
+  // Skill acquisition selection is explicit. `null` means "auto-select the compatible
+  // family", which is what choosing a program resets to.
+  const [selectedSkillIds, setSelectedSkillIds] = useState(null);
+  const [selectionNotice, setSelectionNotice] = useState(null);
   const [durationFilter, setDurationFilter] = useState(initialFocus?.durationFilter || '1 month');
   const [aggregation, setAggregation] = useState(initialFocus?.aggregation || 'Per Day');
   const [sessionPage, setSessionPage] = useState(1);
@@ -161,28 +181,72 @@ export default function ClientSpecificSection({
   const allBehaviors = useMemo(() => behaviorPrograms.flatMap(p => p.targets.map(t => ({ ...t, programName: p.name }))), [behaviorPrograms]);
   const currentSelectedProgram = useMemo(() => activeCategoryTab === 'SkillAcquisition' ? skillPrograms.find(p => p.id === selectedProgramId) || null : null,
     [activeCategoryTab, selectedProgramId, skillPrograms]);
+  // Step 1 of the Programs flow: the full target roster of the chosen program. The
+  // analysis roster is the compatible subset selected in step 3.
+  const programTargets = useMemo(() => (currentSelectedProgram ? currentSelectedProgram.targets : []), [currentSelectedProgram]);
   const activeTargets = useMemo(() => activeCategoryTab === 'SkillAcquisition'
-    ? (currentSelectedProgram ? currentSelectedProgram.targets : [])
-    : allBehaviors.filter(b => selectedBehaviorIds.includes(b.id)), [activeCategoryTab, currentSelectedProgram, allBehaviors, selectedBehaviorIds]);
+    ? programTargets
+    : allBehaviors.filter(b => selectedBehaviorIds.includes(b.id)), [activeCategoryTab, programTargets, allBehaviors, selectedBehaviorIds]);
   const detailPrograms = useMemo(() => activeCategoryTab === 'SkillAcquisition'
     ? (currentSelectedProgram ? [currentSelectedProgram] : [])
     : behaviorPrograms.filter(p => p.targets.some(t => selectedBehaviorIds.includes(t.id))), [activeCategoryTab, currentSelectedProgram, behaviorPrograms, selectedBehaviorIds]);
-  const visibleTargetIds = useMemo(() => new Set(activeTargets.filter(target => !hiddenTargetIds.has(target.id)).map(target => target.id)), [activeTargets, hiddenTargetIds]);
 
-  const availableTargetTypes = useMemo(() => {
-    if (!activeTargets.length) return [];
-    const typesWithData = new Set();
-    activeTargets.forEach(tgt => {
-      if (sessions.some(s => s.clientId === client?.id && s.targetId === tgt.id && s.missingDataMode !== 'DataNotTracked')) typesWithData.add(tgt.type);
+  // Measurement types that actually have observations inside the current roster. A type
+  // with no observations stays visible in the chooser but cannot be selected.
+  const typesWithData = useMemo(() => {
+    const roster = activeCategoryTab === 'SkillAcquisition' ? programTargets : allBehaviors;
+    const types = new Set();
+    roster.forEach(tgt => {
+      if (sessions.some(s => s.clientId === client?.id && s.targetId === tgt.id && s.missingDataMode !== 'DataNotTracked')) types.add(tgt.type);
     });
-    return ['TrialByTrial', 'Duration', 'Frequency', 'IntervalData', 'Anecdotal', 'FluencyRate'].filter(type => typesWithData.has(type));
-  }, [activeTargets, sessions, client]);
-  const activeTargetType = availableTargetTypes.includes(requestedTargetType) ? requestedTargetType : availableTargetTypes[0] || '';
+    return types;
+  }, [activeCategoryTab, programTargets, allBehaviors, sessions, client]);
+  const availableTargetTypes = useMemo(
+    () => ['TrialByTrial', 'Duration', 'Frequency', 'IntervalData', 'Anecdotal', 'FluencyRate'].filter(type => typesWithData.has(type)),
+    [typesWithData]
+  );
+
+  // Step 2: one family per measurement definition. Interval schedules are separate
+  // families so partial and whole interval percentages never share an axis.
+  const familyOptions = useMemo(() => (activeCategoryTab === 'SkillAcquisition'
+    ? measurementFamilyOptions(programTargets, { typesWithData, order: SKILL_MEASUREMENT_ORDER })
+    : measurementFamilyOptions(allBehaviors, { typesWithData, order: BEHAVIOR_MEASUREMENT_ORDER })),
+  [activeCategoryTab, programTargets, allBehaviors, typesWithData]);
+  const activeFamilyKey = useMemo(() => {
+    if (requestedFamilyKey) {
+      const exact = familyOptions.find(option => option.key === requestedFamilyKey);
+      if (exact) return exact.key;
+      // A requested type whose interval schedule is unknown still resolves to that type.
+      const requestedType = familyTypeOf(requestedFamilyKey);
+      const sameType = familyOptions.find(option => option.type === requestedType && option.hasData)
+        || familyOptions.find(option => option.type === requestedType);
+      if (sameType) return sameType.key;
+    }
+    return defaultFamilyKey(familyOptions);
+  }, [requestedFamilyKey, familyOptions]);
+  const activeFamily = familyOptions.find(option => option.key === activeFamilyKey) || null;
+  const activeTargetType = familyTypeOf(activeFamilyKey) || availableTargetTypes[0] || '';
+
+  // Step 3: an explicit selection of compatible targets. Behaviors keep their own
+  // selection array, which is already the multi-select contract used by the chart.
+  const compatibleTargets = useMemo(() => targetsInFamily(programTargets, activeFamilyKey), [programTargets, activeFamilyKey]);
+  const selectedSkillTargetIds = useMemo(() => {
+    if (selectedSkillIds) {
+      const roster = new Set(programTargets.map(target => target.id));
+      return new Set([...selectedSkillIds].filter(id => roster.has(id)));
+    }
+    return new Set(compatibleTargets.map(target => target.id));
+  }, [selectedSkillIds, programTargets, compatibleTargets]);
+  const visibleTargetIds = useMemo(() => (activeCategoryTab === 'SkillAcquisition'
+    ? selectedSkillTargetIds
+    : new Set(selectedBehaviorIds)), [activeCategoryTab, selectedSkillTargetIds, selectedBehaviorIds]);
 
   // Guide the selector with program-level progress so a clinician does not have to open
   // every program to see how it is going (feedback: progress in the Skill Acquisition selector).
   const programProgressMap = useMemo(() => new Map(skillPrograms.map(program => [program.id, programProgress(program, clientSessions)])), [skillPrograms, clientSessions]);
   const targetStages = useMemo(() => groupTargetsByStage(activeTargets.filter(target => target.type === activeTargetType)), [activeTargets, activeTargetType]);
+  // Quick picks (all behaviors, by function, by program) were previously inside a popover;
+  // they now sit directly in the Behaviors pane and only ever select compatible targets.
   const behaviorQuickPicks = useMemo(() => behaviorPresets(allBehaviors), [allBehaviors]);
   const graphPolicyMinimum = minimumTrialsFor(preferences, standards);
   const titleContext = `${client?.id}-${activeCategoryTab}-${selectedProgramId}-${selectedBehaviorIds.join(',')}`;
@@ -209,36 +273,151 @@ export default function ClientSpecificSection({
     setAxisDraft({ min: '', max: '' });
     setAxisError('');
     if (resetTargets) {
-      setHiddenTargetIds(new Set());
-      setActiveTargetType('');
+      setRequestedFamilyKey('');
+      setSelectionNotice(null);
       setAnnotationTargetId('');
       setAnalysisTargetId('');
     }
   }
 
-  function applyExplorerTarget(entry) {
+  // ---- Selection hierarchy handlers -------------------------------------------
+  // Category → program/measurement type → compatible targets. Every transition that
+  // drops a target explains itself through `selectionNotice`.
+
+  function changeDataCategory(next) {
+    if (next === dataCategory) return;
+    setDataCategory(next);
+    setSelectionNotice(null);
     resetView(false);
-    const next = selectExplorerTarget(entry, programs);
-    setActiveCategoryTab(next.category);
-    if (next.selectedProgramId !== undefined) setSelectedProgramId(next.selectedProgramId);
-    if (next.selectedBehaviorIds) setSelectedBehaviorIds(next.selectedBehaviorIds);
-    setActiveTargetType(next.requestedTargetType);
-    setHiddenTargetIds(next.hiddenTargetIds);
-    setAnalysisTargetId(next.analysisTargetId);
-    setAnnotationTargetId(next.annotationTargetId);
   }
 
-  function applyExplorerProgram(group) {
-    resetView(false);
-    const next = selectExplorerProgram(group);
-    setActiveCategoryTab(next.category);
-    if (next.selectedProgramId !== undefined) setSelectedProgramId(next.selectedProgramId);
-    if (next.selectedBehaviorIds) setSelectedBehaviorIds(next.selectedBehaviorIds);
-    setActiveTargetType(next.requestedTargetType);
-    setHiddenTargetIds(next.hiddenTargetIds);
-    setAnalysisTargetId(next.analysisTargetId);
-    setAnnotationTargetId(next.annotationTargetId);
+  function selectProgram(programId) {
+    setSelectedProgramId(programId);
+    setSelectedSkillIds(null);
+    setRequestedFamilyKey('');
+    setSelectionNotice(null);
+    resetView(true);
   }
+
+  function announce(text, tone = 'attention') {
+    setSelectionNotice(text ? { text, tone } : null);
+  }
+
+  // Switching the measurement type is the one action that can invalidate a selection.
+  // Incompatible targets are cleared (never silently re-plotted) and the reason is shown.
+  function selectFamily(nextKey) {
+    if (!nextKey) return;
+    const option = familyOptions.find(item => item.key === nextKey);
+    const label = option?.label || nextKey;
+    setRequestedFamilyKey(nextKey);
+    resetView(false);
+
+    if (activeCategoryTab === 'SkillAcquisition') {
+      const current = [...selectedSkillTargetIds];
+      const { kept, removedLabels } = pruneSelectionToFamily(current, programTargets, nextKey);
+      const compatible = targetsInFamily(programTargets, nextKey).map(target => target.id);
+      // An empty selection stays empty: the clinician cleared it on purpose.
+      const next = current.length === 0 ? new Set() : kept.length ? new Set(kept) : new Set(compatible);
+      setSelectedSkillIds(next);
+      // Only explain a change that actually removed a target; re-choosing the active
+      // measurement type should not add an empty banner.
+      announce(removedLabels.length ? familyChangeNotice({
+        familyLabel: label,
+        removedLabels,
+        autoSelected: kept.length ? 0 : next.size
+      }) : '');
+      return;
+    }
+
+    const current = selectedBehaviorIds;
+    const { kept, removedLabels } = pruneSelectionToFamily(current, allBehaviors, nextKey);
+    const compatible = targetsInFamily(allBehaviors, nextKey).map(target => target.id);
+    const next = current.length === 0 ? [] : kept.length ? kept : compatible.slice(0, 1);
+    setSelectedBehaviorIds(next);
+    announce(removedLabels.length ? familyChangeNotice({
+      familyLabel: label,
+      removedLabels,
+      autoSelected: kept.length ? 0 : next.length
+    }) : '');
+  }
+
+  // A measurement type chosen from the chart toolbar follows the same compatibility
+  // rules as the selection pane. Interval recording keeps its schedule when possible.
+  function selectTargetType(type) {
+    if (!type) return;
+    const candidates = familyOptions.filter(option => option.type === type);
+    if (!candidates.length) return;
+    const current = candidates.find(option => option.key === activeFamilyKey);
+    const preferred = current
+      || candidates.find(option => option.hasData)
+      || candidates[0];
+    selectFamily(preferred.key);
+  }
+
+  function toggleTarget(entry) {
+    resetView(false);
+    setAnalysisTargetId(entry.targetId);
+    setAnnotationTargetId(entry.targetId);
+    if (entry.category === 'BehaviorReduction' || activeCategoryTab === 'Behavior') {
+      if (selectedBehaviorIds.includes(entry.targetId)) {
+        setSelectedBehaviorIds(selectedBehaviorIds.filter(id => id !== entry.targetId));
+      } else if (familyKeyOf(entry) === activeFamilyKey) {
+        setSelectedBehaviorIds([...selectedBehaviorIds, entry.targetId]);
+      }
+      return;
+    }
+    setSelectedSkillIds(toggleExplorerSelection(selectedSkillTargetIds, entry, activeFamilyKey));
+  }
+
+  // A preset applies only the targets that share the active measurement type; the rest are
+  // named in the note so a clinician knows why a behavior was not plotted.
+  function applyBehaviorPreset(ids) {
+    resetView(false);
+    const compatible = ids.filter(id => familyKeyOf(allBehaviors.find(behavior => behavior.id === id)) === activeFamilyKey);
+    setSelectedBehaviorIds(compatible);
+    const skipped = ids.length - compatible.length;
+    announce(skipped > 0
+      ? `${compatible.length} of ${ids.length} behaviors plotted — ${skipped} use a different measurement type and can’t share this analysis.`
+      : '', skipped > 0 ? 'attention' : 'info');
+  }
+
+  function selectAllCompatible() {
+    resetView(false);
+    if (activeCategoryTab === 'SkillAcquisition') setSelectedSkillIds(new Set(compatibleTargets.map(target => target.id)));
+    else setSelectedBehaviorIds(targetsInFamily(allBehaviors, activeFamilyKey).map(target => target.id));
+  }
+
+  function clearTargetSelection() {
+    resetView(false);
+    if (activeCategoryTab === 'SkillAcquisition') setSelectedSkillIds(new Set());
+    else setSelectedBehaviorIds([]);
+  }
+
+  // Legend toggles and the selection list stay one source of truth.
+  function toggleLegendTarget(target) {
+    const selected = visibleTargetIds.has(target.id);
+    if (activeCategoryTab === 'SkillAcquisition') {
+      if (!selected && familyKeyOf(target) !== activeFamilyKey) {
+        announce(`Only ${activeFamily?.label || 'targets of the same measurement type'} can be plotted together. Change the measurement type to add ${target.name}.`);
+        return;
+      }
+      const next = new Set(selectedSkillTargetIds);
+      if (selected) next.delete(target.id); else next.add(target.id);
+      setSelectedSkillIds(next);
+      return;
+    }
+    if (selected) setSelectedBehaviorIds(selectedBehaviorIds.filter(id => id !== target.id));
+    else if (familyKeyOf(target) === activeFamilyKey) setSelectedBehaviorIds([...selectedBehaviorIds, target.id]);
+    else announce(`Only ${activeFamily?.label || 'targets of the same measurement type'} can be plotted together. Change the measurement type to add ${target.name}.`);
+  }
+
+  const abcSummary = useMemo(() => ({
+    entryCount: abcEntries.length,
+    behaviorTargetCount: allBehaviors.length,
+    antecedents: abcConfiguration?.antecedents || [],
+    behaviors: abcConfiguration?.behaviors || [],
+    consequences: abcConfiguration?.consequences || []
+  }), [abcEntries, allBehaviors, abcConfiguration]);
 
   const tabTargets = useMemo(() => activeTargets.filter(t => t.type === activeTargetType && visibleTargetIds.has(t.id)), [activeTargets, activeTargetType, visibleTargetIds]);
 
@@ -583,18 +762,15 @@ export default function ClientSpecificSection({
       ? `Split-middle line of progress for ${analysisTarget?.name}: ${splitLine.slope >= 0 ? '+' : ''}${splitLine.slope.toFixed(2)} ${unit} per observation group.`
       : `${MEASUREMENT_LABELS[activeTargetType]} · ${chartDataRows.length} plotted observations${shownSelection ? '' : ' · select a point for details'}${summaryNote}${suppressionNote}`;
 
-  const explorerSelection = useMemo(() => ({
-    activeCategoryTab,
-    selectedProgramId,
-    selectedBehaviorIds,
-    activeTargetType,
-    visibleTargetIds,
-    analysisTargetId: analysisTarget?.id || ''
-  }), [activeCategoryTab, selectedProgramId, selectedBehaviorIds, activeTargetType, visibleTargetIds, analysisTarget]);
+  // ABC keeps its own workspace; the chart only needs the behavior rows for its log.
+  const abcSessionRows = useMemo(() => {
+    const ids = new Set(allBehaviors.map(target => target.id));
+    return clientSessions.filter(row => ids.has(row.targetId));
+  }, [clientSessions, allBehaviors]);
 
   return <section id="target-analysis" className="panel" aria-labelledby="target-analysis-title" tabIndex={-1}>
-    <SectionHeader id="target-analysis-title" title="Target analysis" description="Explore targets across programs, inspect trends and session trials, and read clinical context alongside each graph."
-      help="Search or choose any target in the explorer on the left, then inspect its chart in the center and its definitions, insights and annotations in the clinical context rail. Measured zeros count; unobserved records never become zeros."
+    <SectionHeader id="target-analysis-title" title="Target analysis" description="Choose the clinical data to analyse — programs, behaviors or ABC data — then read trends, session trials and context alongside each graph."
+      help="Start with Programs, Behaviors or ABC Data. Programs asks for a program, then a measurement type, then the compatible targets to plot; Behaviors asks for a measurement type and compatible behavior targets. Only targets measured the same way can share one analysis. Measured zeros count; unobserved records never become zeros."
       actions={<>
         <ExportMenu label="Export targets" onExport={handleExport} formats={[
           { id: 'svg', label: 'Vector chart · SVG', disabled: !hasChart },
@@ -609,20 +785,25 @@ export default function ClientSpecificSection({
 
     <TrendExplorer
       catalog={explorerCatalog}
-      selection={explorerSelection}
+      dataCategory={dataCategory}
+      onDataCategoryChange={changeDataCategory}
       skillPrograms={skillPrograms}
       programProgressMap={programProgressMap}
-      allBehaviors={allBehaviors}
-      behaviorQuickPicks={behaviorQuickPicks}
-      onSelectCategory={category => { setActiveCategoryTab(category); resetView(); }}
-      onSelectProgramDropdown={programId => { setActiveCategoryTab('SkillAcquisition'); setSelectedProgramId(programId); resetView(); }}
-      onToggleBehaviorId={(behaviorId, checked) => {
-        setSelectedBehaviorIds(previous => (checked ? [...previous, behaviorId] : previous.filter(id => id !== behaviorId)));
-        resetView();
-      }}
-      onSelectBehaviorPreset={ids => { setSelectedBehaviorIds(ids); resetView(); }}
-      onSelectProgramGroup={applyExplorerProgram}
-      onSelectTargetItem={applyExplorerTarget}
+      selectedProgramId={selectedProgramId}
+      onSelectProgram={selectProgram}
+      familyOptions={familyOptions}
+      activeFamilyKey={activeFamilyKey}
+      onSelectFamily={selectFamily}
+      selectedTargetIds={activeCategoryTab === 'SkillAcquisition' ? selectedSkillTargetIds : new Set(selectedBehaviorIds)}
+      onToggleTarget={toggleTarget}
+      onSelectAllCompatible={selectAllCompatible}
+      behaviorPresets={behaviorQuickPicks}
+      onSelectBehaviorPreset={applyBehaviorPreset}
+      onClearTargets={clearTargetSelection}
+      totalCompatibleTargets={activeCategoryTab === 'SkillAcquisition' ? compatibleTargets.length : targetsInFamily(allBehaviors, activeFamilyKey).length}
+      notice={selectionNotice}
+      onDismissNotice={() => setSelectionNotice(null)}
+      abcSummary={abcSummary}
       insights={insights}
       focusedEntry={focusedEntry}
       annotationTarget={annotationTarget}
@@ -641,9 +822,13 @@ export default function ClientSpecificSection({
       detailPrograms={detailPrograms}
       activeTarget={focusedTarget}
     >
+      {dataCategory === 'Abc' ? (
+        <AbcDataSection embedded client={client} abcEntries={abcEntries} abcConfiguration={abcConfiguration}
+          behaviorTargets={allBehaviors} serviceSessions={serviceSessions} sessionRows={abcSessionRows} onRefresh={onRefresh} />
+      ) : (<>
       <div className="measurement-toolbar">
         {availableTargetTypes.length > 0 ? <div className="measurement-tabs" role="group" aria-label="Measurement type">
-          {availableTargetTypes.map(type => <button type="button" key={type} aria-pressed={activeTargetType === type} onClick={() => { setActiveTargetType(type); resetView(false); }}>{MEASUREMENT_LABELS[type]}</button>)}
+          {availableTargetTypes.map(type => <button type="button" key={type} aria-pressed={activeTargetType === type} onClick={() => selectTargetType(type)}>{MEASUREMENT_LABELS[type]}</button>)}
         </div> : <span className="control-label">Chart window</span>}
         <div className="view-controls">
           <label htmlFor="target-date-range">Date range</label>
@@ -749,7 +934,7 @@ export default function ClientSpecificSection({
       </div>}
 
       <div className="panel-body">
-        {activeTargets.length === 0 ? <EmptyState title={activeCategoryTab === 'Behavior' ? 'Choose a behavior to compare.' : 'Choose a program to begin.'} description="Select a target or program from the explorer list to plot its observations." />
+        {activeTargets.length === 0 ? <EmptyState title={activeCategoryTab === 'Behavior' ? 'Choose a behavior to compare.' : 'Choose a program to begin.'} description={activeCategoryTab === 'Behavior' ? 'Select one or more compatible behavior targets in the explorer.' : 'Pick a program in the explorer, then choose its measurement type and targets.'} />
           : availableTargetTypes.length === 0 ? <EmptyState title="No observations for this program yet." description="Record a fictional observation to begin its timeline. Program definitions are visible in the clinical context rail." action={{ label: 'Record an observation', onClick: () => onRecordClick(activeTargets[0]) }} />
             : activeTargetType === 'Anecdotal' ? <AnecdotalTableView key={selectedProgramId} targets={activeTargets.filter(target => target.type === 'Anecdotal' && visibleTargetIds.has(target.id))}
               sessions={filteredSessions.filter(session => session.qualitativeEntry && visibleTargetIds.has(session.targetId))} />
@@ -807,12 +992,12 @@ export default function ClientSpecificSection({
       </div>
 
       {activeTargets.length > 0 && activeTargetType && <footer className="chart-footer">
-        <span className="legend-title">Visible targets · select to show or hide</span>
+        <span className="legend-title">Plotted targets · select to add or remove</span>
         <div className="target-legend">
           {targetStages.map(group => <div className="legend-group" key={group.id}>
-            <p className="legend-group-label" title={group.hint}>{group.label} <span>({group.targets.filter(target => !hiddenTargetIds.has(target.id)).length}/{group.targets.length} shown)</span></p>
+            <p className="legend-group-label" title={group.hint}>{group.label} <span>({group.targets.filter(target => visibleTargetIds.has(target.id)).length}/{group.targets.length} plotted)</span></p>
             <div className="legend-group-items">
-              {group.targets.map(target => <button type="button" key={target.id} className="legend-button" aria-pressed={visibleTargetIds.has(target.id)} onClick={() => setHiddenTargetIds(previous => { const next = new Set(previous); if (next.has(target.id)) next.delete(target.id); else next.add(target.id); return next; })}>
+              {group.targets.map(target => <button type="button" key={target.id} className="legend-button" aria-pressed={visibleTargetIds.has(target.id)} onClick={() => toggleLegendTarget(target)}>
                 <MarkerSwatch color={seriesColor(activeTargets.findIndex(item => item.id === target.id), colorMode === 'BlackAndWhite')} shape={preferences.markerShape} count={tabTargets.length} index={tabTargets.findIndex(item => item.id === target.id)} />
                 <span>{target.name}</span>{visibleTargetIds.has(target.id) ? <CheckSquare size={17} /> : <Square size={17} />}
               </button>)}
@@ -821,6 +1006,7 @@ export default function ClientSpecificSection({
         </div>
         {splitByTherapist && tabTargets.length === 1 && <div className="mt-4"><span className="legend-title">Visible clinicians</span><div className="target-legend">{allTherapistsForTarget.map((name, index) => <button type="button" key={name} className="legend-button" aria-pressed={visibleTherapists.has(name)} onClick={() => setHiddenTherapists(previous => { const next = new Set(previous); if (next.has(name)) next.delete(name); else next.add(name); return next; })}><Swatch color={seriesColor(index, colorMode === 'BlackAndWhite')} /><UserCheck size={17} />{name}</button>)}</div></div>}
       </footer>}
+      </>)}
     </TrendExplorer>
   </section>;
 }

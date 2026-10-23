@@ -8,6 +8,7 @@ import buildTargetHealth, {
 } from './targetHealth.js';
 import { programProgress, programProgressLabel } from './targetAnalytics.js';
 import { MEASUREMENT_LABELS } from './formValidation.js';
+import { measurementFamilyFor } from './measurementFamilies.js';
 
 export const EXPLORER_CATEGORIES = [
   { value: 'All', label: 'All', accessibleLabel: 'All categories' },
@@ -15,10 +16,21 @@ export const EXPLORER_CATEGORIES = [
   { value: 'Behavior', label: 'Behaviors', accessibleLabel: 'Behavior reduction' }
 ];
 
+function withMeasurementFamily(entry, target) {
+  const family = measurementFamilyFor(target);
+  return {
+    ...entry,
+    familyKey: family.key,
+    familyLabel: family.label,
+    familyShortLabel: family.shortLabel,
+    familyVariant: family.variant
+  };
+}
+
 function buildNarrativeEntry(program, target) {
   const lifecycle = targetLifecycle(target);
   const phaseLabel = PHASE_LABELS[target.phase] || target.phase;
-  return {
+  return withMeasurementFamily({
     targetId: target.id,
     targetName: target.name,
     programId: program.id,
@@ -44,18 +56,18 @@ function buildNarrativeEntry(program, target) {
     hasRows: true,
     lastDate: null,
     points: []
-  };
+  }, target);
 }
 
-function enrichHealthEntry(item) {
-  return {
+function enrichHealthEntry(item, target) {
+  return withMeasurementFamily({
     ...item,
     measurementLabel: MEASUREMENT_LABELS[item.measurementType] || item.measurementType,
     phaseLabel: PHASE_LABELS[item.phase] || item.phase,
     deltaLabel: deltaText(item),
     tone: trendTone(item),
     statusText: trendLabel(item)
-  };
+  }, target);
 }
 
 // Groups all targets for a client under their programs, pairing each target with its
@@ -74,7 +86,7 @@ export function buildExplorerCatalog({
     const progress = programProgress(program, sessions);
     const groupTargets = program.targets.map(target => {
       const base = healthById.get(target.id);
-      const entry = base ? enrichHealthEntry(base) : buildNarrativeEntry(program, target);
+      const entry = base ? enrichHealthEntry(base, target) : buildNarrativeEntry(program, target);
       items.push(entry);
       if (program.category === 'BehaviorReduction') behaviorTargets += 1;
       else skillTargets += 1;
@@ -170,42 +182,41 @@ export function isExplorerTargetSelected(entry, {
   return { plotted, focused };
 }
 
-// Selecting a single target row focuses its measurement tab, insights, annotations and
-// chart series in one click. Clicking a program header overlays all targets in that program.
-export function selectExplorerTarget(entry, programs = []) {
+// Selecting one target row narrows the analysis to that target's measurement family.
+// Further compatible targets are added with their own checkbox rows (or a group action).
+export function selectExplorerTarget(entry) {
+  const familyKey = measurementFamilyFor({ type: entry.measurementType, ...entry }).key;
   if (entry.category === 'BehaviorReduction') {
     return {
       category: 'Behavior',
       selectedBehaviorIds: [entry.targetId],
-      requestedTargetType: entry.measurementType,
-      hiddenTargetIds: new Set(),
+      requestedTargetType: familyKey,
+      selectedTargetIds: null,
       analysisTargetId: entry.targetId,
       annotationTargetId: entry.targetId
     };
   }
-  const program = programs.find(item => item.id === entry.programId);
-  const hiddenTargetIds = new Set(
-    (program?.targets || [])
-      .filter(target => target.id !== entry.targetId)
-      .map(target => target.id)
-  );
   return {
     category: 'SkillAcquisition',
     selectedProgramId: entry.programId,
-    requestedTargetType: entry.measurementType,
-    hiddenTargetIds,
+    requestedTargetType: familyKey,
+    // An explicit selection keeps only the chosen target; null means "auto-select the
+    // compatible family", which is what a program change resets to.
+    selectedTargetIds: [entry.targetId],
     analysisTargetId: entry.targetId,
     annotationTargetId: entry.targetId
   };
 }
 
+// Choosing a program is the first step of the Programs flow: the target list, measurement
+// chooser and comparison scope all restart for the new program.
 export function selectExplorerProgram(group) {
   if (group.category === 'BehaviorReduction') {
     return {
       category: 'Behavior',
       selectedBehaviorIds: group.targets.map(target => target.targetId),
-      requestedTargetType: group.targets[0]?.measurementType || '',
-      hiddenTargetIds: new Set(),
+      requestedTargetType: '',
+      selectedTargetIds: null,
       analysisTargetId: group.targets[0]?.targetId || '',
       annotationTargetId: group.targets[0]?.targetId || ''
     };
@@ -214,10 +225,25 @@ export function selectExplorerProgram(group) {
     category: 'SkillAcquisition',
     selectedProgramId: group.id,
     requestedTargetType: '',
-    hiddenTargetIds: new Set(),
+    selectedTargetIds: null,
     analysisTargetId: '',
     annotationTargetId: ''
   };
+}
+
+// Toggling one target inside a family group. Incompatible targets are never added: the
+// caller disables them, and this guard keeps the state honest if a stale row is clicked.
+export function toggleExplorerSelection(selectedIds, entry, familyKey) {
+  const next = new Set(selectedIds);
+  const id = entry.targetId || entry.id;
+  if (!id) return next;
+  if (next.has(id)) {
+    next.delete(id);
+    return next;
+  }
+  if (familyKey && measurementFamilyFor({ type: entry.measurementType || entry.type }).key !== familyKey) return next;
+  next.add(id);
+  return next;
 }
 
 export function nextExplorerFocusIndex(currentIndex, key, total) {

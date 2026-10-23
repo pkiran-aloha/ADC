@@ -1,35 +1,42 @@
 import { useMemo, useRef, useState } from 'react';
 import { Edit3, Plus, Search, Trash2, X } from '../ui/Icons';
 import SegmentedControl from '../ui/SegmentedControl';
-import Popover from '../ui/Popover';
 import ProgramDetails from '../ProgramDetails';
-import { MEASUREMENT_LABELS } from '../../utils/formValidation';
 import { programProgressLabel } from '../../utils/targetAnalytics';
 import {
-  explorerSummaryCaption, filterExplorerGroups, isExplorerProgramSelected,
-  isExplorerTargetSelected, nextExplorerFocusIndex
-} from '../../utils/trendExplorer';
+  ANALYSIS_CATEGORIES, familyKeyOf, familyTypeOf, incompatibilityReason, selectionScopeCaption
+} from '../../utils/measurementFamilies';
+import { isExplorerTargetSelected, nextExplorerFocusIndex } from '../../utils/trendExplorer';
 
 const LIFECYCLE_TONE = { mastered: 'positive', paused: 'attention', ended: 'neutral', active: 'neutral' };
 
-// Phase 3 Trend explorer: wraps Target analysis in a three-pane layout without removing
-// any existing chart control, deep link or focus-request behaviour.
-//   Left pane   — searchable target list grouped by program, with phase and 90d trend delta.
-//   Center pane — existing TargetChart, full toolbar, inspector and visual analysis.
-//   Right rail  — clinical insights (`buildInsights`), annotations and visible definitions.
+// Target analysis selection pane. The first decision is the kind of clinical data to read
+// (Programs, Behaviors or ABC Data); Programs and Behaviors then ask for a measurement type
+// before targets, because only targets recorded the same way can share one analysis.
+//   Left pane   — progressive selection: category → program/type → compatible targets.
+//   Center pane — the existing chart workspace, toolbar, inspector and visual analysis.
+//   Right rail  — clinical insights, annotations and target definitions.
 export default function TrendExplorer({
   catalog,
-  selection,
+  dataCategory = 'Programs',
+  onDataCategoryChange,
   skillPrograms = [],
   programProgressMap = new Map(),
-  allBehaviors = [],
-  behaviorQuickPicks = [],
-  onSelectCategory,
-  onSelectProgramDropdown,
-  onToggleBehaviorId,
+  selectedProgramId = '',
+  onSelectProgram,
+  familyOptions = [],
+  activeFamilyKey = '',
+  onSelectFamily,
+  selectedTargetIds = new Set(),
+  onToggleTarget,
+  onSelectAllCompatible,
+  onClearTargets,
+  behaviorPresets = [],
   onSelectBehaviorPreset,
-  onSelectProgramGroup,
-  onSelectTargetItem,
+  totalCompatibleTargets = 0,
+  notice = null,
+  onDismissNotice,
+  abcSummary = null,
   insights = [],
   focusedEntry = null,
   annotationTarget = null,
@@ -50,222 +57,305 @@ export default function TrendExplorer({
   children
 }) {
   const [query, setQuery] = useState('');
-  const [listScope, setListScope] = useState('All');
   const itemRefs = useRef([]);
 
-  const categoryOptions = useMemo(() => ([
-    { value: 'All', label: 'All', accessibleLabel: 'All categories' },
-    { value: 'SkillAcquisition', label: 'Skills', accessibleLabel: 'Skill acquisition' },
-    {
-      value: 'Behavior',
-      label: `Behaviors (${allBehaviors.length})`,
-      accessibleLabel: `Behavior reduction (${allBehaviors.length})`
-    }
-  ]), [allBehaviors.length]);
+  const isBehaviorMode = dataCategory === 'Behaviors';
+  const isAbcMode = dataCategory === 'Abc';
 
-  const filteredGroups = useMemo(
-    () => filterExplorerGroups(catalog.groups, { query, category: listScope }),
-    [catalog.groups, query, listScope]
+  // Groups shown for the active step: one program's targets, or every behavior program.
+  const activeGroups = useMemo(() => catalog.groups.filter(group => {
+    if (group.category === 'BehaviorReduction') return isBehaviorMode;
+    return dataCategory === 'Programs' && group.id === selectedProgramId;
+  }), [catalog.groups, dataCategory, isBehaviorMode, selectedProgramId]);
+
+  const rows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return activeGroups.map(group => ({
+      group,
+      entries: group.targets.filter(entry => !needle
+        || [entry.targetName, entry.familyLabel, entry.phaseLabel, entry.statusText]
+          .some(value => value && String(value).toLowerCase().includes(needle)))
+    }));
+  }, [activeGroups, query]);
+
+  const flatRows = useMemo(() => rows.flatMap(group => group.entries), [rows]);
+  // Selection counts describe the whole program/behavior roster, not the filtered list,
+  // so the caption stays steady while a search is active.
+  const allEntries = useMemo(() => activeGroups.flatMap(group => group.targets), [activeGroups]);
+  const byId = useMemo(() => new Map(catalog.items.map(entry => [entry.targetId, entry])), [catalog.items]);
+
+  const selectedCount = useMemo(
+    () => allEntries.filter(entry => selectedTargetIds.has(entry.targetId)).length,
+    [allEntries, selectedTargetIds]
   );
 
-  const flatTargets = useMemo(
-    () => filteredGroups.flatMap(group => group.targets),
-    [filteredGroups]
-  );
+  const activeFamily = familyOptions.find(option => option.key === activeFamilyKey) || null;
 
-  const summary = useMemo(
-    () => explorerSummaryCaption({ filteredGroups, query, category: listScope }),
-    [filteredGroups, query, listScope]
-  );
+  const explorerSelectionState = useMemo(() => ({
+    activeCategoryTab: activeCategoryTabOf(dataCategory),
+    selectedProgramId,
+    selectedBehaviorIds: [...selectedTargetIds],
+    activeTargetType: familyTypeOf(activeFamilyKey),
+    visibleTargetIds: selectedTargetIds,
+    analysisTargetId: focusedEntry?.targetId || ''
+  }), [dataCategory, selectedProgramId, selectedTargetIds, activeFamilyKey, focusedEntry]);
 
-  function handleCategorySwitch(nextScope) {
-    setListScope(nextScope);
-    if (nextScope === 'SkillAcquisition' || nextScope === 'Behavior') {
-      onSelectCategory(nextScope);
-    }
-  }
+  const scopeCaption = selectionScopeCaption({
+    category: dataCategory,
+    programName: activeGroups[0]?.name || '',
+    familyLabel: activeFamily?.label || '',
+    selectedCount,
+    totalCount: allEntries.length
+  });
 
   function onItemKeyDown(event, index) {
-    const nextIndex = nextExplorerFocusIndex(index, event.key, flatTargets.length);
+    const nextIndex = nextExplorerFocusIndex(index, event.key, flatRows.length);
     if (nextIndex == null || nextIndex < 0) return;
     event.preventDefault();
     itemRefs.current[nextIndex]?.focus();
   }
 
-  const singleAnnotationScope = selection.activeCategoryTab !== 'Behavior'
-    || selection.selectedBehaviorIds.length <= 1;
+  const singleAnnotationScope = activeCategoryTabOf(dataCategory) !== 'Behavior'
+    || tabTargets.length <= 1;
 
   let runningIndex = 0;
+  const showRail = !isAbcMode;
 
   return (
-    <div className="trend-explorer">
+    <div className={`trend-explorer${isAbcMode ? ' trend-explorer--abc' : ''}`}>
       <nav className="trend-explorer__list" aria-label="Target explorer">
         <div className="explorer-head">
-          <div className="explorer-search">
-            <label htmlFor="explorer-search">Search targets or programs</label>
-            <div className="explorer-search__input">
-              <Search size={16} aria-hidden="true" />
-              <input
-                id="explorer-search"
-                type="search"
-                value={query}
-                onChange={event => setQuery(event.target.value)}
-                placeholder="Filter by target, program or phase…"
-              />
-              {query && (
-                <button
-                  type="button"
-                  className="icon-button explorer-search__clear"
-                  aria-label="Clear target search"
-                  onClick={() => setQuery('')}
-                >
-                  <X size={15} />
-                </button>
-              )}
-            </div>
-          </div>
-
           <SegmentedControl
-            label="Program category"
-            value={listScope}
-            onChange={handleCategorySwitch}
-            options={categoryOptions}
-            className="explorer-categories"
+            label="Analysis category"
+            value={dataCategory}
+            onChange={onDataCategoryChange}
+            options={ANALYSIS_CATEGORIES}
+            className="explorer-categories explorer-categories--primary"
           />
 
-          {selection.activeCategoryTab === 'SkillAcquisition' ? (
-            <div className="control-field program-field explorer-program-picker">
-              <label htmlFor="target-program">Program</label>
-              <select
-                id="target-program"
-                value={selection.selectedProgramId}
-                onChange={event => onSelectProgramDropdown(event.target.value)}
-              >
-                <option value="">Choose a program</option>
-                {skillPrograms.map(program => (
-                  <option key={program.id} value={program.id}>
-                    {program.name} · {program.status} · {programProgressLabel(programProgressMap.get(program.id))}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="control-field program-field explorer-behavior-picker">
-              <span className="control-label">Compare behaviors</span>
-              <Popover label={`Choose behaviors (${selection.selectedBehaviorIds.length})`}>
-                <p className="popover-label">Select one or more behaviors</p>
-                <div className="quick-picks" role="group" aria-label="Quick behavior selections">
-                  {behaviorQuickPicks.map(preset => (
-                    <button
-                      type="button"
-                      key={preset.id}
-                      className="chip-button"
-                      aria-pressed={
-                        preset.ids.length === selection.selectedBehaviorIds.length
-                        && preset.ids.every(id => selection.selectedBehaviorIds.includes(id))
-                      }
-                      onClick={() => onSelectBehaviorPreset(preset.ids)}
-                    >
-                      {preset.label}
-                    </button>
+          {dataCategory === 'Programs' && (
+            <div className="explorer-step">
+              <span className="explorer-step__number" aria-hidden="true">1</span>
+              <div className="control-field program-field explorer-program-picker">
+                <label htmlFor="target-program">Program</label>
+                <select
+                  id="target-program"
+                  value={selectedProgramId}
+                  onChange={event => onSelectProgram?.(event.target.value)}
+                >
+                  <option value="">Choose a program</option>
+                  {skillPrograms.map(program => (
+                    <option key={program.id} value={program.id}>
+                      {program.name} · {program.status} · {programProgressLabel(programProgressMap.get(program.id))}
+                    </option>
                   ))}
-                </div>
-                {allBehaviors.map(behavior => (
-                  <label key={behavior.id} className="popover-option">
-                    <input
-                      type="checkbox"
-                      checked={selection.selectedBehaviorIds.includes(behavior.id)}
-                      onChange={event => onToggleBehaviorId(behavior.id, event.target.checked)}
-                    />
-                    <span>
-                      {behavior.name}
-                      <small className="block text-slate-500">
-                        {MEASUREMENT_LABELS[behavior.type]} · {behavior.functionHypothesis} function
-                      </small>
-                    </span>
-                  </label>
-                ))}
-              </Popover>
+                </select>
+              </div>
             </div>
           )}
 
-          <p className="explorer-count" role="status" aria-live="polite">{summary}</p>
+          {dataCategory === 'Behaviors' && (
+            <p className="explorer-step explorer-step--plain">
+              <span className="explorer-step__number" aria-hidden="true">1</span>
+              <span>Behavior reduction tracking · all behavior programs for this client</span>
+            </p>
+          )}
         </div>
 
-        <div className="explorer-groups">
-          {filteredGroups.length === 0 ? (
-            <div className="explorer-empty">
-              <p><strong>No matching targets.</strong> Try another search term or show all categories.</p>
-              <button
-                type="button"
-                className="button button--secondary"
-                onClick={() => { setQuery(''); setListScope('All'); }}
-              >
-                Reset search
-              </button>
-            </div>
-          ) : filteredGroups.map(group => {
-            const groupActive = isExplorerProgramSelected(group, selection);
-            return (
-              <div className="explorer-group" key={group.id}>
-                <button
-                  type="button"
-                  className={`explorer-program${groupActive ? ' explorer-program--active' : ''}`}
-                  aria-pressed={groupActive}
-                  aria-label={`Select program: ${group.name}`}
-                  onClick={() => onSelectProgramGroup(group)}
-                >
-                  <span className="explorer-program__name">{group.name}</span>
-                  <small className="explorer-program__meta">
-                    {group.category === 'BehaviorReduction'
-                      ? `${group.domain ? `${group.domain} · ` : ''}${group.status}`
-                      : group.progressLabel}
-                  </small>
-                </button>
-                <ul className="explorer-targets">
-                  {group.targets.map(entry => {
-                    const currentFlatIndex = runningIndex;
-                    runningIndex += 1;
-                    const { plotted, focused } = isExplorerTargetSelected(entry, selection);
-                    const chipTone = LIFECYCLE_TONE[entry.lifecycle] || 'neutral';
-                    const reasonText = entry.flags.length
-                      ? `, ${entry.flags.map(flag => flag.label).join('; ')}`
-                      : '';
+        {notice && !isAbcMode && (
+          <div className={`explorer-notice explorer-notice--${notice.tone || 'neutral'}`} role="status">
+            <p>{notice.text}</p>
+            <button type="button" className="icon-button" aria-label="Dismiss selection note" onClick={onDismissNotice}>
+              <X size={15} />
+            </button>
+          </div>
+        )}
+
+        {isAbcMode ? (
+          <AbcScopePanel summary={abcSummary} />
+        ) : (
+          <div className="explorer-body">
+            {isBehaviorMode && behaviorPresets.length > 1 && (
+              <div className="explorer-presets" role="group" aria-label="Behavior quick picks">
+                {behaviorPresets.map(preset => {
+                  const compatible = preset.ids.filter(id => familyKeyOf(byId.get(id)) === activeFamilyKey);
+                  const pressed = compatible.length > 0 && compatible.length === selectedTargetIds.size
+                    && compatible.every(id => selectedTargetIds.has(id));
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className="explorer-preset"
+                      aria-pressed={pressed}
+                      disabled={!compatible.length}
+                      aria-label={`${preset.label}: ${compatible.length} compatible ${compatible.length === 1 ? 'behavior' : 'behaviors'}`}
+                      onClick={() => onSelectBehaviorPreset?.(preset.ids)}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {familyOptions.length > 0 && (
+              <fieldset className="explorer-family">
+                <legend>
+                  <span className="explorer-step__number" aria-hidden="true">{dataCategory === 'Programs' ? '2' : '2'}</span>
+                  Measurement type
+                </legend>
+                <div className="explorer-family__chips" role="group" aria-label="Measurement type">
+                  {familyOptions.map(option => {
+                    const pressed = option.key === activeFamilyKey;
                     return (
-                      <li key={entry.targetId}>
-                        <button
-                          type="button"
-                          ref={element => { itemRefs.current[currentFlatIndex] = element; }}
-                          className={`explorer-target${focused ? ' explorer-target--active' : plotted ? ' explorer-target--plotted' : ''}`}
-                          aria-current={focused ? 'true' : undefined}
-                          aria-label={`${entry.targetName}, ${group.name}, ${entry.phaseLabel}, ${entry.deltaLabel} (${entry.statusText})${reasonText}`}
-                          onClick={() => onSelectTargetItem(entry)}
-                          onKeyDown={event => onItemKeyDown(event, currentFlatIndex)}
-                        >
-                          <span className="explorer-target__row">
-                            <strong className="explorer-target__name">{entry.targetName}</strong>
-                            <span className={`health-delta health-delta--${entry.tone}`}>{entry.deltaLabel}</span>
-                          </span>
-                          <span className="explorer-target__meta">
-                            <span className={`stat-chip stat-chip--${chipTone}`}>{entry.phaseLabel}</span>
-                            <small>{entry.measurementLabel}</small>
-                          </span>
-                        </button>
-                      </li>
+                      <button
+                        key={option.key}
+                        type="button"
+                        className="explorer-family__chip"
+                        aria-pressed={pressed}
+                        aria-label={`${option.label}, ${option.count} ${option.count === 1 ? 'target' : 'targets'}${option.hasData ? '' : ', no observations in this range'}`}
+                        disabled={!option.hasData}
+                        title={option.hasData ? `${option.count} ${option.count === 1 ? 'target' : 'targets'} · ${option.unitHint}` : 'No observations recorded in this range'}
+                        onClick={() => onSelectFamily?.(option.key)}
+                      >
+                        <span>{option.label}</span>
+                        <small>{option.count}</small>
+                      </button>
                     );
                   })}
-                </ul>
+                </div>
+                <p className="explorer-family__hint">
+                  {activeFamily
+                    ? familyHint(activeFamily)
+                    : 'Choose the measurement type to analyse.'}
+                </p>
+              </fieldset>
+            )}
+
+            <div className="explorer-targets-head">
+              <div>
+                <p className="explorer-step-label">
+                  <span className="explorer-step__number" aria-hidden="true">3</span>
+                  Targets
+                </p>
+                <p className="explorer-count" role="status" aria-live="polite">{scopeCaption}</p>
               </div>
-            );
-          })}
-        </div>
+              <div className="explorer-bulk">
+                <button type="button" onClick={onSelectAllCompatible} disabled={!totalCompatibleTargets || selectedCount >= totalCompatibleTargets}>All</button>
+                <button type="button" onClick={onClearTargets} disabled={!selectedCount}>None</button>
+              </div>
+            </div>
+
+            <div className="explorer-search">
+              <label className="sr-only" htmlFor="explorer-search">Search targets in this selection</label>
+              <div className="explorer-search__input">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  id="explorer-search"
+                  type="search"
+                  value={query}
+                  onChange={event => setQuery(event.target.value)}
+                  placeholder="Search targets…"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    className="icon-button explorer-search__clear"
+                    aria-label="Clear target search"
+                    onClick={() => setQuery('')}
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="explorer-groups">
+              {flatRows.length === 0 ? (
+                <div className="explorer-empty">
+                  <p>
+                    <strong>{query ? 'No matching targets.' : dataCategory === 'Programs' && !selectedProgramId ? 'Choose a program to begin.' : 'No targets in this selection.'}</strong>{' '}
+                    {query
+                      ? 'Try another search term.'
+                      : dataCategory === 'Programs' && !selectedProgramId
+                        ? 'Its skill acquisition targets and measurement types will appear here.'
+                        : dataCategory === 'Programs'
+                          ? 'This program has no recorded targets yet.'
+                          : 'No behavior reduction targets were recorded for this client.'}
+                  </p>
+                  {query && (
+                    <button type="button" className="button button--secondary" onClick={() => setQuery('')}>
+                      Clear search
+                    </button>
+                  )}
+                </div>
+              ) : rows.map(({ group, entries }) => (
+                <div className="explorer-group" key={group.id}>
+                  {isBehaviorMode && (
+                    <p className="explorer-group-label">
+                      {group.name}
+                      <small>{group.domain ? `${group.domain} · ` : ''}{group.status}</small>
+                    </p>
+                  )}
+                  <ul className="explorer-targets">
+                    {entries.map(entry => {
+                      const currentFlatIndex = runningIndex;
+                      runningIndex += 1;
+                      const { focused } = isExplorerTargetSelected(entry, explorerSelectionState);
+                      const compatible = !activeFamilyKey || familyKeyOf(entry) === activeFamilyKey;
+                      const selected = selectedTargetIds.has(entry.targetId);
+                      const reason = compatible ? '' : incompatibilityReason(entry, activeFamilyKey, familyOptions);
+                      const chipTone = LIFECYCLE_TONE[entry.lifecycle] || 'neutral';
+                      return (
+                        <li key={entry.targetId}>
+                          <label
+                            className={[
+                              'explorer-target',
+                              selected ? 'explorer-target--plotted' : '',
+                              focused ? 'explorer-target--active' : '',
+                              compatible ? '' : 'explorer-target--incompatible'
+                            ].filter(Boolean).join(' ')}
+                            title={reason || undefined}
+                          >
+                            <input
+                              type="checkbox"
+                              ref={element => { itemRefs.current[currentFlatIndex] = element; }}
+                              className="explorer-target__check"
+                              checked={selected}
+                              disabled={!compatible}
+                              aria-label={`Plot ${entry.targetName} · ${entry.familyLabel} · ${entry.phaseLabel}`}
+                              aria-describedby={reason ? `target-reason-${entry.targetId}` : undefined}
+                              onChange={() => onToggleTarget?.(entry)}
+                              onKeyDown={event => onItemKeyDown(event, currentFlatIndex)}
+                            />
+                            <span className="explorer-target__body">
+                              <span className="explorer-target__row">
+                                <strong className="explorer-target__name">{entry.targetName}</strong>
+                                <span className={`health-delta health-delta--${entry.tone}`}>{entry.deltaLabel}</span>
+                              </span>
+                              <span className="explorer-target__meta">
+                                <span className={`stat-chip stat-chip--${chipTone}`}>{entry.phaseLabel}</span>
+                                <small>{entry.familyLabel}{entry.familyVariant ? ` · ${entry.familyVariant === 'Customized' ? 'prompt-based' : 'binary'}` : ''}</small>
+                              </span>
+                              {reason && <small className="explorer-target__reason" id={`target-reason-${entry.targetId}`}>{reason}</small>}
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </nav>
 
       <div className="trend-explorer__center">
         {children}
       </div>
 
-      <aside className="trend-explorer__rail" aria-label="Clinical context">
+      {showRail && (<aside className="trend-explorer__rail" aria-label="Clinical context">
         <section className="rail-card" aria-labelledby="explorer-insights-title">
           <div className="rail-card__head">
             <h3 id="explorer-insights-title">Clinical context</h3>
@@ -395,7 +485,73 @@ export default function TrendExplorer({
         </section>
 
         <ProgramDetails programs={detailPrograms} activeTarget={activeTarget} />
-      </aside>
+      </aside>)}
+    </div>
+  );
+}
+
+function activeCategoryTabOf(dataCategory) {
+  return dataCategory === 'Behaviors' ? 'Behavior' : 'SkillAcquisition';
+}
+
+// One sentence under the measurement chips: what this family measures, and which
+// variations of it can share a chart.
+function familyHint(option) {
+  const shared = 'Only targets measured this way can be plotted together.';
+  switch (option.type) {
+    case 'TrialByTrial': {
+      const variants = option.variants || [];
+      if (variants.includes('Binary') && variants.includes('Customized')) {
+        return `Binary and customized (prompt-based) trial-by-trial targets. ${shared}`;
+      }
+      if (variants.includes('Customized')) return `Customized (prompt-based) trial-by-trial targets. ${shared}`;
+      return `Binary trial-by-trial targets. ${shared}`;
+    }
+    case 'IntervalData':
+      return `${option.subType ? `${option.subType} interval` : 'Momentary, partial or whole interval'} recording, read as a percent of intervals. ${shared} Different interval schedules never share one chart.`;
+    case 'Frequency':
+      return `Frequency counts how many times the response or event occurred. ${shared}`;
+    case 'Duration':
+      return `Duration measures how long the activity, response or event lasted. ${shared}`;
+    case 'FluencyRate':
+      return `Rate and fluency use both frequency and duration (rate per minute). ${shared}`;
+    case 'Anecdotal':
+      return `Question-based narrative answers with client-specific response types. ${shared}`;
+    default:
+      return shared;
+  }
+}
+
+// ABC Data keeps its existing workspace in the centre pane; the selection pane simply
+// names the antecedent → behavior → consequence structure it is built from.
+function AbcScopePanel({ summary }) {
+  const structure = summary ? [
+    ['Antecedent', summary.antecedents || []],
+    ['Behavior', summary.behaviors || []],
+    ['Consequence', summary.consequences || []]
+  ] : [];
+  return (
+    <div className="explorer-body explorer-abc">
+      <p className="explorer-step-label">
+        <span className="explorer-step__number" aria-hidden="true">1</span>
+        ABC records
+      </p>
+      <p className="explorer-count" role="status">
+        {summary ? `${summary.entryCount} observations · ${summary.behaviorTargetCount} behavior targets` : 'Loading ABC structure…'}
+      </p>
+      {structure.map(([label, values]) => (
+        <section className="abc-scope-block" key={label}>
+          <h3>{label}<span>{values.length}</span></h3>
+          {values.length
+            ? <div className="abc-scope-scroll" role="region" tabIndex={0} aria-label={`${label} options`}>
+              <ul>{values.map(value => <li key={value}>{value}</li>)}</ul>
+            </div>
+            : <p className="field-hint">Not configured for this client.</p>}
+        </section>
+      ))}
+      <p className="field-hint">
+        The full ABC workspace — timeline chart, patterns, forecast and the observation log — stays in the centre.
+      </p>
     </div>
   );
 }

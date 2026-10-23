@@ -16,6 +16,7 @@ const RANGES = ['Past 3 Days', 'Past 5 Days', 'Past 7 Days', 'Past 1 Month', 'Pa
 const FILTER_LABELS = { date: 'Date', behavior: 'Behavior', antecedent: 'Antecedent', consequence: 'Consequence', weekday: 'Weekday', block: 'Hour' };
 
 export default function AbcDataSection({
+  embedded = false,
   client,
   abcEntries = [],
   abcConfiguration = null,
@@ -114,9 +115,12 @@ export default function AbcDataSection({
   const visibleRows = logEntries.slice((currentPage - 1) * 8, currentPage * 8);
   const activeFilters = Object.entries(logFilter).filter(([, value]) => value);
   const primarySetting = client?.primarySetting || 'Clinic';
+  // Embedded in Target analysis the workspace shares the page with other sections, so its
+  // anchor ids are prefixed and the section heading comes from the surrounding workflow.
+  const idPrefix = embedded ? 'ta-' : '';
   const sectionLinks = analysisMode === 'Timeline' && filteredEntries.length ? [
-    ...(viewMode !== 'Data' ? [{ id: 'abc-chart-section', label: 'Timeline chart' }] : []),
-    ...(viewMode !== 'Graph' ? [{ id: 'abc-observation-log', label: 'Observation log' }] : [])
+    ...(viewMode !== 'Data' ? [{ id: `${idPrefix}abc-chart-section`, label: 'Timeline chart' }] : []),
+    ...(viewMode !== 'Graph' ? [{ id: `${idPrefix}abc-observation-log`, label: 'Observation log' }] : [])
   ] : analysisMode === 'Patterns' && filteredEntries.length >= 5 ? [
     { id: 'abc-pattern-antecedents', label: 'Antecedents' },
     { id: 'abc-pattern-consequences', label: 'Consequences' },
@@ -129,15 +133,15 @@ export default function AbcDataSection({
     { id: 'abc-pattern-intensity', label: 'Intensity' }
   ] : [];
 
-  return <section id="abc-observations" className="panel" aria-labelledby="abc-title" tabIndex={-1}>
-    <SectionHeader id="abc-title" title="ABC observations" description="Browse observations, the event log, and descriptive patterns."
+  return <section id={embedded ? 'target-analysis-abc' : 'abc-observations'} className={embedded ? 'abc-embedded' : 'panel'} aria-labelledby={embedded ? 'target-analysis-title' : 'abc-title'} tabIndex={-1}>
+    {!embedded && <SectionHeader id="abc-title" title="ABC observations" description="Browse observations, the event log, and descriptive patterns."
       help="ABC stands for antecedent, behavior, and consequence. Location and setting events add context. These records describe what was observed; they don’t establish why a behavior occurred—confirm hypotheses with a functional analysis."
       actions={<ExportMenu label="Export ABC" disabled={!filteredEntries.length} onExport={handleExport} formats={[
         { id: 'csv', label: 'Observation log · CSV' },
         { id: 'svg', label: 'Vector chart · SVG', disabled: viewMode === 'Data' || analysisMode !== 'Timeline' },
         { id: 'png', label: 'Chart image · PNG', disabled: viewMode === 'Data' || analysisMode !== 'Timeline' }
       ]} />}
-      overflowActions={[{ label: 'Refresh ABC observations', icon: RotateCw, onClick: onRefresh }]} />
+      overflowActions={[{ label: 'Refresh ABC observations', icon: RotateCw, onClick: onRefresh }]} />}
     <div className="analysis-filters">
       <SegmentedControl label="ABC analysis" value={analysisMode} onChange={setAnalysisMode} options={[
         { value: 'Timeline', label: 'Timeline' }, { value: 'Patterns', label: 'Patterns' }, { value: 'Forecast', label: 'Forecast' }
@@ -170,7 +174,7 @@ export default function AbcDataSection({
         </Suspense>
           : !filteredEntries.length ? <EmptyState title="No ABC observations in this range." description="Try a longer date range to see the client’s recorded context."
             action={durationFilter !== 'Past 6 Months' ? { label: 'Show past 6 months', onClick: () => { setDurationFilter('Past 6 Months'); setLogPage(1); } } : undefined} /> : <>
-            {viewMode !== 'Data' && <div id="abc-chart-section" className="section-anchor" tabIndex={-1}>
+            {viewMode !== 'Data' && <div id={`${idPrefix}abc-chart-section`} className="section-anchor" tabIndex={-1}>
               <div className="chart-scroll" tabIndex={0} role="region" aria-label="ABC behavior distribution chart. Scroll horizontally for the full timeline."><div className="chart-inner chart-inner--quantitative">
                 <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} className="chart-svg" role="img" aria-label={`Behavior counts across ${dateKeys.length} observation dates. Select a bar segment to filter the observation log. Exact records appear in the observation log.`}>
                   <title>ABC behavior distribution</title><desc>Stacked daily behavior counts. Each segment has a labeled legend; the observation log below gives the complete context.</desc>
@@ -208,7 +212,7 @@ export default function AbcDataSection({
               <div className="chart-caption"><span>{filteredEntries.length} ABC observations · behaviors may co-occur · select a bar to filter the log</span><span className="scroll-hint">Scroll to see the full chart →</span></div>
               <div className="abc-legend">{behaviorList.map(behavior => <div key={behavior}><span className="legend-swatch" aria-hidden="true"><svg viewBox="0 0 12 12"><rect width="12" height="12" rx="2" fill={behaviorColor(behavior)} /></svg></span><span>{behavior}</span></div>)}</div>
             </div>}
-            {viewMode !== 'Graph' && <section id="abc-observation-log" className="observation-log section-anchor" aria-labelledby="observation-log-title" ref={logRef} tabIndex={-1}>
+            {viewMode !== 'Graph' && <section id={`${idPrefix}abc-observation-log`} className="observation-log section-anchor" aria-labelledby="observation-log-title" ref={logRef} tabIndex={-1}>
               <div className="observation-log-head">
                 <div><h3 id="observation-log-title">Observation log</h3><p>Most recent first · {logEntries.length} {activeFilters.length ? `of ${filteredEntries.length} ` : ''}records</p></div>
                 <div className="log-filters">
