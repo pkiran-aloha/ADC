@@ -1,10 +1,9 @@
 import { createElement, useDeferredValue, useMemo, useRef, useState } from 'react';
-import { RotateCw, TrendingUp, Edit3, CheckSquare, Square, UserCheck, ChevronLeft, ChevronRight, Settings2 } from './ui/Icons';
+import { RotateCw, TrendingUp, Edit3, UserCheck, ChevronLeft, ChevronRight } from './ui/Icons';
 import { exportSvgElement, exportPngFromSvg, exportRawTrialDataCsv, exportStructuredZip } from '../utils/exportUtils';
 import TrendExplorer from './overview/TrendExplorer';
 import SectionHeader from './ui/SectionHeader';
 import ExportMenu from './ui/ExportMenu';
-import Popover from './ui/Popover';
 import SegmentedControl from './ui/SegmentedControl';
 import EmptyState from './ui/EmptyState';
 import TargetChart from './analysis/TargetChart';
@@ -30,14 +29,14 @@ import TransposedChart from './analysis/TransposedChart';
 import { MARKER_LIBRARY, markerElement, resolveMarkerShape } from '../utils/markerShapes';
 import {
   readGraphPreferences, writeGraphPreferences, resetGraphPreferences, normalizeGraphPreferences,
-  minimumTrialsFor, graphStandards, preferenceSummary, eligibleChartRows
+  minimumTrialsFor, graphStandards, eligibleChartRows
 } from '../utils/graphPreferences';
 import { observationType } from '../utils/observations';
-import { availableSummaryModes, resolveSummaryMode, summaryLabel, withSummarySeries, behaviorPresets, groupTargetsByStage } from '../utils/groupSeries';
+import { availableSummaryModes, resolveSummaryMode, summaryLabel, withSummarySeries, behaviorPresets } from '../utils/groupSeries';
 import { buildInsights } from '../utils/insights';
 import { buildExplorerCatalog, toggleExplorerSelection } from '../utils/trendExplorer';
 import {
-  BEHAVIOR_MEASUREMENT_ORDER, SKILL_MEASUREMENT_ORDER, defaultFamilyKey, familyChangeNotice,
+  BEHAVIOR_MEASUREMENT_ORDER, SKILL_MEASUREMENT_ORDER, familyChangeNotice,
   familyKeyOf, familyTypeOf, measurementFamilyFor, measurementFamilyOptions,
   pruneSelectionToFamily, targetsInFamily
 } from '../utils/measurementFamilies';
@@ -90,20 +89,16 @@ export default function ClientSpecificSection({
     return 'Programs';
   });
   const activeCategoryTab = dataCategory === 'Behaviors' ? 'Behavior' : 'SkillAcquisition';
-  const [selectedProgramId, setSelectedProgramId] = useState(() => initialFocus?.programId || programs.find(program => program.category === 'SkillAcquisition')?.id || '');
-  const [selectedBehaviorIds, setSelectedBehaviorIds] = useState(() => {
-    if (initialFocus?.behaviorIds) return initialFocus.behaviorIds;
-    const first = programs.find(program => program.category === 'BehaviorReduction')?.targets[0]?.id;
-    return first ? [first] : [];
-  });
+  const [selectedProgramId, setSelectedProgramId] = useState(() => initialFocus?.programId || '');
+  const [selectedBehaviorIds, setSelectedBehaviorIds] = useState(() => initialFocus?.behaviorIds || (initialFocus?.analysisTargetId ? [initialFocus.analysisTargetId] : []));
   // Stored as a measurement-family key (for example IntervalData|Partial) so different
   // interval schedules cannot be combined; the target type is derived from it.
   const [requestedFamilyKey, setRequestedFamilyKey] = useState(() => (
-    initialFocus?.targetType ? measurementFamilyFor({ type: initialFocus.targetType }).key : ''
+    initialFocus?.measurementFamilyKey || (initialFocus?.targetType ? measurementFamilyFor({ type: initialFocus.targetType }).key : '')
   ));
-  // Skill acquisition selection is explicit. `null` means "auto-select the compatible
-  // family", which is what choosing a program resets to.
-  const [selectedSkillIds, setSelectedSkillIds] = useState(null);
+  // Target selection is always explicit; changing program or measurement never silently
+  // fills the chart with a new set. Drill-downs may seed one explicitly focused target.
+  const [selectedSkillIds, setSelectedSkillIds] = useState(() => initialFocus?.analysisTargetId ? new Set([initialFocus.analysisTargetId]) : new Set());
   const [selectionNotice, setSelectionNotice] = useState(null);
   const [durationFilter, setDurationFilter] = useState(initialFocus?.durationFilter || '1 month');
   const [aggregation, setAggregation] = useState(initialFocus?.aggregation || 'Per Day');
@@ -191,8 +186,8 @@ export default function ClientSpecificSection({
     ? (currentSelectedProgram ? [currentSelectedProgram] : [])
     : behaviorPrograms.filter(p => p.targets.some(t => selectedBehaviorIds.includes(t.id))), [activeCategoryTab, currentSelectedProgram, behaviorPrograms, selectedBehaviorIds]);
 
-  // Measurement types that actually have observations inside the current roster. A type
-  // with no observations stays visible in the chooser but cannot be selected.
+  // Measurement types that have observations inside the current roster; types without
+  // records remain selectable so the clinician can inspect an empty state or begin recording.
   const typesWithData = useMemo(() => {
     const roster = activeCategoryTab === 'SkillAcquisition' ? programTargets : allBehaviors;
     const types = new Set();
@@ -222,7 +217,7 @@ export default function ClientSpecificSection({
         || familyOptions.find(option => option.type === requestedType);
       if (sameType) return sameType.key;
     }
-    return defaultFamilyKey(familyOptions);
+    return '';
   }, [requestedFamilyKey, familyOptions]);
   const activeFamily = familyOptions.find(option => option.key === activeFamilyKey) || null;
   const activeTargetType = familyTypeOf(activeFamilyKey) || availableTargetTypes[0] || '';
@@ -244,9 +239,8 @@ export default function ClientSpecificSection({
   // Guide the selector with program-level progress so a clinician does not have to open
   // every program to see how it is going (feedback: progress in the Skill Acquisition selector).
   const programProgressMap = useMemo(() => new Map(skillPrograms.map(program => [program.id, programProgress(program, clientSessions)])), [skillPrograms, clientSessions]);
-  const targetStages = useMemo(() => groupTargetsByStage(activeTargets.filter(target => target.type === activeTargetType)), [activeTargets, activeTargetType]);
-  // Quick picks (all behaviors, by function, by program) were previously inside a popover;
-  // they now sit directly in the Behaviors pane and only ever select compatible targets.
+  // Optional behavior presets are tucked behind a quick-picks disclosure and only select
+  // targets in the currently active measurement family.
   const behaviorQuickPicks = useMemo(() => behaviorPresets(allBehaviors), [allBehaviors]);
   const graphPolicyMinimum = minimumTrialsFor(preferences, standards);
   const titleContext = `${client?.id}-${activeCategoryTab}-${selectedProgramId}-${selectedBehaviorIds.join(',')}`;
@@ -293,7 +287,7 @@ export default function ClientSpecificSection({
 
   function selectProgram(programId) {
     setSelectedProgramId(programId);
-    setSelectedSkillIds(null);
+    setSelectedSkillIds(new Set());
     setRequestedFamilyKey('');
     setSelectionNotice(null);
     resetView(true);
@@ -315,43 +309,28 @@ export default function ClientSpecificSection({
     if (activeCategoryTab === 'SkillAcquisition') {
       const current = [...selectedSkillTargetIds];
       const { kept, removedLabels } = pruneSelectionToFamily(current, programTargets, nextKey);
-      const compatible = targetsInFamily(programTargets, nextKey).map(target => target.id);
-      // An empty selection stays empty: the clinician cleared it on purpose.
-      const next = current.length === 0 ? new Set() : kept.length ? new Set(kept) : new Set(compatible);
+      // Switching measurement types never silently selects a different target set.
+      const next = new Set(kept);
       setSelectedSkillIds(next);
       // Only explain a change that actually removed a target; re-choosing the active
       // measurement type should not add an empty banner.
       announce(removedLabels.length ? familyChangeNotice({
         familyLabel: label,
         removedLabels,
-        autoSelected: kept.length ? 0 : next.size
+        autoSelected: 0
       }) : '');
       return;
     }
 
     const current = selectedBehaviorIds;
     const { kept, removedLabels } = pruneSelectionToFamily(current, allBehaviors, nextKey);
-    const compatible = targetsInFamily(allBehaviors, nextKey).map(target => target.id);
-    const next = current.length === 0 ? [] : kept.length ? kept : compatible.slice(0, 1);
+    const next = kept;
     setSelectedBehaviorIds(next);
     announce(removedLabels.length ? familyChangeNotice({
       familyLabel: label,
       removedLabels,
-      autoSelected: kept.length ? 0 : next.length
+      autoSelected: 0
     }) : '');
-  }
-
-  // A measurement type chosen from the chart toolbar follows the same compatibility
-  // rules as the selection pane. Interval recording keeps its schedule when possible.
-  function selectTargetType(type) {
-    if (!type) return;
-    const candidates = familyOptions.filter(option => option.type === type);
-    if (!candidates.length) return;
-    const current = candidates.find(option => option.key === activeFamilyKey);
-    const preferred = current
-      || candidates.find(option => option.hasData)
-      || candidates[0];
-    selectFamily(preferred.key);
   }
 
   function toggleTarget(entry) {
@@ -382,6 +361,7 @@ export default function ClientSpecificSection({
   }
 
   function selectAllCompatible() {
+    if (!activeFamilyKey) return;
     resetView(false);
     if (activeCategoryTab === 'SkillAcquisition') setSelectedSkillIds(new Set(compatibleTargets.map(target => target.id)));
     else setSelectedBehaviorIds(targetsInFamily(allBehaviors, activeFamilyKey).map(target => target.id));
@@ -393,23 +373,6 @@ export default function ClientSpecificSection({
     else setSelectedBehaviorIds([]);
   }
 
-  // Legend toggles and the selection list stay one source of truth.
-  function toggleLegendTarget(target) {
-    const selected = visibleTargetIds.has(target.id);
-    if (activeCategoryTab === 'SkillAcquisition') {
-      if (!selected && familyKeyOf(target) !== activeFamilyKey) {
-        announce(`Only ${activeFamily?.label || 'targets of the same measurement type'} can be plotted together. Change the measurement type to add ${target.name}.`);
-        return;
-      }
-      const next = new Set(selectedSkillTargetIds);
-      if (selected) next.delete(target.id); else next.add(target.id);
-      setSelectedSkillIds(next);
-      return;
-    }
-    if (selected) setSelectedBehaviorIds(selectedBehaviorIds.filter(id => id !== target.id));
-    else if (familyKeyOf(target) === activeFamilyKey) setSelectedBehaviorIds([...selectedBehaviorIds, target.id]);
-    else announce(`Only ${activeFamily?.label || 'targets of the same measurement type'} can be plotted together. Change the measurement type to add ${target.name}.`);
-  }
 
   const abcSummary = useMemo(() => ({
     entryCount: abcEntries.length,
@@ -516,7 +479,7 @@ export default function ClientSpecificSection({
 
   // ---------------- Analysis target, overlays and visual analysis ----------------
   const analysisTarget = tabTargets.find(target => target.id === analysisTargetId) || tabTargets[0] || null;
-  const focusedTarget = analysisTarget || activeTargets[0] || null;
+  const focusedTarget = analysisTarget;
   const focusedEntry = useMemo(
     () => explorerCatalog.items.find(item => item.targetId === focusedTarget?.id) || null,
     [explorerCatalog.items, focusedTarget]
@@ -711,7 +674,6 @@ export default function ClientSpecificSection({
 
   const hasChart = activeTargetType !== 'Anecdotal' && displaySeriesData.some(series => series.points.length);
   const chartDataRows = displaySeriesData.flatMap(series => series.points.map(point => ({ ...point, series: series.name })));
-  const enabledFunctions = FUNCTION_OPTIONS.filter(option => functions.has(option.key)).length;
   // Every measurement type gets its own specialist view alongside the shared plot types.
   const viewOptions = activeTargetType === 'TrialByTrial'
     ? [{ value: 'standard', label: 'Accuracy' }, { value: 'prompts', label: 'Prompt levels' }, { value: 'trials', label: 'Trial strip' }]
@@ -793,6 +755,7 @@ export default function ClientSpecificSection({
       onSelectProgram={selectProgram}
       familyOptions={familyOptions}
       activeFamilyKey={activeFamilyKey}
+      dateRange={durationFilter}
       onSelectFamily={selectFamily}
       selectedTargetIds={activeCategoryTab === 'SkillAcquisition' ? selectedSkillTargetIds : new Set(selectedBehaviorIds)}
       onToggleTarget={toggleTarget}
@@ -800,7 +763,7 @@ export default function ClientSpecificSection({
       behaviorPresets={behaviorQuickPicks}
       onSelectBehaviorPreset={applyBehaviorPreset}
       onClearTargets={clearTargetSelection}
-      totalCompatibleTargets={activeCategoryTab === 'SkillAcquisition' ? compatibleTargets.length : targetsInFamily(allBehaviors, activeFamilyKey).length}
+      totalCompatibleTargets={!activeFamilyKey ? 0 : activeCategoryTab === 'SkillAcquisition' ? compatibleTargets.length : targetsInFamily(allBehaviors, activeFamilyKey).length}
       notice={selectionNotice}
       onDismissNotice={() => setSelectionNotice(null)}
       abcSummary={abcSummary}
@@ -825,37 +788,48 @@ export default function ClientSpecificSection({
       {dataCategory === 'Abc' ? (
         <AbcDataSection embedded client={client} abcEntries={abcEntries} abcConfiguration={abcConfiguration}
           behaviorTargets={allBehaviors} serviceSessions={serviceSessions} sessionRows={abcSessionRows} onRefresh={onRefresh} />
+      ) : tabTargets.length === 0 ? (
+        <div className="analysis-guidance" aria-live="polite">
+          <span className="analysis-guidance__step">{!currentSelectedProgram && dataCategory === 'Programs' ? 'Step 1 of 3' : !activeFamily ? 'Step 2 of 3' : 'Step 3 of 3'}</span>
+          <h3>{!currentSelectedProgram && dataCategory === 'Programs' ? 'Choose a program' : !activeFamily ? 'Choose a measurement type' : 'Select targets to analyze'}</h3>
+          <p>{!currentSelectedProgram && dataCategory === 'Programs'
+            ? 'Start with a skill acquisition program. Its measurement types and compatible targets will appear in the selection panel.'
+            : !activeFamily
+              ? dataCategory === 'Behaviors' ? 'Choose a behavior measurement type to see compatible targets.' : 'Choose how this program’s targets were measured.'
+              : 'Select one or more targets in the same measurement family. Targets measured differently can’t be combined in one graph.'}</p>
+          {activeFamily && <span className="analysis-guidance__family">Selected measurement · {activeFamily.label}</span>}
+        </div>
       ) : (<>
-      <div className="measurement-toolbar">
-        {availableTargetTypes.length > 0 ? <div className="measurement-tabs" role="group" aria-label="Measurement type">
-          {availableTargetTypes.map(type => <button type="button" key={type} aria-pressed={activeTargetType === type} onClick={() => selectTargetType(type)}>{MEASUREMENT_LABELS[type]}</button>)}
-        </div> : <span className="control-label">Chart window</span>}
-        <div className="view-controls">
-          <label htmlFor="target-date-range">Date range</label>
-          <select id="target-date-range" value={durationFilter} onChange={event => { setDurationFilter(event.target.value); setSelectedKey(null); setZoom(null); }}>
-            {['3 days', '5 days', '7 days', '2 weeks', '1 month', '3 months', '6 months', '1 year', '2 years'].map(value => <option key={value} value={value}>{value}</option>)}
-          </select>
-          {availableTargetTypes.length > 0 && viewOptions && <SegmentedControl label="Chart view" value={shownChartView} onChange={value => { setChartView(value); setSelectedKey(null); }} options={viewOptions} className="chart-view-control" />}
-          {availableTargetTypes.length > 0 && activeTargetType !== 'Anecdotal' && <><label htmlFor="target-grouping">Group by</label><select id="target-grouping" value={aggregation} onChange={event => { setAggregation(event.target.value); setSessionPage(1); setSelectedKey(null); setZoom(null); }}>
-            {['Per Day', 'Per Session', 'Weekly', 'Monthly'].map(value => <option key={value} value={value}>{value === 'Per Day' ? 'Day' : value === 'Per Session' ? 'Session' : value}</option>)}
-          </select></>}
-          {availableTargetTypes.length > 0 && activeTargetType !== 'Anecdotal' && <><label htmlFor="target-chart-type">Plot</label><select id="target-chart-type" value={shownChartType} onChange={event => { setChartType(event.target.value); setSelectedKey(null); }}>
-            {CHART_TYPES.map(option => <option key={option.value} value={option.value} disabled={option.value === 'cumulative' && percentType}>{option.label}{option.value === 'cumulative' && percentType ? ' · counts only' : ''}</option>)}
-          </select></>}
-          {activeTargetType === 'Duration' && <select aria-label="Duration measure" value={durationView} onChange={event => setDurationView(event.target.value)}>
+      <div className="chart-control-strip">
+        <div className="chart-control-strip__primary">
+          <label className="chart-control-field"><span>Date range</span>
+            <select id="target-date-range" value={durationFilter} onChange={event => { setDurationFilter(event.target.value); setSelectedKey(null); setZoom(null); }}>
+              {['3 days', '5 days', '7 days', '2 weeks', '1 month', '3 months', '6 months', '1 year', '2 years'].map(value => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+          {activeTargetType !== 'Anecdotal' && <label className="chart-control-field"><span>Group by</span>
+            <select id="target-grouping" value={aggregation} onChange={event => { setAggregation(event.target.value); setSessionPage(1); setSelectedKey(null); setZoom(null); }}>
+              {['Per Day', 'Per Session', 'Weekly', 'Monthly'].map(value => <option key={value} value={value}>{value === 'Per Day' ? 'Day' : value === 'Per Session' ? 'Session' : value}</option>)}
+            </select>
+          </label>}
+          {activeTargetType !== 'Anecdotal' && <label className="chart-control-field"><span>Plot</span>
+            <select id="target-chart-type" value={shownChartType} onChange={event => { setChartType(event.target.value); setSelectedKey(null); }}>
+              {CHART_TYPES.map(option => <option key={option.value} value={option.value} disabled={option.value === 'cumulative' && percentType}>{option.label}{option.value === 'cumulative' && percentType ? ' · counts only' : ''}</option>)}
+            </select>
+          </label>}
+          {viewOptions && <SegmentedControl label="Chart view" value={shownChartView} onChange={value => { setChartView(value); setSelectedKey(null); }} options={viewOptions} className="chart-view-control" />}
+        </div>
+        <div className="chart-control-strip__secondary">
+          {activeTargetType === 'Duration' && <label className="chart-control-field"><span>Duration measure</span><select aria-label="Duration measure" value={durationView} onChange={event => setDurationView(event.target.value)}>
             <option value="Total Duration">Total duration</option><option value="Total Count">Occurrence count</option><option value="Average Duration">Average duration</option>
-          </select>}
-          {activeTargetType === 'FluencyRate' && <select aria-label="Fluency rate measure" value={rateView} onChange={event => setRateView(event.target.value)}>
-            <option value="Rate per Day">{aggregation === 'Per Day' ? 'Occurrences per day' : 'Occurrence count'}</option><option value="Rate per Minute">Rate per minute</option><option value="Rate per Hour">Rate per hour</option>
-          </select>}
-          {activeTargetType === 'Frequency' && <select aria-label="Frequency measure" value={frequencyView} onChange={event => setFrequencyView(event.target.value)}>
-            <option value="Raw Frequency">Occurrence count</option><option value="Rate per Minute">Rate per minute</option><option value="Rate per Hour">Rate per hour</option>
-          </select>}
-          {availableTargetTypes.length > 0 && activeTargetType !== 'Anecdotal' && tabTargets.length > 1 && <><label htmlFor="summary-mode">Summary</label>
-            <select id="summary-mode" value={summaryMode} onChange={event => updatePreferences({ summaryMode: event.target.value })}>
-              {availableSummaryModes(activeTargetType).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select></>}
-          {availableTargetTypes.length > 0 && activeTargetType !== 'Anecdotal' && tabTargets.length === 1 && <label className="toggle-control"><input type="checkbox" checked={splitByTherapist} onChange={event => setSplitByTherapist(event.target.checked)} />Split by clinician</label>}
+          </select></label>}
+          {(activeTargetType === 'FluencyRate' || activeTargetType === 'Frequency') && <label className="chart-control-field"><span>{activeTargetType === 'Frequency' ? 'Frequency measure' : 'Rate measure'}</span><select aria-label={activeTargetType === 'Frequency' ? 'Frequency measure' : 'Fluency rate measure'} value={activeTargetType === 'Frequency' ? frequencyView : rateView} onChange={event => activeTargetType === 'Frequency' ? setFrequencyView(event.target.value) : setRateView(event.target.value)}>
+            {activeTargetType === 'Frequency' ? <><option value="Raw Frequency">Occurrence count</option><option value="Rate per Minute">Rate per minute</option><option value="Rate per Hour">Rate per hour</option></> : <><option value="Rate per Day">{aggregation === 'Per Day' ? 'Occurrences per day' : 'Occurrence count'}</option><option value="Rate per Minute">Rate per minute</option><option value="Rate per Hour">Rate per hour</option></>}
+          </select></label>}
+          {activeTargetType !== 'Anecdotal' && tabTargets.length > 1 && <label className="chart-control-field"><span>Summary</span><select id="summary-mode" value={summaryMode} onChange={event => updatePreferences({ summaryMode: event.target.value })}>
+            {availableSummaryModes(activeTargetType).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select></label>}
+          {activeTargetType !== 'Anecdotal' && tabTargets.length === 1 && allTherapistsForTarget.length > 1 && <label className="toggle-control"><input type="checkbox" checked={splitByTherapist} onChange={event => setSplitByTherapist(event.target.checked)} />Split by clinician</label>}
         </div>
       </div>
 
@@ -868,68 +842,69 @@ export default function ClientSpecificSection({
         </form> : canEdit ? <button type="button" ref={titleButtonRef} className="chart-title-button" aria-label={`Edit chart title: ${chartTitle}`} onClick={() => { setDraftTitle(chartTitle); setTitleError(''); setIsEditingTitle(true); }}><span>{chartTitle}</span><Edit3 size={16} /></button>
           : <p className="chart-title-static">{chartTitle}</p>}
         <div className="chart-options">
-          <button type="button" className="button button--tertiary" disabled={!canEdit} onClick={() => onManualEntryClick?.(activeTargets[0])}>Add data point</button>
-          <label className="toggle-control"><input type="checkbox" checked={showAverageLine} disabled={averageValue === null || !canEdit} onChange={event => setShowAverageLine(event.target.checked)} />Average</label>
-          <label className="toggle-control"><input type="checkbox" checked={showTrendLine} disabled={!trendlinePoints || !canEdit} onChange={event => setShowTrendLine(event.target.checked)} /><TrendingUp size={15} />Trend</label>
-          {showTrendLine && <select aria-label="Trend calculation" className="toggle-control" disabled={!canEdit} value={trendMethod} onChange={event => setTrendMethod(event.target.value)}>
-            <option value="regression">Linear regression</option><option value="directional">First-to-last direction</option><option value="split-middle">Split-middle (line of progress)</option>
-          </select>}
-          <Popover label="Graph view" icon={Settings2} className="graph-view-popover">
-            <p className="popover-label">Graph view · {preferenceSummary(preferences, standards)}</p>
-            <label className="popover-option"><input type="checkbox" checked={preferences.showNoDataDates} disabled={!canEdit}
-              onChange={event => updatePreferences({ showNoDataDates: event.target.checked })} />
-              <span>Include dates without data<small className="block text-slate-500">Charts start with the dates that have measurements</small></span></label>
-            <label className="popover-option"><input type="checkbox" checked={preferences.suppressLowTrialSessions} disabled={!canEdit}
-              onChange={event => updatePreferences({ suppressLowTrialSessions: event.target.checked })} />
-              <span>Hide sessions below the trial minimum<small className="block text-slate-500">{graphStandards(standards).source}</small></span></label>
-            <div className="axis-fields">
-              <label htmlFor="graph-minimum-trials">Minimum trials per point</label>
-              <input id="graph-minimum-trials" type="number" min="0" step="1" inputMode="numeric" disabled={!canEdit}
-                placeholder={String(graphStandards(standards).minimumTrialsPerDataPoint)} value={preferences.minimumTrials ?? ''}
-                onChange={event => updatePreferences({ minimumTrials: event.target.value === '' ? null : Math.max(0, Math.round(Number(event.target.value))) })} />
+          <div className="chart-action-group" aria-label="Chart actions">
+            <button type="button" className="button button--secondary chart-add-action" disabled={!canEdit} onClick={() => onManualEntryClick?.(tabTargets[0])}>Add data point</button>
+          </div>
+          <div className="chart-overlay-group" aria-label="Analysis overlays">
+            <span className="chart-options-label">Overlays</span>
+            {averageValue !== null && <label className="toggle-control"><input type="checkbox" checked={showAverageLine} disabled={!canEdit} onChange={event => setShowAverageLine(event.target.checked)} />Average</label>}
+            {trendlinePoints && <label className="toggle-control"><input type="checkbox" checked={showTrendLine} disabled={!canEdit} onChange={event => setShowTrendLine(event.target.checked)} /><TrendingUp size={15} />Trend</label>}
+            {showTrendLine && <select aria-label="Trend calculation" className="toggle-control" disabled={!canEdit} value={trendMethod} onChange={event => setTrendMethod(event.target.value)}>
+              <option value="regression">Linear regression</option><option value="directional">First-to-last direction</option><option value="split-middle">Split-middle (line of progress)</option>
+            </select>}
+          </div>
+          <details className="chart-menu chart-display-menu">
+            <summary>Display options</summary>
+            <div className="chart-menu__panel">
+              <p className="popover-label">Display options</p>
+              <label className="popover-option"><input type="checkbox" checked={showValues} onChange={event => updatePreferences({ showValues: event.target.checked })} /><span>Values</span></label>
+              <label className="popover-option"><input type="checkbox" checked={showPhaseLabels} onChange={event => updatePreferences({ showPhaseLabels: event.target.checked })} /><span>Phase labels</span></label>
+              <label className="popover-option"><input type="checkbox" checked={showGridlines} onChange={event => updatePreferences({ showGridlines: event.target.checked })} /><span>Gridlines</span></label>
+              <label className="popover-option"><input type="checkbox" checked={colorMode === 'BlackAndWhite'} onChange={() => setColorMode(value => value === 'System' ? 'BlackAndWhite' : 'System')} /><span>Monochrome</span></label>
+              {activeCategoryTab === 'Behavior' && <label className="popover-option"><input type="checkbox" checked={behaviorZeroOut} onChange={event => setBehaviorZeroOut(event.target.checked)} /><span>Include measured zeros</span></label>}
+              <label className="popover-option"><input type="checkbox" checked={showEmptyDates} disabled={!canEdit} onChange={event => updatePreferences({ showNoDataDates: event.target.checked })} /><span>Show missing dates</span></label>
+              <label className="popover-option"><input type="checkbox" checked={preferences.suppressLowTrialSessions} disabled={!canEdit} onChange={event => updatePreferences({ suppressLowTrialSessions: event.target.checked })} />
+                <span>Hide sessions below trial minimum<small className="block text-slate-500">{graphStandards(standards).source}</small></span></label>
+              <div className="chart-menu__fields">
+                <div className="axis-fields"><label htmlFor="graph-minimum-trials">Minimum trials per point</label>
+                  <input id="graph-minimum-trials" type="number" min="0" step="1" inputMode="numeric" disabled={!canEdit} placeholder={String(graphStandards(standards).minimumTrialsPerDataPoint)} value={preferences.minimumTrials ?? ''}
+                    onChange={event => updatePreferences({ minimumTrials: event.target.value === '' ? null : Math.max(0, Math.round(Number(event.target.value))) })} />
+                </div>
+                <div className="control-field"><label htmlFor="marker-shape">Data point shape</label>
+                  <select id="marker-shape" value={preferences.markerShape} disabled={!canEdit} onChange={event => updatePreferences({ markerShape: event.target.value })}>{MARKER_LIBRARY.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select>
+                </div>
+                <div className="control-field"><label htmlFor="chart-orientation">Axis orientation</label>
+                  <select id="chart-orientation" value={preferences.orientation} disabled={!canEdit} onChange={event => { updatePreferences({ orientation: event.target.value }); setChartView('standard'); }}>
+                    <option value="values">Values vertical · dates horizontal</option><option value="dates">Dates vertical · values horizontal (flipped)</option>
+                  </select>
+                </div>
+                <p className="field-hint">{MARKER_LIBRARY.find(option => option.id === preferences.markerShape)?.hint}</p>
+                <p className="field-hint">The flipped view puts time down the vertical axis while preserving phase changes, notes and criteria.</p>
+                <button type="button" className="button button--tertiary" disabled={!canEdit} onClick={() => setPreferences(resetGraphPreferences(client?.id) ? readGraphPreferences(client?.id) : normalizeGraphPreferences())}>Reset display options</button>
+              </div>
+              <div className="chart-menu__fields">
+                <p className="popover-label">Y-axis range · {describeAxisBounds(axisBounds)}</p>
+                <div className="axis-fields"><label htmlFor="axis-min">Minimum</label><input id="axis-min" type="number" step="any" inputMode="decimal" placeholder="Auto" disabled={!canEdit} value={axisDraft.min} onChange={event => applyAxis({ ...axisDraft, min: event.target.value })} />
+                  <label htmlFor="axis-max">Maximum</label><input id="axis-max" type="number" step="any" inputMode="decimal" placeholder="Auto" disabled={!canEdit} value={axisDraft.max} onChange={event => applyAxis({ ...axisDraft, max: event.target.value })} />
+                </div>
+                {axisError && <p className="field-error" role="alert">{axisError}</p>}
+                <p className="field-hint">Blank means automatic scaling. Values outside the range remain in tables and exports.</p>
+                <button type="button" className="button button--tertiary" disabled={!canEdit} onClick={() => applyAxis({ min: '', max: '' })}>Use automatic scale</button>
+              </div>
             </div>
-            <div className="control-field"><label htmlFor="marker-shape">Data point shape</label>
-              <select id="marker-shape" value={preferences.markerShape} disabled={!canEdit} onChange={event => updatePreferences({ markerShape: event.target.value })}>
-                {MARKER_LIBRARY.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-              </select></div>
-            <p className="field-hint">{MARKER_LIBRARY.find(option => option.id === preferences.markerShape)?.hint}</p>
-            <div className="control-field"><label htmlFor="chart-orientation">Axis orientation</label>
-              <select id="chart-orientation" value={preferences.orientation} disabled={!canEdit} onChange={event => { updatePreferences({ orientation: event.target.value }); setChartView('standard'); }}>
-                <option value="values">Values vertical · dates horizontal</option>
-                <option value="dates">Dates vertical · values horizontal (flipped)</option>
-              </select></div>
-            <p className="field-hint">The flipped view puts time down the vertical axis and keeps phase changes, notes and criteria on the alternate axis.</p>
-            <button type="button" className="button button--tertiary" disabled={!canEdit}
-              onClick={() => setPreferences(resetGraphPreferences(client?.id) ? readGraphPreferences(client?.id) : normalizeGraphPreferences())}>Reset graph view</button>
-          </Popover>
-          <Popover label={`Chart functions (${enabledFunctions})`} icon={Settings2} className="functions-popover">
-            <p className="popover-label">Analytical functions for {analysisTarget?.name || 'the plotted target'}</p>
-            {FUNCTION_OPTIONS.map(option => {
-              const unavailable = (option.key === 'goal' && !goal) || (option.key === 'log' && percentType) || (shownChartView !== 'standard') || !canEdit;
-              return <label key={option.key} className="popover-option function-option">
-                <input type="checkbox" checked={functions.has(option.key)} disabled={unavailable} onChange={event => toggleFunction(option.key, event.target.checked)} />
-                <span>{option.label}<small className="block text-slate-500">{option.key === 'goal' && !goal ? 'Not comparable with this unit or grouping' : option.hint}</small></span>
-              </label>;
-            })}
-          </Popover>
-          <Popover label={`Y axis · ${describeAxisBounds(axisBounds)}`} icon={Settings2} className="axis-popover">
-            <p className="popover-label">Vertical axis range</p>
-            <div className="axis-fields">
-              <label htmlFor="axis-min">Minimum</label>
-              <input id="axis-min" type="number" step="any" inputMode="decimal" placeholder="Auto" disabled={!canEdit} value={axisDraft.min} onChange={event => applyAxis({ ...axisDraft, min: event.target.value })} />
-              <label htmlFor="axis-max">Maximum</label>
-              <input id="axis-max" type="number" step="any" inputMode="decimal" placeholder="Auto" disabled={!canEdit} value={axisDraft.max} onChange={event => applyAxis({ ...axisDraft, max: event.target.value })} />
+          </details>
+          <details className="chart-menu chart-more-menu">
+            <summary>More</summary>
+            <div className="chart-menu__panel chart-menu__panel--right">
+              <p className="popover-label">Advanced chart functions · {analysisTarget?.name || 'plotted target'}</p>
+              {FUNCTION_OPTIONS.filter(option => (option.key !== 'goal' || goal) && (option.key !== 'log' || !percentType) && shownChartView === 'standard').map(option => (
+                <label key={option.key} className="popover-option function-option">
+                  <input type="checkbox" checked={functions.has(option.key)} disabled={!canEdit} onChange={event => toggleFunction(option.key, event.target.checked)} />
+                  <span>{option.label}<small className="block text-slate-500">{option.hint}</small></span>
+                </label>
+              ))}
             </div>
-            {axisError && <p className="field-error" role="alert">{axisError}</p>}
-            <p className="field-hint">Leave a field blank to scale that end to the data. Observations outside the range stay in the data table and exports.</p>
-            <button type="button" className="button button--tertiary" disabled={!canEdit} onClick={() => applyAxis({ min: '', max: '' })}>Use automatic scale</button>
-          </Popover>
-          <button type="button" className="toggle-control" aria-pressed={showValues} onClick={() => updatePreferences({ showValues: !showValues })}>Values</button>
-          <button type="button" className="toggle-control" aria-pressed={showPhaseLabels} onClick={() => updatePreferences({ showPhaseLabels: !showPhaseLabels })}>Phase labels</button>
-          <button type="button" className="toggle-control" aria-pressed={showGridlines} onClick={() => updatePreferences({ showGridlines: !showGridlines })}>Gridlines</button>
-          <button type="button" className="toggle-control" aria-pressed={colorMode === 'BlackAndWhite'} onClick={() => setColorMode(value => value === 'System' ? 'BlackAndWhite' : 'System')}>Monochrome</button>
-          {activeCategoryTab === 'Behavior' && <label className="toggle-control"><input type="checkbox" checked={behaviorZeroOut} onChange={event => setBehaviorZeroOut(event.target.checked)} />Include measured zeros</label>}
-          <label className="toggle-control"><input type="checkbox" checked={showEmptyDates} onChange={event => updatePreferences({ showNoDataDates: event.target.checked })} />Show missing dates</label>
+          </details>
         </div>
       </div>}
 
@@ -991,20 +966,18 @@ export default function ClientSpecificSection({
               </>}
       </div>
 
-      {activeTargets.length > 0 && activeTargetType && <footer className="chart-footer">
-        <span className="legend-title">Plotted targets · select to add or remove</span>
+      {tabTargets.length > 0 && activeTargetType && <footer className="chart-footer chart-legend-footer">
+        <span className="legend-title">In this graph</span>
         <div className="target-legend">
-          {targetStages.map(group => <div className="legend-group" key={group.id}>
-            <p className="legend-group-label" title={group.hint}>{group.label} <span>({group.targets.filter(target => visibleTargetIds.has(target.id)).length}/{group.targets.length} plotted)</span></p>
-            <div className="legend-group-items">
-              {group.targets.map(target => <button type="button" key={target.id} className="legend-button" aria-pressed={visibleTargetIds.has(target.id)} onClick={() => toggleLegendTarget(target)}>
-                <MarkerSwatch color={seriesColor(activeTargets.findIndex(item => item.id === target.id), colorMode === 'BlackAndWhite')} shape={preferences.markerShape} count={tabTargets.length} index={tabTargets.findIndex(item => item.id === target.id)} />
-                <span>{target.name}</span>{visibleTargetIds.has(target.id) ? <CheckSquare size={17} /> : <Square size={17} />}
-              </button>)}
-            </div>
-          </div>)}
+          {tabTargets.map((target, seriesIndex) => {
+            const colorIndex = activeTargets.findIndex(item => item.id === target.id);
+            return <span className="chart-legend-item" key={target.id}>
+              <MarkerSwatch color={seriesColor(colorIndex, colorMode === 'BlackAndWhite')} shape={preferences.markerShape} count={tabTargets.length} index={seriesIndex} />
+              <span>{target.name}</span>
+            </span>;
+          })}
         </div>
-        {splitByTherapist && tabTargets.length === 1 && <div className="mt-4"><span className="legend-title">Visible clinicians</span><div className="target-legend">{allTherapistsForTarget.map((name, index) => <button type="button" key={name} className="legend-button" aria-pressed={visibleTherapists.has(name)} onClick={() => setHiddenTherapists(previous => { const next = new Set(previous); if (next.has(name)) next.delete(name); else next.add(name); return next; })}><Swatch color={seriesColor(index, colorMode === 'BlackAndWhite')} /><UserCheck size={17} />{name}</button>)}</div></div>}
+        {splitByTherapist && tabTargets.length === 1 && <div className="mt-3"><span className="legend-title">Visible clinicians</span><div className="target-legend">{allTherapistsForTarget.map((name, index) => <button type="button" key={name} className="legend-button" aria-pressed={visibleTherapists.has(name)} onClick={() => setHiddenTherapists(previous => { const next = new Set(previous); if (next.has(name)) next.delete(name); else next.add(name); return next; })}><Swatch color={seriesColor(index, colorMode === 'BlackAndWhite')} /><UserCheck size={17} />{name}</button>)}</div></div>}
       </footer>}
       </>)}
     </TrendExplorer>

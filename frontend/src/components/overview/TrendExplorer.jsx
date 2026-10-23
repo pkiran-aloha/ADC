@@ -27,6 +27,7 @@ export default function TrendExplorer({
   familyOptions = [],
   activeFamilyKey = '',
   onSelectFamily,
+  dateRange = '',
   selectedTargetIds = new Set(),
   onToggleTarget,
   onSelectAllCompatible,
@@ -57,6 +58,8 @@ export default function TrendExplorer({
   children
 }) {
   const [query, setQuery] = useState('');
+  const [selectionExpanded, setSelectionExpanded] = useState(() => !selectedTargetIds?.size);
+  const [insightsVisible, setInsightsVisible] = useState(true);
   const itemRefs = useRef([]);
 
   const isBehaviorMode = dataCategory === 'Behaviors';
@@ -90,6 +93,8 @@ export default function TrendExplorer({
   );
 
   const activeFamily = familyOptions.find(option => option.key === activeFamilyKey) || null;
+  const selectedEntries = allEntries.filter(entry => selectedTargetIds.has(entry.targetId));
+  const selectedNames = selectedEntries.slice(0, 2).map(entry => entry.targetName).join(', ');
 
   const explorerSelectionState = useMemo(() => ({
     activeCategoryTab: activeCategoryTabOf(dataCategory),
@@ -122,18 +127,18 @@ export default function TrendExplorer({
   const showRail = !isAbcMode;
 
   return (
-    <div className={`trend-explorer${isAbcMode ? ' trend-explorer--abc' : ''}`}>
+    <div className={`trend-explorer${isAbcMode ? ' trend-explorer--abc' : ''}${!selectionExpanded && !isAbcMode ? ' trend-explorer--focused' : ''}${!insightsVisible ? ' trend-explorer--no-insights' : ''}`}>
       <nav className="trend-explorer__list" aria-label="Target explorer">
         <div className="explorer-head">
           <SegmentedControl
             label="Analysis category"
             value={dataCategory}
-            onChange={onDataCategoryChange}
+            onChange={value => { setSelectionExpanded(true); onDataCategoryChange?.(value); }}
             options={ANALYSIS_CATEGORIES}
             className="explorer-categories explorer-categories--primary"
           />
 
-          {dataCategory === 'Programs' && (
+          {dataCategory === 'Programs' && selectionExpanded && (
             <div className="explorer-step">
               <span className="explorer-step__number" aria-hidden="true">1</span>
               <div className="control-field program-field explorer-program-picker">
@@ -154,7 +159,7 @@ export default function TrendExplorer({
             </div>
           )}
 
-          {dataCategory === 'Behaviors' && (
+          {dataCategory === 'Behaviors' && selectionExpanded && (
             <p className="explorer-step explorer-step--plain">
               <span className="explorer-step__number" aria-hidden="true">1</span>
               <span>Behavior reduction tracking · all behavior programs for this client</span>
@@ -162,7 +167,20 @@ export default function TrendExplorer({
           )}
         </div>
 
-        {notice && !isAbcMode && (
+        {!selectionExpanded && !isAbcMode && (
+          <div className="explorer-selection-summary">
+            <div className="explorer-selection-summary__path">
+              <strong>{dataCategory}</strong>
+              {dataCategory === 'Programs' && <><span>›</span><span>{activeGroups[0]?.name || 'No program selected'}</span></>}
+              {activeFamily && <><span>›</span><span>{activeFamily.label}</span></>}
+            </div>
+            <p>{selectedCount} {selectedCount === 1 ? 'target' : 'targets'} selected{dateRange ? ` · ${dateRange}` : ''}</p>
+            {selectedNames && <small>{selectedNames}{selectedEntries.length > 2 ? ` + ${selectedEntries.length - 2} more` : ''}</small>}
+            <button type="button" className="button button--secondary" onClick={() => setSelectionExpanded(true)}>Change selection</button>
+          </div>
+        )}
+
+        {selectionExpanded && notice && !isAbcMode && (
           <div className={`explorer-notice explorer-notice--${notice.tone || 'neutral'}`} role="status">
             <p>{notice.text}</p>
             <button type="button" className="icon-button" aria-label="Dismiss selection note" onClick={onDismissNotice}>
@@ -173,10 +191,12 @@ export default function TrendExplorer({
 
         {isAbcMode ? (
           <AbcScopePanel summary={abcSummary} />
-        ) : (
+        ) : selectionExpanded ? (
           <div className="explorer-body">
-            {isBehaviorMode && behaviorPresets.length > 1 && (
-              <div className="explorer-presets" role="group" aria-label="Behavior quick picks">
+            {isBehaviorMode && behaviorPresets.length > 1 && activeFamilyKey && (
+              <details className="explorer-presets-details">
+                <summary>Behavior quick picks</summary>
+                <div className="explorer-presets" role="group" aria-label="Behavior quick picks">
                 {behaviorPresets.map(preset => {
                   const compatible = preset.ids.filter(id => familyKeyOf(byId.get(id)) === activeFamilyKey);
                   const pressed = compatible.length > 0 && compatible.length === selectedTargetIds.size
@@ -195,7 +215,8 @@ export default function TrendExplorer({
                     </button>
                   );
                 })}
-              </div>
+                </div>
+              </details>
             )}
 
             {familyOptions.length > 0 && (
@@ -213,9 +234,8 @@ export default function TrendExplorer({
                         type="button"
                         className="explorer-family__chip"
                         aria-pressed={pressed}
-                        aria-label={`${option.label}, ${option.count} ${option.count === 1 ? 'target' : 'targets'}${option.hasData ? '' : ', no observations in this range'}`}
-                        disabled={!option.hasData}
-                        title={option.hasData ? `${option.count} ${option.count === 1 ? 'target' : 'targets'} · ${option.unitHint}` : 'No observations recorded in this range'}
+                        aria-label={`${option.label}, ${option.count} ${option.count === 1 ? 'target' : 'targets'}${option.hasData ? '' : ', no observations recorded yet'}`}
+                        title={`${option.count} ${option.count === 1 ? 'target' : 'targets'} · ${option.unitHint}${option.hasData ? '' : ' · no observations recorded yet'}`}
                         onClick={() => onSelectFamily?.(option.key)}
                       >
                         <span>{option.label}</span>
@@ -241,8 +261,8 @@ export default function TrendExplorer({
                 <p className="explorer-count" role="status" aria-live="polite">{scopeCaption}</p>
               </div>
               <div className="explorer-bulk">
-                <button type="button" onClick={onSelectAllCompatible} disabled={!totalCompatibleTargets || selectedCount >= totalCompatibleTargets}>All</button>
-                <button type="button" onClick={onClearTargets} disabled={!selectedCount}>None</button>
+                <button type="button" aria-label="Select all compatible targets" onClick={onSelectAllCompatible} disabled={!totalCompatibleTargets || selectedCount >= totalCompatibleTargets}>Select all</button>
+                <button type="button" aria-label="Clear target selection" onClick={onClearTargets} disabled={!selectedCount}>Clear</button>
               </div>
             </div>
 
@@ -271,23 +291,15 @@ export default function TrendExplorer({
             </div>
 
             <div className="explorer-groups">
-              {flatRows.length === 0 ? (
+              {!activeFamilyKey ? (
                 <div className="explorer-empty">
-                  <p>
-                    <strong>{query ? 'No matching targets.' : dataCategory === 'Programs' && !selectedProgramId ? 'Choose a program to begin.' : 'No targets in this selection.'}</strong>{' '}
-                    {query
-                      ? 'Try another search term.'
-                      : dataCategory === 'Programs' && !selectedProgramId
-                        ? 'Its skill acquisition targets and measurement types will appear here.'
-                        : dataCategory === 'Programs'
-                          ? 'This program has no recorded targets yet.'
-                          : 'No behavior reduction targets were recorded for this client.'}
-                  </p>
-                  {query && (
-                    <button type="button" className="button button--secondary" onClick={() => setQuery('')}>
-                      Clear search
-                    </button>
-                  )}
+                  <p><strong>{dataCategory === 'Programs' && !selectedProgramId ? 'Choose a program to begin.' : 'Choose a measurement type.'}</strong>{' '}
+                    {dataCategory === 'Programs' && !selectedProgramId ? 'Its measurement types and compatible targets will appear here.' : 'Only targets recorded with the selected measurement can be combined.'}</p>
+                </div>
+              ) : flatRows.length === 0 ? (
+                <div className="explorer-empty">
+                  <p><strong>{query ? 'No matching targets.' : 'No targets in this selection.'}</strong>{' '}{query ? 'Try another search term.' : 'No targets are available for this measurement type.'}</p>
+                  {query && <button type="button" className="button button--secondary" onClick={() => setQuery('')}>Clear search</button>}
                 </div>
               ) : rows.map(({ group, entries }) => (
                 <div className="explorer-group" key={group.id}>
@@ -347,18 +359,24 @@ export default function TrendExplorer({
                 </div>
               ))}
             </div>
+            {selectedCount > 0 && <div className="explorer-continue">
+              <p>{selectedCount} compatible {selectedCount === 1 ? 'target is' : 'targets are'} ready. Different measurement types cannot be combined.</p>
+              <button type="button" className="button button--primary" onClick={() => setSelectionExpanded(false)}>View analysis</button>
+            </div>}
           </div>
-        )}
+        ) : null}
       </nav>
 
       <div className="trend-explorer__center">
+        {!insightsVisible && <button type="button" className="button button--secondary explorer-show-insights" onClick={() => setInsightsVisible(true)}>Show insights</button>}
         {children}
       </div>
 
-      {showRail && (<aside className="trend-explorer__rail" aria-label="Clinical context">
+      {showRail && insightsVisible && (<aside className="trend-explorer__rail" aria-label="Clinical context">
         <section className="rail-card" aria-labelledby="explorer-insights-title">
           <div className="rail-card__head">
             <h3 id="explorer-insights-title">Clinical context</h3>
+            <button type="button" className="icon-button explorer-rail-close" aria-label="Collapse insights panel" onClick={() => setInsightsVisible(false)}>×</button>
             {focusedEntry && (
               <span className={`health-delta health-delta--${focusedEntry.tone}`}>
                 {focusedEntry.deltaLabel}
