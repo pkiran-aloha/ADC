@@ -20,3 +20,8 @@ Thumbs.db
 frontend/test-results/
 frontend/playwright-report/
 frontend/.audit/
+
+# Local agent tooling output
+.claude/
+Claude outputs/_archify-*
+Claude outputs/*.candidate.json
