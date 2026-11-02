@@ -8,7 +8,7 @@
 | **Organization repo** | <https://alohaaba.ghe.com/aloha/aba-dc-web-app-analytics> (`ghe`), synced after bigger waves |
 | **Live demo** | <https://pkiran-aloha.github.io/ADC/> |
 | **Rules** | [`AGENTS.md`](../AGENTS.md) |
-| **Last updated** | 1 November 2026 |
+| **Last updated** | 2 November 2026 |
 
 ## Where the project is
 
@@ -69,7 +69,7 @@ The honest list. Each line is a real gap, not a placeholder.
 
 ## Work started (not yet landed)
 
-Nothing. The working tree is clean against `origin/main` apart from this documentation pass.
+Nothing outstanding. The `docs/agent-handoff` branch (agent rules, this handoff) was verified green locally and landed into `main` on 2 November 2026.
 
 When a pass is half-finished, record it here before ending the session: branch, what is done, what is next. Do not leave a pass unrecorded.
 
