@@ -125,7 +125,7 @@ ADC/
 │       └── Welina.Analytics.Api.csproj
 ├── data/clinicalSeed.json           Single shared fixture
 ├── scripts/generate_clinical_seed.py
-├── tests/                           6 Node test suites, 89 tests
+├── tests/                           11 Node test suites, 151 tests
 ├── docs/
 │   ├── wiki/Home.md                 Platform wiki (features, science, workflows)
 │   └── ...                          Legacy static snapshot (not deployed)
@@ -404,14 +404,19 @@ The revision is content-derived; a new fixture automatically reseeds returning d
 | Suite | Tests | Focus |
 |---|---|---|
 | `analytics.test.mjs` | 13 | Statistics, binomial/CDC criteria, split-middle, stability, PND/PEM/NAP/Tau-U, segmentation, celeration, forecasts, mastery, IOA, ABC patterns, planted clinical signals |
+| `analyticsScope.test.mjs` | 11 | The shared program scope and time range: window selection, scope filtering, mastery aggregation |
 | `charting.test.mjs` | 8 | Tick steps, axis bounds and validation, plot types, condition spans, manual phase lines |
 | `clinicalSeed.test.mjs` | 10 | Generator reproducibility, program/target completeness, conditional settings, measurement integrity, zero vs untracked, ABC catalogs, phase/mastery agreement, session linkage, IOA methods, reseeding |
+| `interventionTimeline.test.mjs` | 12 | Merging phase changes, lines, ranges and notes into one date-deduped feed |
+| `overviewOrder.test.mjs` | 6 | Default overview module order, migration from the earlier key, move bounds, storage fallbacks |
 | `recording.test.mjs` | 12 | Measurement inputs, row defaults, last-row selection, copy-last, previews, validation, untracked rows, record construction, phase-change lines, next-session date |
 | `round2.test.mjs` | 23 | Graph policy, marker shapes, summaries, presets, view-only, manual entry, import, corrections/audit, excluded IOA/supervision, activity, reduction rule, milestones, request-time scatterplot, roster, report HTML, raw export context, annotation scope |
+| `targetHealth.test.mjs` | 14 | Trend classification, variability, staleness, near mastery, regression after mastery, insufficient history |
+| `trendExplorer.test.mjs` | 19 | The three-pane explorer: selection state, inclusion, group actions, search reset, drilldown |
 | `uxLogic.test.mjs` | 23 | Date/phase/note validation, measurement validation, weighted accuracy, duration/rate distinctness, interval counts, weekly grouping, missing data, regression alignment, palette contrast, CSV quoting |
-| **Total** | **89** | |
+| **Total** | **151** | |
 
-**Observed locally:** 89 passed, 0 failed (`node --test`, Node 22.22.3).
+**Observed locally:** 151 passed, 0 failed (`node --test`).
 
 ### 7.2 Render smoke test
 
@@ -442,7 +447,7 @@ The suite covers workflow navigation and hashes, state preservation, chart drill
 
 | Gate | Result |
 |---|---|
-| `npm test` | 89 / 89 pass |
+| `npm test` | 151 / 151 pass |
 | `npm run lint` | 0 errors, 1 advisory warning |
 | `npm run smoke` | All sections render; 3 portal dialogs skipped |
 | `npm run build` | Success; `dist/` 2.8 MB, main JS 111 kB gzip, seed 130 kB gzip |
@@ -462,7 +467,7 @@ The suite covers workflow navigation and hashes, state preservation, chart drill
 | 1 | `actions/checkout@v7` | root | — |
 | 2 | `actions/setup-node@v7`, Node 22, npm cache on `frontend/package-lock.json` | — | — |
 | 3 | `npm ci` | `frontend` | Lockfile and manifest disagree |
-| 4 | `npm test` | `frontend` | Any of the 89 tests fails |
+| 4 | `npm test` | `frontend` | Any of the 151 tests fails |
 | 5 | `npm run lint` | `frontend` | Any lint error |
 | 6 | `npm run smoke` | `frontend` | A panel fails to render |
 | 7 | `npm run build` | `frontend` | Bundle error |
@@ -474,6 +479,7 @@ The suite covers workflow navigation and hashes, state preservation, chart drill
 
 ### 8.2 Deployment model
 
+- **Where the code lives:** development lands on `origin` (<https://github.com/pkiran-aloha/ADC>). The organization repo (`ghe`, <https://alohaaba.ghe.com/aloha/aba-dc-web-app-analytics>) receives a sync after bigger waves of development, on the maintainer's word; see [`Claude outputs/SYNC_ADC_TO_GHE.md`](Claude%20outputs/SYNC_ADC_TO_GHE.md). Only the GitHub repo deploys to Pages.
 - **Trigger:** push to `main` (including merged PRs) or manual dispatch.
 - **PR behaviour:** the full build/test/lint/smoke/Playwright/API pipeline runs, but the artifact upload and deploy jobs are skipped.
 - **Permissions:** workflow-level `contents: read`; the deploy job adds `pages: write` and `id-token: write`.
@@ -523,7 +529,7 @@ This is also Playwright's `webServer`, so tests exercise the same subpath as pro
 cd frontend
 npm ci
 npm run dev            # Vite dev server on 0.0.0.0:5173
-npm test               # 89 Node tests
+npm test               # 151 Node tests
 npm run lint           # oxlint
 npm run smoke          # SSR render of every panel
 npm run build          # production bundle in dist/
@@ -702,9 +708,11 @@ The lockfile is the reproducible source of installed versions; `package.json` ra
 | [`README.md`](README.md) | Product overview, feature walkthrough, setup, deployment |
 | [`docs/wiki/Home.md`](docs/wiki/Home.md) | The platform wiki: features, workflows, measurement science, data dictionary, glossary |
 | [`UX_AUDIT.md`](UX_AUDIT.md) | Usability/accessibility baseline, feedback rounds, resolutions, verification |
+| [`AGENTS.md`](AGENTS.md) | The rules every coding agent on this repo follows |
+| [`docs/HANDOFF.md`](docs/HANDOFF.md) | Current state, planned work, and anything started but not landed |
 | [`data/clinicalSeed.json`](data/clinicalSeed.json) | The shared fictional fixture |
 | [`scripts/generate_clinical_seed.py`](scripts/generate_clinical_seed.py) | Deterministic fixture generator |
-| [`tests/`](tests) | 89 Node tests |
+| [`tests/`](tests) | 151 Node tests |
 | [`frontend/tests/ux.spec.js`](frontend/tests/ux.spec.js) | Playwright + axe end-to-end suite |
 | [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) | CI/CD pipeline |
 

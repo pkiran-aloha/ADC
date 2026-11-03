@@ -1963,7 +1963,7 @@ The workspace aims to be usable without a mouse and with a screen reader, and it
 The CI pipeline runs, in order:
 
 1. `npm ci` — reproducible install from the lockfile.
-2. `npm test` — **89 Node tests** across six suites: statistics and visual analysis, ABC analytics and predictive models, the fixture, recording and import, interaction/chart rules, and reporting.
+2. `npm test` — **151 Node tests** across eleven suites: statistics and visual analysis, ABC analytics and predictive models, the fixture, recording and import, interaction/chart rules, and reporting.
 3. `npm run lint` — oxlint (0 errors; advisory warnings reported).
 4. `npm run smoke` — a production build and a headless smoke check.
 5. `npm run build` — the Vite production build.
@@ -2582,9 +2582,11 @@ These are the sources the implementation and this page draw on. Links are provid
 | **[README.md](../../README.md)** | Project overview, architecture, fixture statistics, local setup, test commands, deployment |
 | **[TECH_STACK.md](../../TECH_STACK.md)** | The engineering artifact: languages, frameworks, libraries, data pipeline, testing, CI/CD, and deployment |
 | **[UX_AUDIT.md](../../UX_AUDIT.md)** | The usability and accessibility audit: baseline findings, feedback rounds, resolutions, verification |
+| **[AGENTS.md](../../AGENTS.md)** | The rules every coding agent on this repo follows |
+| **[docs/HANDOFF.md](../../docs/HANDOFF.md)** | Current state, planned work, and anything started but not landed |
 | **[data/clinicalSeed.json](../../data/clinicalSeed.json)** | The complete fictional fixture: clients, programs, targets, observations, ABC records, appointments, standards |
 | **[scripts/generate_clinical_seed.py](../../scripts/generate_clinical_seed.py)** | The deterministic generator that rebuilds the fixture |
-| **[tests/](../../tests)** | The 89 Node tests for statistics, visual analysis, ABC analytics, predictive models, recording rules, and reporting |
+| **[tests/](../../tests)** | The 151 Node tests for statistics, visual analysis, ABC analytics, predictive models, recording rules, and reporting |
 | **[frontend/tests/](../../frontend/tests)** | The Playwright end-to-end and accessibility tests |
 | **[.github/workflows/deploy.yml](../../.github/workflows/deploy.yml)** | The CI/CD pipeline that tests, builds, and deploys the demo |
 | **[Live demo](https://pkiran-aloha.github.io/ADC/)** | The deployed static application |

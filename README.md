@@ -13,6 +13,7 @@ A fictional **Applied Behavior Analysis (ABA)** analytics workspace built with *
 - **Platform wiki** — features, workflows, measurement science, data dictionary and glossary: [docs/wiki/Home.md](docs/wiki/Home.md)
 - **Tech stack and architecture** — dependencies, data pipeline, testing, CI/CD and deployment: [TECH_STACK.md](TECH_STACK.md)
 - **UX and accessibility audit** — findings, fixes and verification: [UX_AUDIT.md](UX_AUDIT.md)
+- **Agent rules and handoff** — [AGENTS.md](AGENTS.md) for every coding agent, [docs/HANDOFF.md](docs/HANDOFF.md) for current state and planned work
 
 ---
 
