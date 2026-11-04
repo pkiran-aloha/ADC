@@ -8,7 +8,7 @@
 | **Organization repo** | <https://alohaaba.ghe.com/aloha/aba-dc-web-app-analytics> (`ghe`), synced after bigger waves |
 | **Live demo** | <https://pkiran-aloha.github.io/ADC/> |
 | **Rules** | [`AGENTS.md`](../AGENTS.md) |
-| **Last updated** | 2 November 2026 |
+| **Last updated** | 4 November 2026 |
 
 ## Where the project is
 
@@ -50,7 +50,7 @@ The honest list. Each line is a real gap, not a placeholder.
 
 - **No manual screen-reader run.** Every Playwright scenario carries an axe WCAG A/AA scan, but no VoiceOver, NVDA or TalkBack pass has been done.
 - **No physical-device or non-Chromium check.** Automation is Chromium-only, and the responsive review was emulation at 1440x900 down to 320px.
-- **ABC data are read-only in the UI.** The fixture holds 826 records and there is no entry form, so an episode cannot be added or edited.
+- **ABC data are read-only in the UI.** The fixture holds 826 records and there is no entry form, so an episode cannot be added or edited. The Program Management spec adds the ABC *configuration* screen (the A/B/C/L value lists) but deliberately does not add an ABC entry form; that remains an open decision.
 - **The .NET API is not exercised by the frontend.** Its controllers and services are a parallel implementation with no integration or contract tests, so the two can drift.
 - **The API is not built locally.** The SDK is absent in this workspace; it is verified by CI only.
 - **Observations are all Primary in the fixture.** IOA and supervision exist as session-level checks, not as separate chart rows.
@@ -61,16 +61,33 @@ The honest list. Each line is a real gap, not a placeholder.
 
 ## Next, in order
 
-1. **Manual accessibility pass**: a screen-reader run over the five workflows and the generated report, with the findings written into `UX_AUDIT.md`. This needs a human with a screen reader; automation cannot stand in for it.
-2. **A decision on the ABC entry form.** Either keep the honest read-only path with a clear "this demo cannot record ABC" message (current state), or design the entry form and its validation. Do not leave it ambiguous.
+1. **Break the Program Management spec into tickets.** The spec is written, reviewed and published; it needs tracer-bullet tickets with blocking edges before any code is written. See "Program Management" below.
+2. **Manual accessibility pass**: a screen-reader run over the five workflows and the generated report, with the findings written into `UX_AUDIT.md`. This needs a human with a screen reader; automation cannot stand in for it.
 3. **Contract tests for the API** if the API is meant to stay a real implementation rather than a reference model.
 4. **Look at the audit backlog** in `UX_AUDIT.md` and `ANALYTICS_LANDING_FINDINGS.md` 8.4 for anything still open.
 
 The GHE sync is done (4 November 2026), so it is no longer on this list. `UX_AUDIT.md` was re-read on 4 November 2026 and has no open remediation rows left; everything in it is marked fixed.
 
+## Program Management
+
+A new module is specced and ready to be built. It is the authoring counterpart to the analytics: programs, targets and behaviors become editable, lessons group programs for delivery, lesson notes capture session data, and every change shows up in the analytics that already exist.
+
+| Artifact | Where |
+|---|---|
+| The spec | `docs/specs/program-management.md` |
+| Published issue | [GHE issue #1](https://alohaaba.ghe.com/aloha/aba-dc-web-app-analytics/issues/1) (`ready-for-agent`) |
+| The language | `GLOSSARY.md` |
+| The decisions | `docs/adr/0001` to `0005` |
+
+The source document is `Program Management.docx` at the repository root (untracked; add it or keep it out of git deliberately). It describes the Welina platform's own Program Management module.
+
+Six things a build must not get wrong, all recorded in the ADRs: a behavior is a program with a reduction purpose and carries an operational definition; archiving removes a program from today's surfaces and keeps its history and its data; everything persists in the browser and nothing transmits; a lesson note is not a service session; the phase-change prompt's Cancel aborts the change; and a blank is never a zero.
+
+**The one prerequisite nobody can skip:** `frontend/src/data/docs/wikiPages.js` says it is generated, but no generator exists in this repository. ADR 0005 says write it. Until that lands, a new wiki part has to be hand-patched into a file that says not to hand-edit it.
+
 ## Work started (not yet landed)
 
-Nothing outstanding. The `docs/agent-handoff` branch (agent rules, this handoff) was verified green locally and landed into `main` on 2 November 2026.
+- **Branch `feat/program-management-spec`** (pushed to `origin`): the Program Management spec, `GLOSSARY.md`, and ADRs 0001 to 0005. Docs only, no code. Needs review and a merge into `main`.
 
 When a pass is half-finished, record it here before ending the session: branch, what is done, what is next. Do not leave a pass unrecorded.
 
