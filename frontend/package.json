@@ -12,7 +12,9 @@
     "preview": "vite preview",
     "pretest:ux": "npm run build",
     "test:ux": "playwright test",
-    "preview:pages": "node scripts/serve-pages.mjs"
+    "preview:pages": "node scripts/serve-pages.mjs",
+    "docs:build": "node scripts/build-docs.mjs",
+    "docs:check": "node scripts/build-docs.mjs --check"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

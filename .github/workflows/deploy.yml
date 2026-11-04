@@ -55,6 +55,13 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      # The in-app documentation is generated from the wiki and the tech-stack
+      # document. This fails when the committed module has drifted from them, so a
+      # documentation edit cannot reach the demo without being rebuilt.
+      - name: Check the generated documentation matches its sources
+        working-directory: frontend
+        run: npm run docs:check
+
       # Renders every analytics section on the server so prop and helper mistakes that a
       # bundle cannot catch fail the build instead of the browser.
       - name: Render analytics sections headlessly
