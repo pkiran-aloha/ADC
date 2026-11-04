@@ -61,7 +61,7 @@ The honest list. Each line is a real gap, not a placeholder.
 
 ## Next, in order
 
-1. **Break the Program Management spec into tickets.** The spec is written, reviewed and published; it needs tracer-bullet tickets with blocking edges before any code is written. See "Program Management" below.
+1. **Review and land the Program Management spec branch**, then start implementation at issue #2 (the documentation generator). See "Program Management" below.
 2. **Manual accessibility pass**: a screen-reader run over the five workflows and the generated report, with the findings written into `UX_AUDIT.md`. This needs a human with a screen reader; automation cannot stand in for it.
 3. **Contract tests for the API** if the API is meant to stay a real implementation rather than a reference model.
 4. **Look at the audit backlog** in `UX_AUDIT.md` and `ANALYTICS_LANDING_FINDINGS.md` 8.4 for anything still open.
@@ -76,8 +76,28 @@ A new module is specced and ready to be built. It is the authoring counterpart t
 |---|---|
 | The spec | `docs/specs/program-management.md` |
 | Published issue | [GHE issue #1](https://alohaaba.ghe.com/aloha/aba-dc-web-app-analytics/issues/1) (`ready-for-agent`) |
+| The tickets | GHE issues #2 to #15, one per slice, each labelled `ready-for-agent` and each naming the issues that gate it |
 | The language | `GLOSSARY.md` |
 | The decisions | `docs/adr/0001` to `0005` |
+
+The tickets, in dependency order:
+
+| Issue | Ticket | Blocked by |
+|---|---|---|
+| #2 | Write the missing documentation generator | — |
+| #3 | The Programs workflow and the skill acquisition listing | #2 |
+| #4 | Create a skill acquisition program | #3 |
+| #5 | Edit, duplicate and archive a program | #4 |
+| #6 | Define a target | #4 |
+| #7 | Manage targets and complete the program view | #6 |
+| #8 | Phase and status changes with the phase change line prompt | #5, #7 |
+| #9 | Behavior reduction | #5 |
+| #10 | ABC configuration | #3 |
+| #11 | Lessons | #5 |
+| #12 | Lesson notes and the capture path | #9, #10, #11 |
+| #13 | Analytics integration | #8, #12 |
+| #14 | Search and filtering | #9 |
+| #15 | Learning materials | #4 |
 
 The source document is `Program Management.docx` at the repository root (untracked; add it or keep it out of git deliberately). It describes the Welina platform's own Program Management module.
 
@@ -87,7 +107,7 @@ Six things a build must not get wrong, all recorded in the ADRs: a behavior is a
 
 ## Work started (not yet landed)
 
-- **Branch `feat/program-management-spec`** (pushed to `origin`): the Program Management spec, `GLOSSARY.md`, and ADRs 0001 to 0005. Docs only, no code. Needs review and a merge into `main`.
+- **Branch `feat/program-management-spec`** (pushed to `origin`): the Program Management spec, `GLOSSARY.md`, ADRs 0001 to 0005, and the ticket breakdown recorded above. Docs only, no code. Needs review and a merge into `main`.
 
 When a pass is half-finished, record it here before ending the session: branch, what is done, what is next. Do not leave a pass unrecorded.
 
