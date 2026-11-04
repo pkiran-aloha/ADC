@@ -11,13 +11,29 @@ Use this whenever you want to push the latest code from the **ADC** repo (GitHub
 | **Shell** | PowerShell |
 | **Scope** | `main` branch only |
 
-> **Last sync:** commit `8814e72` on 23 Oct 2026.
+> **Last sync:** commit `c453ca8` on 4 Nov 2026. The GHE tree is byte-identical to `origin/main` at that point.
+
+> **The plain `git push ghe main` no longer works.** GHE's tip is a zip-route "Sync from ADC main" commit whose tree matches an older `origin/main` commit, so `ghe/main` is **not** an ancestor of `origin/main` and GitHub rejects the push as non-fast-forward. Use **Route B** below.
 
 > **Remotes changed (1 Nov 2026).** The local `origin` remote now points at **GitHub**, and the organization repo is the **`ghe`** remote. Older versions of this guide said "its `origin` remote = GHE"; read the steps below with `origin` meaning GitHub and `ghe` meaning the organization repo. The zip route below still works unchanged, because it never depends on the remote names.
 
 ---
 
 ## Quick Reference (the whole process)
+
+### Route B — direct push with an `-s ours` merge (use this)
+
+```powershell
+cd C:\ADC\ADC
+git fetch origin
+git switch -c chore/sync-ghe origin/main
+git merge -s ours ghe/main -m "Merge origin/main into GHE sync"
+git push ghe HEAD:main
+```
+
+`-s ours` records a merge commit that keeps GHE's history intact while taking `origin/main`'s tree. It is a fast-forward for GHE, so no force-push is needed. Verify with `git ls-remote ghe refs/heads/main` and compare the tree hashes of `ghe/main` and `origin/main`.
+
+### Route A — the original zip workflow
 
 ```powershell
 cd C:\ADC\ADC
@@ -124,11 +140,11 @@ The hash printed by `ls-remote` should match the top commit in the log.
 
 ## Good to Know
 
-- **Each sync is one commit.** ADC's individual commits don't carry over, because the zip has no git history.
+- **Each zip-route sync is one commit.** ADC's individual commits don't carry over, because the zip has no git history.
 - **Only `main` is synced.** No other branches are pushed.
 - **`git config core.autocrlf true` is set on this repo.** It converts line endings between Windows and the repo automatically. Don't change it.
 - **Never force-push** unless you've compared the branches and know what you would overwrite.
-- **Simpler route when git history is not needed:** `git checkout main && git pull origin main && git push ghe main` pushes the same commits with full history. Use the zip route only when the local tree is authoritative.
+- **Route B keeps full history.** `git switch -c chore/sync-ghe origin/main && git merge -s ours ghe/main && git push ghe HEAD:main` publishes `origin/main` verbatim with an extra merge commit, no force-push. Use the zip route (Route A) only when the local tree is authoritative.
 
 ---
 

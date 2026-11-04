@@ -16,9 +16,9 @@ The Welina Analytics Module is a **fictional** ABA analytics workspace: five wor
 
 As of the last update:
 
-- `origin/main` is at `fffe0e5` ("Merge pull request #28"), which carries the guided target-analysis redesign (PR #27), the resilient sharded Pages deployment (PR #26), and the target-analysis navigation and chart-workspace work (PR #21 to #25).
+- `origin/main` is at `f6b22b8` ("Merge pull request from origin/docs/agent-handoff"), which carries the agent rules and the handoff document on top of the guided target-analysis redesign (PR #27), the resilient sharded Pages deployment (PR #26), and the target-analysis navigation and chart-workspace work (PR #21 to #25).
 - The frontend suite is **151 node:test cases** plus a server-render smoke matrix and a Playwright + axe suite (two shards in CI).
-- The GHE mirror was last synced from commit `8814e72` (23 October 2026). It is **behind** `origin/main` and needs a sync whenever the maintainer asks for one.
+- The GHE mirror was synced on 4 November 2026 to `c453ca8`. Its **content tree is byte-identical to `origin/main`**, so the organization repo carries the same code as the working repo. The two differ only in history: GHE keeps the old zip-route "Sync from ADC main" commit `7ef5bd1`, so `ghe/main` is not an ancestor of `origin/main` and a plain `git push ghe main` is rejected. Future syncs should use the "Simpler route" in `Claude outputs/SYNC_ADC_TO_GHE.md` or repeat the `-s ours` merge described there.
 
 ## Shipped
 
@@ -61,11 +61,12 @@ The honest list. Each line is a real gap, not a placeholder.
 
 ## Next, in order
 
-1. **Sync `ghe` with `origin/main`** when the maintainer asks. Follow `Claude outputs/SYNC_ADC_TO_GHE.md`. The local `origin` remote now points at GitHub and the organization repo is the `ghe` remote, so the old instructions that say "its `origin` remote = GHE" are out of date.
-2. **Manual accessibility pass**: a screen-reader run over the five workflows and the generated report, with the findings written into `UX_AUDIT.md`.
-3. **A decision on the ABC entry form.** Either keep the honest read-only path with a clear "this demo cannot record ABC" message (current state), or design the entry form and its validation. Do not leave it ambiguous.
-4. **Contract tests for the API** if the API is meant to stay a real implementation rather than a reference model.
-5. **Look at the audit backlog** in `UX_AUDIT.md` and `ANALYTICS_LANDING_FINDINGS.md` 8.4 for anything still open.
+1. **Manual accessibility pass**: a screen-reader run over the five workflows and the generated report, with the findings written into `UX_AUDIT.md`. This needs a human with a screen reader; automation cannot stand in for it.
+2. **A decision on the ABC entry form.** Either keep the honest read-only path with a clear "this demo cannot record ABC" message (current state), or design the entry form and its validation. Do not leave it ambiguous.
+3. **Contract tests for the API** if the API is meant to stay a real implementation rather than a reference model.
+4. **Look at the audit backlog** in `UX_AUDIT.md` and `ANALYTICS_LANDING_FINDINGS.md` 8.4 for anything still open.
+
+The GHE sync is done (4 November 2026), so it is no longer on this list. `UX_AUDIT.md` was re-read on 4 November 2026 and has no open remediation rows left; everything in it is marked fixed.
 
 ## Work started (not yet landed)
 
