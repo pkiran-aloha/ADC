@@ -183,6 +183,15 @@ export function programFormComplete(errors = {}) {
   return !Object.keys(errors).some(key => key !== 'nameWarning');
 }
 
+// Treatment areas and tags are multi-value lists. The fixture holds a treatment
+// area as a single string, so it is normalized to a list at the boundary rather
+// than changing the fixture.
+export function toValueList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  return [];
+}
+
 // Treatment areas and tags are multi-value lists entered one item at a time.
 // A partially typed item is kept when the clinician leaves the field.
 export function addTagValue(list = [], value) {

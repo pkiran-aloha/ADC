@@ -3,8 +3,12 @@ import {
   countByCategory, partitionByArchive, PROGRAM_CATEGORIES, PROGRAM_STATUS_LABELS
 } from '../utils/programManagement';
 import ProgramFormModal from './Modals/ProgramFormModal';
+import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
-import { Target, Notebook, Layers, Plus } from './ui/Icons';
+import Popover from './ui/Popover';
+import {
+  Archive, ArrowCounterClockwise, Copy, Ellipsis, Layers, Notebook, Edit3 as PencilSimple, Plus, Target
+} from './ui/Icons';
 
 // The Programs workspace: where a plan is defined, as opposed to the analytics
 // that read it. Three tabs over one client scope, sharing the client the
@@ -17,11 +21,14 @@ const TABS = [
 
 export default function ProgramManagement({
   client, programs = [], lessons = [], abcConfiguration = null, abcEntries = [],
-  canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram, onAddTargets
+  canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram, onAddTargets,
+  onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram
 }) {
   const [tab, setTab] = useState('skill');
   const [formOpen, setFormOpen] = useState(false);
   const [formCategory, setFormCategory] = useState(PROGRAM_CATEGORIES.SKILL);
+  const [editing, setEditing] = useState(null);
+  const [confirming, setConfirming] = useState(null);
   const [pendingTargets, setPendingTargets] = useState(null);
 
   const counts = useMemo(() => ({
@@ -43,7 +50,38 @@ export default function ProgramManagement({
 
   function openCreate(category) {
     setFormCategory(category);
+    setEditing(null);
     setFormOpen(true);
+  }
+
+  // Editing opens the same form with everything already filled in, so the
+  // clinician modifies a program rather than recreating it.
+  function openEdit(program) {
+    setFormCategory(program.category);
+    setEditing(program);
+    setFormOpen(true);
+  }
+
+  function askDuplicate(program) {
+    setConfirming({
+      title: `Duplicate “${program.name}”?`,
+      description: 'The copy carries the program’s fields and its targets, with new identities and no history. It can be changed without affecting the original.',
+      confirmLabel: 'Duplicate program',
+      onConfirm: () => onDuplicateProgram?.(program)
+    });
+  }
+
+  function askArchive(program) {
+    setConfirming({
+      title: `Archive “${program.name}”?`,
+      description: 'The program leaves the working list. Its history and the data recorded against it are kept, and it can be restored later.',
+      confirmLabel: 'Archive program',
+      onConfirm: () => onArchiveProgram?.(program)
+    });
+  }
+
+  function onUnarchive(program) {
+    onUnarchiveProgram?.(program);
   }
 
   return <section id="programs" aria-labelledby="programs-title" tabIndex={-1}>
@@ -81,18 +119,25 @@ export default function ProgramManagement({
           {activeTab.id === 'abc'
             ? <AbcConfigurationPanel configuration={abcConfiguration} entries={abcEntries} />
             : <ProgramListing category={activeTab.category} programs={programs} lessonNames={lessonNames}
-              canEdit={canEdit} viewOnlyReason={viewOnlyReason} onCreate={openCreate} onOpen={onOpenProgram} />}
+              canEdit={canEdit} viewOnlyReason={viewOnlyReason} onCreate={openCreate} onOpen={onOpenProgram}
+              onEdit={openEdit} onDuplicate={askDuplicate} onArchive={askArchive} onUnarchive={onUnarchive} />}
         </div>
 
-        <ProgramFormModal isOpen={formOpen} onClose={() => setFormOpen(false)} client={client}
-          category={formCategory} existing={programs}
+        <ProgramFormModal key={editing?.id || 'new'} isOpen={formOpen} onClose={() => { setFormOpen(false); setEditing(null); }}
+          client={client} category={formCategory} program={editing} existing={programs}
           onSave={values => {
-            const created = onCreateProgram?.(values);
+            const saved = editing ? onUpdateProgram?.(editing, values) : onCreateProgram?.(values);
             setFormOpen(false);
+            setEditing(null);
             // A program with no targets is documentation, not a program. The
             // platform offers the next step straight away.
-            setPendingTargets(created || null);
+            if (!editing) setPendingTargets(saved || null);
           }} />
+
+        <ConfirmDialog isOpen={Boolean(confirming)} onClose={() => setConfirming(null)}
+          title={confirming?.title || ''} description={confirming?.description}
+          confirmLabel={confirming?.confirmLabel || 'Confirm'} destructive={confirming?.destructive}
+          onConfirm={() => { confirming?.onConfirm(); setConfirming(null); }} />
 
         {pendingTargets && <div className="programs-prompt" role="dialog" aria-labelledby="programs-prompt-title">
           <div className="programs-prompt-body">
@@ -113,11 +158,15 @@ export default function ProgramManagement({
 
 // The listing: what each program is, how many targets it holds, where it runs,
 // and what a clinician can do with it.
-function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReason, onCreate, onOpen }) {
+function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReason, onCreate, onOpen, onEdit, onDuplicate, onArchive, onUnarchive }) {
   const [showArchived, setShowArchived] = useState(false);
   const scoped = useMemo(() => programs.filter(program => program.category === category), [programs, category]);
   const { active, archived } = useMemo(() => partitionByArchive(scoped), [scoped]);
-  const shown = showArchived ? archived : active;
+  // The archived view only exists while something is archived. Restoring the
+  // last one returns the listing to the working list rather than leaving it
+  // showing nothing.
+  const viewingArchived = showArchived && archived.length > 0;
+  const shown = viewingArchived ? archived : active;
 
   return <>
     <div className="programs-listing-header">
@@ -127,7 +176,7 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
       </p>
       <div className="programs-listing-actions">
         {archived.length > 0 && <button type="button" className="button button--tertiary" onClick={() => setShowArchived(value => !value)}
-          aria-pressed={showArchived}>{showArchived ? 'Show active' : 'Show archived'}</button>}
+          aria-pressed={viewingArchived}>{viewingArchived ? 'Show active' : 'Show archived'}</button>}
         {canEdit && <button type="button" className="button button--primary" onClick={() => onCreate?.(category)}>
           <Plus size={16} />New {category === PROGRAM_CATEGORIES.BEHAVIOR ? 'behavior' : 'program'}
         </button>}
@@ -139,8 +188,8 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
     </p>}
 
     {shown.length === 0
-      ? <EmptyState title={showArchived ? 'No archived programs.' : 'No programs yet.'} icon={Target}
-        description={showArchived
+      ? <EmptyState title={viewingArchived ? 'No archived programs.' : 'No programs yet.'} icon={Target}
+        description={viewingArchived
           ? 'Archived programs keep their history and their recorded data. None are archived for this client.'
           : 'Create a program to define what is taught, then add the targets that will be measured.'} />
       : <table className="programs-table">
@@ -168,11 +217,34 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
               {PROGRAM_STATUS_LABELS[program.status] || program.status}</span></td>
             <td className="programs-table-actions">
               <button type="button" className="button button--tertiary" onClick={() => onOpen?.(program)}>Open</button>
+              {canEdit && <ProgramRowActions program={program} showArchived={viewingArchived}
+                onEdit={onEdit} onDuplicate={onDuplicate} onArchive={onArchive} onUnarchive={onUnarchive} />}
             </td>
           </tr>)}
         </tbody>
       </table>}
   </>;
+}
+
+// The row's own actions live in an overflow, so the listing stays scannable.
+function ProgramRowActions({ program, showArchived, onEdit, onDuplicate, onArchive, onUnarchive }) {
+  return <Popover label={`Actions for ${program.name}`} icon={Ellipsis} compact className="overflow-popover">
+    {({ close }) => <>
+      <button type="button" className="popover-option" onClick={() => { close(true); onEdit?.(program); }}>
+        <PencilSimple size={18} aria-hidden="true" /><span>Edit</span>
+      </button>
+      <button type="button" className="popover-option" onClick={() => { close(true); onDuplicate?.(program); }}>
+        <Copy size={18} aria-hidden="true" /><span>Duplicate</span>
+      </button>
+      {showArchived
+        ? <button type="button" className="popover-option" onClick={() => { close(true); onUnarchive?.(program); }}>
+          <ArrowCounterClockwise size={18} aria-hidden="true" /><span>Unarchive</span>
+        </button>
+        : <button type="button" className="popover-option" onClick={() => { close(true); onArchive?.(program); }}>
+          <Archive size={18} aria-hidden="true" /><span>Archive</span>
+        </button>}
+    </>}
+  </Popover>;
 }
 
 // The ABC vocabulary, for now read-only: the configuration screen arrives with

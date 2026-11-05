@@ -5,7 +5,7 @@ import TagInput from '../ui/TagInput';
 import { useFormValidation } from '../../utils/useFormValidation';
 import {
   BEHAVIOR_PHASES, FIELD_LIMITS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS,
-  programFormComplete, validateProgram
+  programFormComplete, toValueList, validateProgram
 } from '../../utils/programManagement';
 import { CUSTOM_FIELD_DEFINITIONS } from '../../data/mockData';
 
@@ -28,8 +28,8 @@ export default function ProgramFormModal({
     clientId: client?.id || '',
     name: program?.name || '',
     status: program?.status || 'Teaching',
-    treatmentArea: program?.treatmentArea || [],
-    tags: program?.tags || [],
+    treatmentArea: toValueList(program?.treatmentArea),
+    tags: toValueList(program?.tags),
     baseline: program?.baseline || '',
     programObjective: program?.programObjective || '',
     teachingInstructions: program?.teachingInstructions || '',

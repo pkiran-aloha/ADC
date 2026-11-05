@@ -1741,3 +1741,44 @@ test('the Program Management workspace is read-only under view-only access', asy
   await expect(listing.getByRole('button', { name: 'New program' })).toHaveCount(0);
   await accessible(page);
 });
+
+test('a program can be edited, duplicated and archived', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = page.locator('#programs');
+  // The overflow trigger is named after its program, so each row is unambiguous.
+  const actionsFor = name => listing.getByRole('button', { name: `Actions for ${name}`, exact: true });
+
+  // Editing opens the same form with everything already filled in.
+  await actionsFor('Expressive Labeling').click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  const dialog = page.locator('dialog');
+  await expect(dialog.getByLabel('Program name')).toHaveValue('Expressive Labeling');
+  await dialog.getByLabel('Program name').fill('Expressive Labeling and Requesting');
+  await dialog.getByRole('button', { name: 'Save changes' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(listing.getByRole('button', { name: 'Expressive Labeling and Requesting', exact: true })).toBeVisible();
+
+  // Duplicating asks first, and the copy starts again in Pending.
+  await actionsFor('Expressive Labeling and Requesting').click();
+  await page.getByRole('button', { name: 'Duplicate' }).click();
+  await expect(page.locator('dialog').getByText('Duplicate “Expressive Labeling and Requesting”?')).toBeVisible();
+  await page.locator('dialog').getByRole('button', { name: 'Duplicate program' }).click();
+  await expect(listing.getByRole('button', { name: 'Expressive Labeling and Requesting (copy)', exact: true })).toBeVisible();
+
+  // Archiving asks first, and the program leaves the working list.
+  await actionsFor('Expressive Labeling and Requesting').click();
+  await page.getByRole('button', { name: 'Archive' }).click();
+  await expect(page.locator('dialog').getByText('Archive “Expressive Labeling and Requesting”?')).toBeVisible();
+  await page.locator('dialog').getByRole('button', { name: 'Archive program' }).click();
+  await expect(listing.getByRole('button', { name: 'Expressive Labeling and Requesting', exact: true })).toHaveCount(0);
+  // It is still there, under the archived list.
+  await listing.getByRole('button', { name: 'Show archived' }).click();
+  await expect(listing.getByRole('button', { name: 'Expressive Labeling and Requesting', exact: true })).toBeVisible();
+  // And it can come back. Restoring the last archived program returns the
+  // listing to the working list, so the program is where the clinician left it.
+  await actionsFor('Expressive Labeling and Requesting').click();
+  await page.getByRole('button', { name: 'Unarchive' }).click();
+  await expect(listing.getByRole('button', { name: 'Show archived' })).toHaveCount(0);
+  await expect(listing.getByRole('button', { name: 'Expressive Labeling and Requesting', exact: true })).toBeVisible();
+  await accessible(page);
+});

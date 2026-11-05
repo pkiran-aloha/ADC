@@ -18,5 +18,5 @@ export {
   ArrowCounterClockwise, ShieldCheck, Flask as Probe, FileDoc as ReportIcon,
   CalendarCheck, UploadSimple as Upload, Printer, BookOpen as Book,
   MagnifyingGlass as Search, ArrowUp as ArrowUpIcon, ArrowDown as ArrowDownIcon,
-  DotsThree as Ellipsis
+  DotsThree as Ellipsis, Copy
 } from '@phosphor-icons/react';

@@ -15,7 +15,7 @@ import {
 } from '../data/mockData.js';
 import { applyObservationEdit, deletionAudit } from '../utils/observations.js';
 import {
-  CASCADING_STATUSES, PROGRAM_CATEGORIES, PROGRAM_STATUSES
+  CASCADING_STATUSES, PROGRAM_CATEGORIES, PROGRAM_STATUSES, toValueList
 } from '../utils/programManagement.js';
 
 const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
@@ -542,8 +542,8 @@ class AnalyticsService {
       status,
       scope: 'client',
       domain: fields.domain || '',
-      treatmentArea: fields.treatmentArea || [],
-      tags: fields.tags || [],
+      treatmentArea: toValueList(fields.treatmentArea),
+      tags: toValueList(fields.tags),
       baseline: fields.baseline || '',
       programObjective: fields.programObjective || '',
       teachingInstructions: fields.teachingInstructions || '',
@@ -574,6 +574,10 @@ class AnalyticsService {
     allowed.forEach(key => {
       if (key in patch) program[key] = patch[key];
     });
+    // Treatment areas and tags are lists in the form; the fixture stores a
+    // treatment area as a single string, so both are normalized to lists here.
+    if ('treatmentArea' in patch) program.treatmentArea = toValueList(patch.treatmentArea);
+    if ('tags' in patch) program.tags = toValueList(patch.tags);
     if ('programObjective' in patch && !('description' in patch)) program.description = patch.programObjective;
     this.recordActivity('program.updated', 'program', program.id, `Updated program “${program.name}”.`);
     this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);

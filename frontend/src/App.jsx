@@ -270,6 +270,34 @@ export default function App() {
     saved(apiService.storageError ? 'Created for this session only. Your browser couldn’t save changes.' : `Program “${created.name}” created.`);
     return created;
   }
+  // Editing keeps the program's identity and its client; only the fields the form
+  // collects change.
+  function updateProgram(program, values) {
+    const updated = apiService.updateProgram(program.id, values);
+    if (!updated) { notify('The program could not be updated.', 'error'); return null; }
+    saved(apiService.storageError ? 'Updated for this session only. Your browser couldn’t save changes.' : `Program “${updated.name}” updated.`);
+    return updated;
+  }
+  // A duplicate starts again, so it lands in the working list as a new program.
+  function duplicateProgram(program) {
+    const copy = apiService.duplicateProgram(program.id, { clientId: selectedClientId, asOf: SEED_AS_OF_DATE });
+    if (!copy) { notify('The program could not be duplicated.', 'error'); return null; }
+    saved(`Duplicated “${program.name}” as “${copy.name}”. The copy starts again, in Pending.`);
+    return copy;
+  }
+  // Archiving tidies the working list. The program keeps its history and its data.
+  function archiveProgram(program) {
+    const archived = apiService.archiveProgram(program.id, { asOf: SEED_AS_OF_DATE });
+    if (!archived) { notify('The program could not be archived.', 'error'); return null; }
+    saved(`“${archived.name}” archived. Its history and its recorded data are kept.`);
+    return archived;
+  }
+  function unarchiveProgram(program) {
+    const restored = apiService.unarchiveProgram(program.id);
+    if (!restored) { notify('The program could not be restored.', 'error'); return null; }
+    saved(`“${restored.name}” is back in the working list.`);
+    return restored;
+  }
   // Opening a program from the listing lands on its targets in the target analysis,
   // which is where the plan and its measurement meet.
   function openProgram(program, { addTargets = false } = {}) {
@@ -514,6 +542,10 @@ export default function App() {
                   canEdit={canEdit} viewOnlyReason={viewOnlyReason}
                   onCreateProgram={createProgram}
                   onOpenProgram={openProgram}
+                  onUpdateProgram={updateProgram}
+                  onDuplicateProgram={duplicateProgram}
+                  onArchiveProgram={archiveProgram}
+                  onUnarchiveProgram={unarchiveProgram}
                   onAddTargets={program => openProgram(program, { addTargets: true })} />
               </Suspense>
             </WorkflowPanel>}

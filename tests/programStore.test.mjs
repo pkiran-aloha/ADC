@@ -175,3 +175,24 @@ test('the seeded fixture still reads the same after the store has been used', ()
   assert.ok(stored.length >= seed.programs.length, 'the seeded programs are still there');
   assert.ok(seed.programs.every(program => stored.some(item => item.id === program.id)), 'no seeded program was lost');
 });
+
+test('treatment areas and tags are always lists, whatever the fixture held', () => {
+  // The fixture stores a treatment area as a single string; the platform's form
+  // makes it a multi-value list. The boundary normalizes rather than the
+  // fixture changing.
+  const program = apiService.createProgram({
+    clientId: CLIENT, name: 'List normalization',
+    treatmentArea: 'Communication', tags: 'Mand'
+  });
+  assert.deepEqual(program.treatmentArea, ['Communication']);
+  assert.deepEqual(program.tags, ['Mand']);
+  // A list stays a list.
+  const listed = apiService.createProgram({
+    clientId: CLIENT, name: 'Already a list',
+    treatmentArea: ['Play', 'Social'], tags: ['Play']
+  });
+  assert.deepEqual(listed.treatmentArea, ['Play', 'Social']);
+  // And an edit normalizes too.
+  apiService.updateProgram(program.id, { treatmentArea: ['Communication', 'Play'] });
+  assert.deepEqual(apiService.findProgram(program.id).treatmentArea, ['Communication', 'Play']);
+});
