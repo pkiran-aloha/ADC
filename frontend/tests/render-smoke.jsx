@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import seed from '../../data/clinicalSeed.json' with { type: 'json' };
 import { CLINICAL_STANDARDS, PROMPT_HIERARCHY_TEMPLATES, SEED_AS_OF_DATE } from '../src/data/mockData.js';
 import ClientSpecificSection from '../src/components/ClientSpecificSection.jsx';
+import ProgramManagement from '../src/components/ProgramManagement.jsx';
 import AbcDataSection from '../src/components/AbcDataSection.jsx';
 import ServiceQualitySection from '../src/components/ServiceQualitySection.jsx';
 import ReportsSection from '../src/components/ReportsSection.jsx';
@@ -90,6 +91,20 @@ const cases = [
     client, abcEntries, abcConfiguration: seed.abcConfigurations[0], behaviorTargets,
     serviceSessions, sessionRows: behaviorRows, onRefresh: noop
   }, ['ABC']],
+  ['ProgramManagement', ProgramManagement, {
+    client, programs, lessons: [], abcEntries,
+    abcConfiguration: seed.abcConfigurations[0],
+    canEdit: true, onCreateProgram: noop, onOpenProgram: noop
+  }, ['Programs', 'Skill acquisition', 'Behavior reduction', 'ABC data recording', 'Lesson', 'Status']],
+  ['ProgramManagement (no client)', ProgramManagement, {
+    client: null, programs: [], lessons: [], abcEntries: [], abcConfiguration: null,
+    canEdit: true, onCreateProgram: noop, onOpenProgram: noop
+  }, ['Choose a client']],
+  ['ProgramManagement (view only)', ProgramManagement, {
+    client, programs, lessons: [], abcEntries,
+    abcConfiguration: seed.abcConfigurations[0],
+    canEdit: false, viewOnlyReason: 'View-only analytics access.', onCreateProgram: noop, onOpenProgram: noop
+  }, ['View-only access']],
   ['ServiceQualitySection', ServiceQualitySection, {
     client, serviceSessions, sessions: sessions.filter(row => row.clientId === client.id),
     standards: CLINICAL_STANDARDS, asOfDate: SEED_AS_OF_DATE

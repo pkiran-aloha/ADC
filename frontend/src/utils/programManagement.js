@@ -1,0 +1,172 @@
+// Program management domain rules.
+//
+// The Program Management module defines what is taught and how it is measured.
+// These are the rules the screens share: which phase a program carries, how
+// targets are ordered, what a listing shows, and which values a clinician may
+// type. Pure functions only, so they can be tested without a browser.
+
+// The platform's program statuses. "Pending" is in the fixture already, so it
+// belongs here even though the older status control left it out.
+export const PROGRAM_STATUSES = [
+  'Baselining', 'Teaching', 'Maintaining', 'Generalizing', 'Completed', 'Pending', 'OnHold', 'Discontinued'
+];
+
+export const PROGRAM_STATUS_LABELS = {
+  Baselining: 'Baselining', Teaching: 'Teaching', Maintaining: 'Maintaining', Generalizing: 'Generalizing',
+  Completed: 'Completed', Pending: 'Pending', OnHold: 'On hold', Discontinued: 'Discontinued'
+};
+
+// The target phases, shared by every measurement type. "Open" is the
+// behavior-reduction case: defined, but not yet being reduced.
+export const TARGET_PHASES = [
+  'Baseline', 'Open', 'Pending', 'Acquisition', 'Maintenance', 'Generalization', 'Completed', 'OnHold', 'Discontinued'
+];
+
+// A behavior carries its own lifecycle, separate from its target's measurement
+// progress. "Open" means defined but not yet reducing.
+export const BEHAVIOR_PHASES = ['Open', 'Maintenance', 'Generalization', 'Completed', 'Pending', 'OnHold', 'Discontinued'];
+
+export const PHASE_LABELS = {
+  Baseline: 'Baseline', Open: 'Open', Pending: 'Pending', Acquisition: 'In acquisition',
+  Maintenance: 'Maintenance', Generalization: 'Generalization', Completed: 'Completed',
+  OnHold: 'Paused', Discontinued: 'Discontinued'
+};
+
+// Mastered means the target has been learned to criterion. Paused, ended and
+// pending targets are not mastered, and neither is a behavior still open.
+export const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
+export const NOT_MEASURED_PHASES = ['Baseline', 'Open', 'Pending'];
+
+// A program that is pending, completed, on hold or discontinued carries its
+// targets with it. The active teaching statuses do not: those programs are
+// live, and each target progresses on its own.
+export const CASCADING_STATUSES = ['Pending', 'Completed', 'OnHold', 'Discontinued'];
+export const ACTIVE_STATUSES = ['Baselining', 'Teaching', 'Maintaining', 'Generalizing'];
+
+export const PROGRAM_CATEGORIES = { SKILL: 'SkillAcquisition', BEHAVIOR: 'BehaviorReduction' };
+
+// Target order: not-yet-started first, then the teaching phases, then completed,
+// then the paused and ended states. Within a phase, alphabetical.
+const PHASE_ORDER = ['Baseline', 'Open', 'Pending', 'Acquisition', 'Maintenance', 'Generalization', 'Completed', 'OnHold', 'Discontinued'];
+
+export function isArchived(record) {
+  return Boolean(record?.archivedAt);
+}
+
+export function isMastered(target) {
+  if (!target) return false;
+  if (target.masterySettings === 'Manual') return Boolean(target.manualMastery?.achieved);
+  return MASTERED_PHASES.includes(target.phase);
+}
+
+// The target's mastery date: when it first reached a mastered phase.
+export function masteryDate(target) {
+  if (!target) return null;
+  const history = target.phaseHistory || [];
+  const first = history.find(entry => MASTERED_PHASES.includes(entry.phase));
+  if (first) return first.date;
+  return MASTERED_PHASES.includes(target.phase) ? target.phaseEnteredDate || null : null;
+}
+
+export function sortTargets(targets = []) {
+  return [...targets].sort((a, b) => {
+    const phaseDelta = PHASE_ORDER.indexOf(a.phase) - PHASE_ORDER.indexOf(b.phase);
+    if (phaseDelta !== 0) return phaseDelta;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+}
+
+export function sortPrograms(programs = []) {
+  return [...programs].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+}
+
+// The listing separates what is active from what has been archived, because an
+// archived program keeps its history and its data but should not drive today.
+export function partitionByArchive(programs = []) {
+  const active = sortPrograms(programs.filter(program => !isArchived(program)));
+  const archived = sortPrograms(programs.filter(program => isArchived(program)));
+  return { active, archived };
+}
+
+// The summary widgets on a program view.
+export function programSummary(program) {
+  const targets = program?.targets || [];
+  const mastered = targets.filter(isMastered);
+  const percent = targets.length ? Math.round((mastered.length / targets.length) * 100) : 0;
+  return { total: targets.length, mastered: mastered.length, percent };
+}
+
+// A program name is not unique. An exact duplicate within one client is almost
+// always a mistake, so it warns; the same name for a different client is normal.
+export function duplicateNameWarning(programs = [], { clientId, name, excludeId = null } = {}) {
+  const wanted = String(name || '').trim().toLowerCase();
+  if (!wanted) return null;
+  const clash = programs.find(program =>
+    program.clientId === clientId &&
+    program.id !== excludeId &&
+    String(program.name || '').trim().toLowerCase() === wanted
+  );
+  return clash ? clash.name : null;
+}
+
+// Which programs count toward a listing's counts.
+export function countByCategory(programs = [], category) {
+  return programs.filter(program => program.category === category && !isArchived(program)).length;
+}
+
+// A program belongs to a lesson when the lesson lists it. The listing shows the
+// lesson name so a clinician can see where a program runs.
+export function lessonNameByProgram(lessons = []) {
+  const names = new Map();
+  lessons.forEach(lesson => {
+    (lesson.programIds || []).forEach(programId => {
+      if (!names.has(programId)) names.set(programId, lesson.name);
+    });
+  });
+  return names;
+}
+
+// Field limits from the platform's program form.
+export const FIELD_LIMITS = {
+  programName: 100,
+  baseline: 1000,
+  objective: 1000,
+  teachingInstructions: 1000,
+  targetInstructions: 1000,
+  operationalDefinition: 5000
+};
+
+export function withinLimit(value, limit) {
+  return String(value || '').length <= limit;
+}
+
+// Treatment areas and tags are multi-value lists entered one item at a time.
+// A partially typed item is kept when the clinician leaves the field.
+export function addTagValue(list = [], value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return list;
+  if (list.some(item => item.toLowerCase() === trimmed.toLowerCase())) return list;
+  return [...list, trimmed];
+}
+
+export function removeTagValue(list = [], value) {
+  return list.filter(item => item !== value);
+}
+
+// The client's ABC vocabulary: what a value list is called in the interface.
+export const ABC_LISTS = [
+  { key: 'antecedents', label: 'Antecedent' },
+  { key: 'behaviors', label: 'Behavior' },
+  { key: 'consequences', label: 'Consequence' },
+  { key: 'locations', label: 'Location' }
+];
+
+// How many existing observations use a value. Removing a value that is in use
+// warns the clinician before the vocabulary and the record disagree.
+export function usageCount(entries = [], listKey, value) {
+  const wanted = String(value || '');
+  return entries.filter(entry => {
+    const values = listKey === 'location' ? [entry.location] : entry[listKey];
+    return Array.isArray(values) && values.includes(wanted);
+  }).length;
+}

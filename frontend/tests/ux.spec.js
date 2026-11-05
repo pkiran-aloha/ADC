@@ -175,7 +175,7 @@ for (const width of [320, 390, 768, 1024, 1440, 1920]) {
   test(`layout stays within the ${width}px viewport`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     await open(page);
-    for (const tab of ['Progress overview', 'Target analysis', 'ABC observations', 'Service & data quality', 'Reports']) {
+    for (const tab of ['Progress overview', 'Target analysis', 'Programs', 'ABC observations', 'Service & data quality', 'Reports']) {
       await activate(page, tab);
       const dimensions = await page.evaluate(() => ({ viewport: innerWidth, width: document.documentElement.scrollWidth }));
       expect(dimensions.width, `overflow in “${tab}”`).toBeLessThanOrEqual(dimensions.viewport);
@@ -927,7 +927,7 @@ test('metadata, social artwork, local fonts and project-prefixed assets all exis
 test('workflow tabs show one screen at a time, sync the sidebar and keep deep links', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await open(page);
-  const workflows = [['overview', 'Progress overview'], ['target-analysis', 'Target analysis'], ['abc-observations', 'ABC observations'], ['service-quality', 'Service & data quality'], ['reports', 'Reports']];
+  const workflows = [['overview', 'Progress overview'], ['target-analysis', 'Target analysis'], ['programs', 'Programs'], ['abc-observations', 'ABC observations'], ['service-quality', 'Service & data quality'], ['reports', 'Reports']];
   for (const [id, name] of workflows) {
     await activate(page, name);
     const panel = page.locator(`#workflow-panel-${id}`);
@@ -1022,7 +1022,7 @@ test('returning to a workflow keeps its chart state instead of resetting the scr
 
 test('default controls provide 44px pointer targets or full-sized associated labels', async ({ page }) => {
   await open(page);
-  for (const tab of ['Progress overview', 'Target analysis', 'ABC observations', 'Service & data quality', 'Reports']) {
+  for (const tab of ['Progress overview', 'Target analysis', 'Programs', 'ABC observations', 'Service & data quality', 'Reports']) {
     await activate(page, tab);
     const small = await page.evaluate(() => [...document.querySelectorAll('button,a,select,summary,input,textarea')]
       .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden'

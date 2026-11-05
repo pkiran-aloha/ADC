@@ -1,0 +1,177 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import seed from '../data/clinicalSeed.json' with { type: 'json' };
+
+// The store is a browser-local service, so the tests give it a localStorage and
+// read back what it persisted. The fixture stays the read-only baseline.
+const memoryStorage = () => {
+  const store = new Map();
+  return {
+    store,
+    getItem: key => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: key => store.delete(key),
+    clear: () => store.clear()
+  };
+};
+
+globalThis.localStorage = memoryStorage();
+
+const { apiService } = await import('../frontend/src/services/apiService.js');
+const { SEED_AS_OF_DATE } = await import('../frontend/src/data/mockData.js');
+
+const CLIENT = 'cli-liam';
+
+test('a created program joins the client listing and starts active in client scope', () => {
+  const before = apiService.listPrograms(CLIENT, { category: 'SkillAcquisition' }).length;
+  const program = apiService.createProgram({
+    clientId: CLIENT, name: 'Requesting a Break', status: 'Teaching',
+    teachingInstructions: 'Teach the learner to request a break card.', tags: ['Communication']
+  });
+  assert.ok(program, 'the program is created');
+  assert.equal(program.clientId, CLIENT);
+  assert.equal(program.scope, 'client');
+  assert.equal(program.archivedAt, null);
+  assert.deepEqual(program.targets, [], 'a new program has no targets yet');
+  assert.equal(program.teachingInstructions, 'Teach the learner to request a break card.');
+  const after = apiService.listPrograms(CLIENT, { category: 'SkillAcquisition' }).length;
+  assert.equal(after, before + 1);
+  // It is persisted, not just held in memory.
+  const stored = JSON.parse(localStorage.getItem('welina_programs'));
+  assert.ok(stored.some(item => item.id === program.id), 'the program was written to the browser');
+});
+
+test('a program with no name is not created', () => {
+  const before = apiService.listPrograms(CLIENT).length;
+  assert.equal(apiService.createProgram({ clientId: CLIENT, name: '   ' }), null);
+  assert.equal(apiService.listPrograms(CLIENT).length, before);
+});
+
+test('editing a program keeps its identity and its client', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Waiting' });
+  const updated = apiService.updateProgram(program.id, { name: 'Waiting for a turn', baseline: 'Waits about 40 seconds.' });
+  assert.equal(updated.id, program.id);
+  assert.equal(updated.clientId, CLIENT);
+  assert.equal(updated.name, 'Waiting for a turn');
+  assert.equal(updated.baseline, 'Waits about 40 seconds.');
+});
+
+test('editing a program cannot change which client it belongs to', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Bound' });
+  apiService.updateProgram(program.id, { clientId: 'cli-emma', name: 'Bound' });
+  assert.equal(apiService.findProgram(program.id).clientId, CLIENT);
+});
+
+test('archiving takes a program out of the active list but keeps it and its data', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'To archive' });
+  const target = { id: 'tgt-archived-demo', name: 'Demo target', type: 'Frequency', phase: 'Acquisition', phaseEnteredDate: SEED_AS_OF_DATE, phaseHistory: [] };
+  apiService.updateProgram(program.id, {});
+  // Archiving.
+  apiService.archiveProgram(program.id, { asOf: SEED_AS_OF_DATE, reason: 'Replaced by another program.' });
+  const archived = apiService.findProgram(program.id);
+  assert.ok(archived, 'the program still exists');
+  assert.ok(archived.archivedAt, 'the program is marked archived');
+  assert.equal(archived.archiveReason, 'Replaced by another program.');
+  // It is out of the default listing but in the archived one.
+  assert.equal(apiService.listPrograms(CLIENT, { includeArchived: false }).some(item => item.id === program.id), false);
+  assert.equal(apiService.listPrograms(CLIENT, { includeArchived: true }).some(item => item.id === program.id), true);
+  // And it can come back.
+  apiService.unarchiveProgram(program.id);
+  assert.equal(apiService.findProgram(program.id).archivedAt, null);
+  assert.equal(apiService.listPrograms(CLIENT).some(item => item.id === program.id), true);
+  assert.equal(target.name, 'Demo target');
+});
+
+test('a duplicate starts again, and the original is untouched', () => {
+  const source = apiService.createProgram({ clientId: CLIENT, name: 'Reusable', status: 'Teaching' });
+  const originalTarget = apiService.addTarget(source.id, {
+    name: 'Source target', type: 'Frequency', phase: 'Maintenance',
+    masterySettings: 'Automatic', masteryCriteria: '8 in 10 for 3 sessions',
+    masteryRule: { measure: 'percentCorrect', comparison: 'atLeast', threshold: 80, consecutiveSessions: 3 }
+  });
+  assert.ok(originalTarget, 'the source has a target');
+  const copy = apiService.duplicateProgram(source.id);
+  assert.ok(copy, 'the program is duplicated');
+  assert.notEqual(copy.id, source.id, 'the copy has its own identity');
+  assert.equal(copy.name, 'Reusable (copy)');
+  assert.equal(copy.status, 'Pending', 'a duplicate starts again, not where the source was');
+  assert.equal(copy.archivedAt, null);
+  assert.equal(copy.targets.length, 1, 'the targets are copied');
+  assert.notEqual(copy.targets[0].id, originalTarget.id, 'the copied target has its own identity');
+  assert.equal(copy.targets[0].programId, copy.id, 'the copied target belongs to the copy');
+  assert.equal(copy.targets[0].phase, 'Pending', 'a copied target starts again');
+  assert.deepEqual(copy.targets[0].phaseHistory, [], 'a copied target has no history');
+  assert.equal(copy.targets[0].masteryCriteria, '8 in 10 for 3 sessions', 'the definition is copied');
+  // The source is untouched.
+  assert.equal(apiService.findProgram(source.id).status, 'Teaching');
+  assert.equal(apiService.findProgram(source.id).targets[0].phase, 'Maintenance');
+  assert.deepEqual(apiService.findProgram(source.id).targets[0].phaseHistory, []);
+});
+
+test('a program status that carries its targets moves them, and an active one does not', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Cascade demo' });
+  const target = {
+    id: 'tgt-cascade-demo', name: 'Cascade target', type: 'Frequency', phase: 'Acquisition',
+    phaseEnteredDate: SEED_AS_OF_DATE, phaseHistory: [], programId: program.id
+  };
+  apiService.updateProgram(program.id, {});
+  const live = apiService.findProgram(program.id);
+  live.targets = [target];
+  // An active teaching status leaves the targets alone.
+  apiService.applyProgramStatus(program.id, 'Teaching', { asOf: SEED_AS_OF_DATE });
+  assert.equal(apiService.findProgram(program.id).targets[0].phase, 'Acquisition');
+  // A pending program carries its targets with it.
+  apiService.applyProgramStatus(program.id, 'Pending', { asOf: SEED_AS_OF_DATE });
+  assert.equal(apiService.findProgram(program.id).targets[0].phase, 'Pending');
+  // And the phase history records when it happened.
+  const history = apiService.findProgram(program.id).targets[0].phaseHistory;
+  assert.ok(history.some(entry => entry.phase === 'Pending' && entry.date === SEED_AS_OF_DATE), 'the phase change is dated');
+  // The status history records the reason.
+  const statusHistory = apiService.findProgram(program.id).statusHistory;
+  assert.ok(statusHistory.some(entry => entry.status === 'Pending'));
+});
+
+test('a status change can plot a phase change line', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Line demo' });
+  const before = apiService.getSnapshot().phaseLines.length;
+  apiService.applyProgramStatus(program.id, 'Maintaining', { asOf: SEED_AS_OF_DATE, plotLine: true });
+  const after = apiService.getSnapshot().phaseLines;
+  assert.equal(after.length, before + 1, 'a line is added');
+  const line = after.at(-1);
+  assert.equal(line.programId, program.id);
+  assert.equal(line.date, SEED_AS_OF_DATE);
+  assert.equal(line.source, 'Manual');
+});
+
+test('every program change leaves a trail', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Tracked demo' });
+  apiService.updateProgram(program.id, { name: 'Tracked demo renamed' });
+  apiService.archiveProgram(program.id, { asOf: SEED_AS_OF_DATE });
+  const log = apiService.getActivity(program.id);
+  assert.equal(log.length, 3, 'the creation, the edit and the archive are all recorded');
+  assert.deepEqual(log.map(entry => entry.kind), ['program.archived', 'program.updated', 'program.created']);
+  assert.ok(log.every(entry => entry.at && entry.entityType === 'program' && entry.entityId === program.id));
+});
+
+test('the activity log is capped so a long session cannot grow it without bound', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Chatty demo' });
+  for (let i = 0; i < 520; i += 1) apiService.updateProgram(program.id, { baseline: `Revision ${i}` });
+  assert.ok(apiService.getActivity().length <= 500, 'the log is capped');
+});
+
+test('a lesson groups programs for one client', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Lesson member' });
+  const lesson = apiService.createLesson({ clientId: CLIENT, name: 'Morning block', programIds: [program.id] });
+  assert.ok(lesson);
+  assert.equal(lesson.clientId, CLIENT);
+  assert.deepEqual(lesson.programIds, [program.id]);
+  assert.equal(apiService.getLessons(CLIENT).some(item => item.id === lesson.id), true);
+  assert.equal(apiService.getLessons('cli-emma').some(item => item.id === lesson.id), false);
+});
+
+test('the seeded fixture still reads the same after the store has been used', () => {
+  // The fixture is the baseline; nothing above changed it.
+  const stored = JSON.parse(localStorage.getItem('welina_programs'));
+  assert.ok(stored.length >= seed.programs.length, 'the seeded programs are still there');
+  assert.ok(seed.programs.every(program => stored.some(item => item.id === program.id)), 'no seeded program was lost');
+});

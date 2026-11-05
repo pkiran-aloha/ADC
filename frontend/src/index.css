@@ -1907,3 +1907,59 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 .explorer-presets-details > summary { min-height: 2.2rem; padding: 0.35rem 0.65rem; color: var(--color-slate-700); font-size: 0.75rem; font-weight: 500; }
 .explorer-presets-details[open] > summary { border-bottom: 1px solid var(--line); }
 .explorer-presets-details .explorer-presets { padding: 0.5rem; }
+
+/* ---- Program Management ------------------------------------------------------------
+   The authoring workspace. Its tabs sit under the workflow tabs, the listing is a
+   plain table, and the ABC vocabulary reads as four short lists. */
+.programs-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 1.25rem; border-bottom: 1px solid var(--line); }
+.programs-tab {
+  display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.5rem; padding: 0.5rem 0.85rem;
+  border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted);
+  font: inherit; font-size: 0.8125rem; cursor: pointer;
+}
+.programs-tab:hover { color: var(--ink); }
+.programs-tab[aria-selected='true'] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 500; }
+.programs-tab-count {
+  min-width: 1.4rem; padding: 0.05rem 0.35rem; border-radius: 999px; background: var(--color-slate-100);
+  color: var(--color-slate-600); font-size: 0.6875rem; font-variant-numeric: tabular-nums; text-align: center;
+}
+.programs-tab[aria-selected='true'] .programs-tab-count { background: var(--color-brand-100); color: var(--color-brand-800); }
+
+.programs-listing-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.75rem; }
+.programs-listing-count { margin: 0; color: var(--muted); font-size: 0.8125rem; }
+.programs-listing-archived { color: var(--color-slate-400); }
+.programs-listing-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.programs-readonly-note { margin: 0 0 0.75rem; padding: 0.6rem 0.8rem; border-radius: 0.5rem; background: var(--color-slate-50); color: var(--color-slate-600); font-size: 0.8125rem; }
+
+.programs-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--line); border-radius: 0.5rem; }
+.programs-table th, .programs-table td { padding: 0.7rem 0.9rem; text-align: left; border-bottom: 1px solid var(--line); font-weight: 400; vertical-align: top; }
+.programs-table thead th { background: var(--color-slate-50); color: var(--color-slate-600); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.programs-table tbody tr:last-child th, .programs-table tbody tr:last-child td { border-bottom: 0; }
+.programs-table-name { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 500; text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.programs-table-name:hover { color: var(--accent); }
+.programs-table-tags { display: block; margin-top: 0.15rem; color: var(--muted); font-size: 0.75rem; }
+.programs-table-none { color: var(--color-slate-400); }
+.programs-table-actions { text-align: right; white-space: nowrap; }
+
+.status-pill { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px; background: var(--color-slate-100); color: var(--color-slate-700); font-size: 0.6875rem; line-height: 1.5; }
+.status-pill--teaching, .status-pill--maintaining { background: var(--color-brand-100); color: var(--color-brand-800); }
+.status-pill--generalizing { background: var(--color-brand-50); color: var(--color-brand-700); }
+.status-pill--completed { background: var(--color-brand-100); color: var(--color-brand-900); }
+.status-pill--pending, .status-pill--baselining { background: var(--color-amber-100); color: var(--color-amber-800); }
+.status-pill--onhold { background: var(--color-amber-50); color: var(--color-amber-700); }
+.status-pill--discontinued { background: var(--color-slate-200); color: var(--color-slate-600); }
+
+.programs-abc-instructions { margin: 0 0 1rem; padding: 0.75rem 0.9rem; border-left: 3px solid var(--color-brand-200); background: var(--color-slate-50); color: var(--color-slate-700); font-size: 0.8125rem; }
+.programs-abc-lists { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+.programs-abc-list h3 { margin: 0 0 0.4rem; font-size: 0.8125rem; font-weight: 600; }
+.programs-abc-list ul { margin: 0; padding-left: 1.1rem; color: var(--color-slate-700); font-size: 0.8125rem; }
+.programs-abc-list li { margin-bottom: 0.2rem; }
+
+@media (max-width: 639px) {
+  .programs-tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .programs-tab { white-space: nowrap; }
+  .programs-table thead { display: none; }
+  .programs-table tr { display: block; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+  .programs-table th, .programs-table td { display: block; padding: 0.2rem 0.9rem; border: 0; }
+  .programs-table-actions { text-align: left; }
+}

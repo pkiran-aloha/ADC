@@ -2,7 +2,7 @@
 // workflow gathers the screens that belong to one job (review progress, analyze a target,
 // read behavior context, verify care quality, share results) so the page is never one
 // endless dump of every panel at once.
-import { ChartLineUp, Target, Notebook, ShieldAlert, FileText, Book } from '../components/ui/Icons';
+import { ChartLineUp, Target, Notebook, ShieldAlert, FileText, Book, Layers } from '../components/ui/Icons';
 
 export const WORKFLOWS = [
   {
@@ -16,6 +16,12 @@ export const WORKFLOWS = [
     label: 'Target analysis',
     icon: Target,
     summary: 'Graphs, trends and the trials behind each point'
+  },
+  {
+    id: 'programs',
+    label: 'Programs',
+    icon: Layers,
+    summary: 'What is taught, how it is measured, and what to teach next'
   },
   {
     id: 'abc-observations',

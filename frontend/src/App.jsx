@@ -31,6 +31,7 @@ import {
 } from './utils/overviewOrder';
 
 const ClientSpecificSection = lazy(() => import('./components/ClientSpecificSection'));
+const ProgramManagement = lazy(() => import('./components/ProgramManagement'));
 const AbcDataSection = lazy(() => import('./components/AbcDataSection'));
 const ProgressHeatmap = lazy(() => import('./components/overview/ProgressHeatmap'));
 const PortfolioTriage = lazy(() => import('./components/overview/PortfolioTriage'));
@@ -481,6 +482,14 @@ export default function App() {
                   onCorrectObservation={correctObservation} onDeleteObservation={deleteObservation}
                   onProgramStatusChange={changeProgramStatus}
                   canEdit={canEdit} viewOnlyReason={viewOnlyReason} supervisionRecords={supervisionRecords} />
+              </Suspense>
+            </WorkflowPanel>}
+            {workflowVisible('programs') && <WorkflowPanel id="programs" active={activeSection === 'programs'}>
+              <Suspense fallback={<AnalyticsSkeleton />}>
+                <ProgramManagement key={selectedClientId} client={currentClient} programs={programs}
+                  lessons={apiService.getLessons(selectedClientId)} abcEntries={abcEntries}
+                  abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
+                  canEdit={canEdit} viewOnlyReason={viewOnlyReason} />
               </Suspense>
             </WorkflowPanel>}
             {workflowVisible('abc-observations') && <WorkflowPanel id="abc-observations" active={activeSection === 'abc-observations'}>

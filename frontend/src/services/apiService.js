@@ -14,6 +14,9 @@ import {
   SEED_AS_OF_DATE
 } from '../data/mockData.js';
 import { applyObservationEdit, deletionAudit } from '../utils/observations.js';
+import {
+  CASCADING_STATUSES, PROGRAM_CATEGORIES, PROGRAM_STATUSES
+} from '../utils/programManagement.js';
 
 const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
 
@@ -35,6 +38,8 @@ const STORAGE_KEYS = {
   GRAPH_NOTES: 'welina_graph_notes',
   ABC_ENTRIES: 'welina_abc_entries',
   DELETION_AUDIT: 'welina_deletion_audit',
+  ACTIVITY: 'welina_activity',
+  LESSONS: 'welina_lessons',
   SEED_VERSION: 'welina_seed_version'
 };
 
@@ -76,6 +81,12 @@ class AnalyticsService {
     }
     // Removed observations keep an audit entry so a post-billing correction stays traceable.
     this.deletedRecords = getStored(STORAGE_KEYS.DELETION_AUDIT, []);
+    // Program Management changes leave a trail too, so a clinician can see how the plan
+    // reached its current state.
+    this.activity = getStored(STORAGE_KEYS.ACTIVITY, []);
+    // Lessons group programs for delivery. The collection is empty until a
+    // clinician builds one, so a fresh workspace reads as "not in a lesson".
+    this.lessons = getStored(STORAGE_KEYS.LESSONS, []);
     this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
     this.serviceSessions = SERVICE_SESSIONS;
     this.staff = STAFF;
@@ -96,6 +107,8 @@ class AnalyticsService {
       clients: [...this.clients], programs: [...this.programs], sessions: [...this.sessions],
       abcEntries: [...this.abcEntries], phaseLines: [...this.phaseLines], phaseRanges: [...this.phaseRanges],
       graphNotes: [...this.graphNotes], serviceSessions: SERVICE_SESSIONS, deletedRecords: [...this.deletedRecords],
+      activity: [...(this.activity || [])],
+      lessons: [...(this.lessons || [])],
       storageError: Boolean(this.storageError)
     };
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
@@ -115,6 +128,8 @@ class AnalyticsService {
       [STORAGE_KEYS.GRAPH_NOTES]: this.graphNotes,
       [STORAGE_KEYS.ABC_ENTRIES]: this.abcEntries,
       [STORAGE_KEYS.DELETION_AUDIT]: this.deletedRecords,
+      [STORAGE_KEYS.ACTIVITY]: this.activity || [],
+      [STORAGE_KEYS.LESSONS]: this.lessons || [],
       [STORAGE_KEYS.SEED_VERSION]: SEED_VERSION
     };
     this.failedKeys = this.failedKeys || new Set();
@@ -140,6 +155,8 @@ class AnalyticsService {
     this.graphNotes = cloneSeed(INITIAL_GRAPH_NOTES);
     this.abcEntries = cloneSeed(INITIAL_ABC_ENTRIES);
     this.deletedRecords = [];
+    this.activity = [];
+    this.lessons = [];
     this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
     this.saveAll();
   }
@@ -494,6 +511,233 @@ class AnalyticsService {
     program.statusHistory = [...(program.statusHistory || []), { status, date, reason, staffName, note: note || undefined }];
     this.saveAll([STORAGE_KEYS.PROGRAMS]);
     return program;
+  }
+
+  // ---- Program Management -----------------------------------------------------------
+  // Programs are defined here, not only analysed. Every change is one user action, one
+  // state change, written to the browser and recorded in the activity log.
+
+  findProgram(programId) {
+    return this.programs.find(item => item.id === programId) || null;
+  }
+
+  // A program as the listing shows it: archived programs are kept out of the working
+  // list, and every program carries the scope it lives in.
+  listPrograms(clientId, { category = null, includeArchived = false } = {}) {
+    return this.programs
+      .filter(program => program.clientId === clientId)
+      .filter(program => (category ? program.category === category : true))
+      .filter(program => (includeArchived ? true : !program.archivedAt));
+  }
+
+  // Create a program. The new program starts active, in client scope, and with the
+  // fields the platform's form collects.
+  createProgram({ clientId, name, category = PROGRAM_CATEGORIES.SKILL, status = 'Pending', ...fields } = {}) {
+    if (!clientId || !String(name || '').trim()) return null;
+    const program = {
+      id: `prog-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      clientId,
+      name: String(name).trim(),
+      category,
+      status,
+      scope: 'client',
+      domain: fields.domain || '',
+      treatmentArea: fields.treatmentArea || [],
+      tags: fields.tags || [],
+      baseline: fields.baseline || '',
+      programObjective: fields.programObjective || '',
+      teachingInstructions: fields.teachingInstructions || '',
+      description: fields.programObjective || '',
+      learningMaterials: fields.learningMaterials || [],
+      customFields: fields.customFields || {},
+      targets: [],
+      archivedAt: null,
+      statusHistory: [{ status, date: fields.asOf || SEED_AS_OF_DATE, reason: 'Program created', staffName: fields.staffName || '' }]
+    };
+    if (category === PROGRAM_CATEGORIES.BEHAVIOR) {
+      program.behaviorPhase = fields.behaviorPhase || 'Open';
+      program.operationalDefinition = fields.operationalDefinition || '';
+    }
+    this.programs.push(program);
+    this.recordActivity('program.created', 'program', program.id, `Created program “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  // Edit a program. The scope and the client's identity never change.
+  updateProgram(programId, patch = {}) {
+    const program = this.findProgram(programId);
+    if (!program) return null;
+    const allowed = ['name', 'status', 'domain', 'treatmentArea', 'tags', 'baseline', 'programObjective',
+      'teachingInstructions', 'description', 'learningMaterials', 'customFields', 'behaviorPhase',
+      'operationalDefinition', 'scope'];
+    allowed.forEach(key => {
+      if (key in patch) program[key] = patch[key];
+    });
+    if ('programObjective' in patch && !('description' in patch)) program.description = patch.programObjective;
+    this.recordActivity('program.updated', 'program', program.id, `Updated program “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  // Archive keeps the program and everything recorded against it; it only stops the
+  // program from driving today's work.
+  archiveProgram(programId, { asOf = null, reason = '' } = {}) {
+    const program = this.findProgram(programId);
+    if (!program) return null;
+    program.archivedAt = asOf || SEED_AS_OF_DATE;
+    program.archiveReason = reason || undefined;
+    this.recordActivity('program.archived', 'program', program.id, `Archived program “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  unarchiveProgram(programId) {
+    const program = this.findProgram(programId);
+    if (!program) return null;
+    program.archivedAt = null;
+    program.archiveReason = undefined;
+    this.recordActivity('program.unarchived', 'program', program.id, `Restored program “${program.name}” to the active list.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  // A duplicate starts again: new identities, no observations, no phase history.
+  duplicateProgram(programId, { clientId = null, asOf = null } = {}) {
+    const source = this.findProgram(programId);
+    if (!source) return null;
+    const stamp = Date.now();
+    const copy = {
+      ...JSON.parse(JSON.stringify(source)),
+      id: `prog-${stamp}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      clientId: clientId || source.clientId,
+      name: `${source.name} (copy)`,
+      status: 'Pending',
+      archivedAt: null,
+      archiveReason: undefined,
+      targets: (source.targets || []).map((target, index) => ({
+        ...JSON.parse(JSON.stringify(target)),
+        id: `tgt-${stamp}-${index}-${(this.sequence = (this.sequence || 0) + 1)}`,
+        phase: 'Pending',
+        phaseEnteredDate: asOf || SEED_AS_OF_DATE,
+        phaseHistory: [],
+        masteryRule: undefined,
+        manualMastery: undefined
+      }))
+    };
+    copy.targets = copy.targets.map(target => ({ ...target, programId: copy.id }));
+    this.programs.push(copy);
+    this.recordActivity('program.duplicated', 'program', copy.id, `Duplicated program “${source.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return copy;
+  }
+
+  // The platform's cascade: a program that is pending, completed, on hold or
+  // discontinued carries its targets with it. The active teaching statuses do not.
+  applyProgramStatus(programId, status, { reason = '', staffName = '', asOf = null, plotLine = false } = {}) {
+    const program = this.findProgram(programId);
+    if (!program || !PROGRAM_STATUSES.includes(status)) return null;
+    const date = asOf || SEED_AS_OF_DATE;
+    program.status = status;
+    program.statusHistory = [...(program.statusHistory || []), { status, date, reason, staffName }];
+    if (CASCADING_STATUSES.includes(status)) {
+      (program.targets || []).forEach(target => {
+        this.applyTargetPhase({ targetId: target.id, newPhase: status, phaseDate: date });
+      });
+    }
+    if (plotLine) {
+      this.phaseLines.push({
+        id: `pcl-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+        targetId: null,
+        programId: program.id,
+        date,
+        label: `${status} starts`,
+        style: 'Solid',
+        color: '#34634c',
+        isAutomated: false,
+        source: 'Manual'
+      });
+    }
+    this.recordActivity('program.status', 'program', program.id, `Set program “${program.name}” to ${status}.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.PHASE_LINES, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  // A target is one measurable unit inside a program. The measurement tool is fixed
+  // once the target exists, so that data collected under one method is never
+  // compared against data collected under another.
+  addTarget(programId, target = {}) {
+    const program = this.findProgram(programId);
+    if (!program || !String(target.name || '').trim() || !target.type) return null;
+    const created = {
+      id: `tgt-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      name: String(target.name).trim(),
+      description: target.description || '',
+      type: target.type,
+      phase: target.phase || 'Pending',
+      phaseEnteredDate: target.phaseEnteredDate || SEED_AS_OF_DATE,
+      phaseHistory: [],
+      discriminativeStimuli: target.discriminativeStimuli || '',
+      masterySettings: target.masterySettings || 'Automatic',
+      masteryCriteria: target.masteryCriteria || '',
+      color: target.color || '#3B82F6',
+      programId: program.id,
+      promptHierarchyId: target.promptHierarchyId,
+      targetInstructions: target.targetInstructions,
+      intervalSettings: target.intervalSettings,
+      fluencySettings: target.fluencySettings,
+      masteryRule: target.masteryRule,
+      manualMastery: target.manualMastery
+    };
+    program.targets = [...(program.targets || []), created];
+    this.recordActivity('target.created', 'target', created.id, `Added target “${created.name}” to “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return created;
+  }
+
+  findTarget(targetId) {
+    for (const program of this.programs) {
+      const target = (program.targets || []).find(item => item.id === targetId);
+      if (target) return target;
+    }
+    return null;
+  }
+
+  // ---- Activity log -----------------------------------------------------------------
+  // Every change made in Program Management leaves a trail, so a clinician can see how
+  // the plan reached its current state. The log is capped, like the deletion audit.
+  recordActivity(kind, entityType, entityId, summary) {
+    if (!this.activity) this.activity = [];
+    this.activity = [{ id: `act-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`, at: SEED_AS_OF_DATE, kind, entityType, entityId, summary }, ...this.activity].slice(0, 500);
+    return this.activity[0];
+  }
+
+  getActivity(entityId = null) {
+    const log = this.activity || [];
+    return entityId ? log.filter(entry => entry.entityId === entityId) : log;
+  }
+
+  // ---- Lessons ----------------------------------------------------------------------
+  // A lesson is a reusable group of programs for one client: the shape of a recurring
+  // session, defined once and used each time it runs.
+  getLessons(clientId = null) {
+    const lessons = this.lessons || [];
+    return clientId ? lessons.filter(lesson => lesson.clientId === clientId) : lessons;
+  }
+
+  createLesson({ clientId, name, programIds = [] } = {}) {
+    if (!clientId || !String(name || '').trim()) return null;
+    const lesson = {
+      id: `lesson-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      clientId,
+      name: String(name).trim(),
+      programIds: [...programIds],
+      createdAt: SEED_AS_OF_DATE
+    };
+    this.lessons.push(lesson);
+    this.recordActivity('lesson.created', 'lesson', lesson.id, `Created lesson “${lesson.name}”.`);
+    this.saveAll([STORAGE_KEYS.LESSONS, STORAGE_KEYS.ACTIVITY]);
+    return lesson;
   }
 
   recordTrial(data) {
