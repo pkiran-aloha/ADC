@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {
   addTagValue, BEHAVIOR_PHASES, CASCADING_STATUSES, countByCategory, duplicateNameWarning,
   isArchived, isMastered, lessonNameByProgram, partitionByArchive,
-  programSummary, PROGRAM_STATUSES, removeTagValue, sortPrograms, sortTargets, TARGET_PHASES, usageCount,
-  withinLimit
+  programFormComplete, programSummary, PROGRAM_CATEGORIES, PROGRAM_STATUSES, removeTagValue,
+  sortPrograms, sortTargets, TARGET_PHASES, usageCount, validateProgram, withinLimit
 } from '../frontend/src/utils/programManagement.js';
 
 test('the program status list includes Pending, which the fixture already uses', () => {
@@ -177,4 +177,66 @@ test('removing an ABC value warns how many observations use it', () => {
   // The location is a single value, not a list.
   assert.equal(usageCount(entries, 'location', 'Table'), 2);
   assert.equal(usageCount(entries, 'location', 'Hallway'), 1);
+});
+
+// ---- The program form's validation ----------------------------------------------------
+
+const validSkillProgram = {
+  clientId: 'cli-one', name: 'Expressive Labeling', status: 'Teaching',
+  teachingInstructions: 'Present one picture at a time and wait five seconds.'
+};
+
+test('a skill acquisition program needs a name, a status and teaching instructions', () => {
+  const errors = validateProgram({ clientId: 'cli-one', name: '', status: '', teachingInstructions: '' },
+    { category: PROGRAM_CATEGORIES.SKILL, existing: [] });
+  assert.ok(errors.name, 'the name is required');
+  assert.ok(errors.status, 'the status is required');
+  assert.ok(errors.teachingInstructions, 'the teaching instructions are required');
+  assert.equal(validateProgram(validSkillProgram, { category: PROGRAM_CATEGORIES.SKILL, existing: [] }).name, undefined);
+});
+
+test('a behavior needs an operational definition and a behavior phase', () => {
+  const errors = validateProgram({ clientId: 'cli-one', name: 'Elopement', status: 'Teaching', teachingInstructions: 'x' },
+    { category: PROGRAM_CATEGORIES.BEHAVIOR, existing: [] });
+  assert.ok(errors.operationalDefinition, 'the operational definition is required for a behavior');
+  assert.ok(errors.behaviorPhase, 'the behavior phase is required');
+  // A behavior that has an operational definition passes.
+  const ok = validateProgram({
+    clientId: 'cli-one', name: 'Elopement', status: 'Teaching',
+    operationalDefinition: 'Leaving the instructional area without permission.', behaviorPhase: 'Open'
+  }, { category: PROGRAM_CATEGORIES.BEHAVIOR, existing: [] });
+  assert.equal(ok.operationalDefinition, undefined);
+  assert.equal(ok.behaviorPhase, undefined);
+});
+
+test('a status from outside the platform list is refused', () => {
+  const errors = validateProgram({ ...validSkillProgram, status: 'In progress' },
+    { category: PROGRAM_CATEGORIES.SKILL, existing: [] });
+  assert.ok(errors.status, 'an unknown status is refused');
+});
+
+test('the platform character limits are enforced on the free-text fields', () => {
+  const errors = validateProgram({
+    ...validSkillProgram, baseline: 'x'.repeat(1001), programObjective: 'y'.repeat(1001)
+  }, { category: PROGRAM_CATEGORIES.SKILL, existing: [] });
+  assert.ok(errors.baseline, 'the baseline limit is enforced');
+  assert.ok(errors.programObjective, 'the objective limit is enforced');
+  // The teaching instructions are checked against their own limit.
+  const over = validateProgram({ ...validSkillProgram, teachingInstructions: 'x'.repeat(1001) },
+    { category: PROGRAM_CATEGORIES.SKILL, existing: [] });
+  assert.ok(over.teachingInstructions);
+});
+
+test('a duplicate name warns but does not block the form', () => {
+  const existing = [{ id: 'p1', clientId: 'cli-one', name: 'Expressive Labeling' }];
+  const errors = validateProgram(validSkillProgram, { category: PROGRAM_CATEGORIES.SKILL, existing });
+  assert.ok(errors.nameWarning, 'the duplicate warns');
+  assert.equal(errors.name, undefined, 'the duplicate does not block the name field');
+  // A warning alone does not make the form incomplete.
+  assert.equal(programFormComplete(errors), true);
+});
+
+test('the form is incomplete while any required field is missing', () => {
+  assert.equal(programFormComplete(validateProgram({ name: '' }, { category: PROGRAM_CATEGORIES.SKILL, existing: [] })), false);
+  assert.equal(programFormComplete(validateProgram(validSkillProgram, { category: PROGRAM_CATEGORIES.SKILL, existing: [] })), true);
 });

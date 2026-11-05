@@ -140,6 +140,49 @@ export function withinLimit(value, limit) {
   return String(value || '').length <= limit;
 }
 
+// A program form is complete when the required fields are filled and the
+// platform's limits are respected. The behavior form adds the operational
+// definition, because a behavior without one cannot be recorded consistently.
+export function validateProgram(values = {}, { category = PROGRAM_CATEGORIES.SKILL, existing = [] } = {}) {
+  const errors = {};
+  const name = String(values.name || '').trim();
+  if (!name) errors.name = 'Give the program a name.';
+  else if (!withinLimit(name, FIELD_LIMITS.programName)) errors.name = `Keep the name to ${FIELD_LIMITS.programName} characters.`;
+  if (!values.status) errors.status = 'Choose a status.';
+  else if (!PROGRAM_STATUSES.includes(values.status)) errors.status = 'Choose a status from the list.';
+
+  if (category === PROGRAM_CATEGORIES.BEHAVIOR) {
+    if (!String(values.operationalDefinition || '').trim()) {
+      errors.operationalDefinition = 'Define exactly what qualifies as the behavior.';
+    } else if (!withinLimit(values.operationalDefinition, FIELD_LIMITS.operationalDefinition)) {
+      errors.operationalDefinition = `Keep the operational definition to ${FIELD_LIMITS.operationalDefinition} characters.`;
+    }
+    if (!values.behaviorPhase) errors.behaviorPhase = 'Choose a phase.';
+    else if (!BEHAVIOR_PHASES.includes(values.behaviorPhase)) errors.behaviorPhase = 'Choose a phase from the list.';
+  } else {
+    if (!String(values.teachingInstructions || '').trim()) errors.teachingInstructions = 'Describe how the program is taught.';
+  }
+
+  [['baseline', 'baseline'], ['programObjective', 'objective'], ['teachingInstructions', 'teachingInstructions']]
+    .forEach(([key, label]) => {
+      if (values[key] && !withinLimit(values[key], FIELD_LIMITS[label])) {
+        errors[key] = `Keep this to ${FIELD_LIMITS[label]} characters.`;
+      }
+    });
+
+  // The name is not unique, but an exact duplicate within one client is a likely
+  // mistake, so it warns without blocking.
+  const clash = duplicateNameWarning(existing, { clientId: values.clientId, name });
+  if (clash) errors.nameWarning = `A program for this client is already called “${clash}”.`;
+
+  return errors;
+}
+
+// A form is complete when there are no errors and no warnings left unacknowledged.
+export function programFormComplete(errors = {}) {
+  return !Object.keys(errors).some(key => key !== 'nameWarning');
+}
+
 // Treatment areas and tags are multi-value lists entered one item at a time.
 // A partially typed item is kept when the clinician leaves the field.
 export function addTagValue(list = [], value) {

@@ -1684,3 +1684,60 @@ test('Target analysis keeps refresh beside export while other workflow actions o
   await page.keyboard.press('Escape');
   await accessible(page);
 });
+
+test('a program can be defined in Program Management and joins the listing', async ({ page }, testInfo) => {
+  await open(page, 'Programs');
+  const listing = page.locator('#programs');
+  await expect(listing.getByRole('heading', { name: 'Programs', level: 1 })).toBeVisible();
+  await expect(listing.getByRole('tab', { name: /Skill acquisition/ })).toBeVisible();
+  await expect(listing.getByRole('tab', { name: /Behavior reduction/ })).toBeVisible();
+  await expect(listing.getByRole('tab', { name: /ABC data recording/ })).toBeVisible();
+
+  // The listing shows what a clinician scans for. Phones stack the rows, so the
+  // column headers only exist on the wide layout.
+  if (testInfo.project.name !== 'mobile') {
+    await expect(listing.getByRole('columnheader', { name: 'Lesson' })).toBeVisible();
+    await expect(listing.getByRole('columnheader', { name: 'Status' })).toBeVisible();
+  }
+
+  // The form refuses an incomplete program.
+  await listing.getByRole('button', { name: 'New program' }).click();
+  const dialog = page.locator('dialog');
+  await expect(dialog.getByLabel('Program name')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(dialog.getByText('Give the program a name.')).toBeVisible();
+  await expect(dialog.getByText('Describe how the program is taught.')).toBeVisible();
+
+  // A treatment area added with Enter becomes a removable value.
+  await dialog.getByLabel('Treatment area').fill('Communication');
+  await dialog.getByLabel('Treatment area').press('Enter');
+  await expect(dialog.getByRole('button', { name: 'Remove Communication' })).toBeVisible();
+
+  // A complete program saves and joins the listing.
+  await dialog.getByLabel('Program name').fill('Requesting a Break');
+  await dialog.getByLabel('Teaching instructions').fill('Teach the learner to hand over a break card.');
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(listing.getByRole('button', { name: 'Requesting a Break' })).toBeVisible();
+
+  // The platform offers the next step straight away.
+  const prompt = page.locator('.programs-prompt');
+  await expect(prompt.getByText('Do you want to add targets for this created program?')).toBeVisible();
+  await prompt.getByRole('button', { name: 'Maybe later' }).click();
+  await expect(prompt).toBeHidden();
+
+  // The new program is in the browser, so a reload keeps it.
+  await page.reload();
+  await activate(page, 'Programs');
+  await expect(page.locator('#programs').getByRole('button', { name: 'Requesting a Break' })).toBeVisible();
+  await accessible(page);
+});
+
+test('the Program Management workspace is read-only under view-only access', async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem('welina_access_level', 'view'));
+  await open(page, 'Programs');
+  const listing = page.locator('#programs');
+  await expect(listing.getByText('View-only access.')).toBeVisible();
+  await expect(listing.getByRole('button', { name: 'New program' })).toHaveCount(0);
+  await accessible(page);
+});

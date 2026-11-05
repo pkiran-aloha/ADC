@@ -262,6 +262,28 @@ export default function App() {
     const target = program?.targets.find(entry => entry.id === item.targetId);
     if (program && target) openTargetFocus({ program, target });
   }
+  // A program created in Program Management joins the client listing and the activity
+  // trail. The listing refreshes from the same snapshot the analytics read.
+  function createProgram(values) {
+    const created = apiService.createProgram({ ...values, clientId: selectedClientId, asOf: SEED_AS_OF_DATE });
+    if (!created) { notify('The program could not be created.', 'error'); return null; }
+    saved(apiService.storageError ? 'Created for this session only. Your browser couldn’t save changes.' : `Program “${created.name}” created.`);
+    return created;
+  }
+  // Opening a program from the listing lands on its targets in the target analysis,
+  // which is where the plan and its measurement meet.
+  function openProgram(program, { addTargets = false } = {}) {
+    const first = program?.targets?.[0];
+    if (first) {
+      openTargetFocus({ program, target: first });
+      return;
+    }
+    // A program with no targets has no chart to open, so the listing stays put.
+    notify(addTargets
+      ? 'Add the first target to this program to begin recording against it.'
+      : `“${program?.name}” has no targets yet, so there is nothing to graph.`);
+    activateWorkflow('programs', { scrollToTop: false });
+  }
   // Timeline events carry the same ids plus the date the change happened, so the drilldown
   // lands on the target's chart with that date inside the visible range.
   function openTimelineEvent(event) {
@@ -489,7 +511,10 @@ export default function App() {
                 <ProgramManagement key={selectedClientId} client={currentClient} programs={programs}
                   lessons={apiService.getLessons(selectedClientId)} abcEntries={abcEntries}
                   abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
-                  canEdit={canEdit} viewOnlyReason={viewOnlyReason} />
+                  canEdit={canEdit} viewOnlyReason={viewOnlyReason}
+                  onCreateProgram={createProgram}
+                  onOpenProgram={openProgram}
+                  onAddTargets={program => openProgram(program, { addTargets: true })} />
               </Suspense>
             </WorkflowPanel>}
             {workflowVisible('abc-observations') && <WorkflowPanel id="abc-observations" active={activeSection === 'abc-observations'}>

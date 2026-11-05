@@ -9,6 +9,7 @@ import seed from '../../data/clinicalSeed.json' with { type: 'json' };
 import { CLINICAL_STANDARDS, PROMPT_HIERARCHY_TEMPLATES, SEED_AS_OF_DATE } from '../src/data/mockData.js';
 import ClientSpecificSection from '../src/components/ClientSpecificSection.jsx';
 import ProgramManagement from '../src/components/ProgramManagement.jsx';
+import ProgramFormModal from '../src/components/Modals/ProgramFormModal.jsx';
 import AbcDataSection from '../src/components/AbcDataSection.jsx';
 import ServiceQualitySection from '../src/components/ServiceQualitySection.jsx';
 import ReportsSection from '../src/components/ReportsSection.jsx';
@@ -68,7 +69,11 @@ const portalCases = [
   ['PhaseLineModal', PhaseLineModal, {
     isOpen: true, onClose: noop, onSave: noop,
     target: programs[0].targets[0], scopeTargets: programs[0].targets.map(target => ({ id: target.id, name: target.name, phase: target.phase }))
-  }, ['phase line']]
+  }, ['phase line']],
+  ['ProgramFormModal', ProgramFormModal, {
+    isOpen: true, onClose: noop, onSave: noop, client, category: 'SkillAcquisition',
+    existing: programs
+  }, ['Program name', 'Teaching instructions', 'Treatment information']]
 ];
 
 const cases = [

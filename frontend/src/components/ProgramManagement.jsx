@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   countByCategory, partitionByArchive, PROGRAM_CATEGORIES, PROGRAM_STATUS_LABELS
 } from '../utils/programManagement';
+import ProgramFormModal from './Modals/ProgramFormModal';
 import EmptyState from './ui/EmptyState';
 import { Target, Notebook, Layers, Plus } from './ui/Icons';
 
@@ -16,9 +17,12 @@ const TABS = [
 
 export default function ProgramManagement({
   client, programs = [], lessons = [], abcConfiguration = null, abcEntries = [],
-  canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram
+  canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram, onAddTargets
 }) {
   const [tab, setTab] = useState('skill');
+  const [formOpen, setFormOpen] = useState(false);
+  const [formCategory, setFormCategory] = useState(PROGRAM_CATEGORIES.SKILL);
+  const [pendingTargets, setPendingTargets] = useState(null);
 
   const counts = useMemo(() => ({
     skill: countByCategory(programs, PROGRAM_CATEGORIES.SKILL),
@@ -36,6 +40,11 @@ export default function ProgramManagement({
   }, [lessons]);
 
   const activeTab = TABS.find(entry => entry.id === tab) || TABS[0];
+
+  function openCreate(category) {
+    setFormCategory(category);
+    setFormOpen(true);
+  }
 
   return <section id="programs" aria-labelledby="programs-title" tabIndex={-1}>
     <div className="page-heading">
@@ -72,8 +81,32 @@ export default function ProgramManagement({
           {activeTab.id === 'abc'
             ? <AbcConfigurationPanel configuration={abcConfiguration} entries={abcEntries} />
             : <ProgramListing category={activeTab.category} programs={programs} lessonNames={lessonNames}
-              canEdit={canEdit} viewOnlyReason={viewOnlyReason} onCreate={onCreateProgram} onOpen={onOpenProgram} />}
+              canEdit={canEdit} viewOnlyReason={viewOnlyReason} onCreate={openCreate} onOpen={onOpenProgram} />}
         </div>
+
+        <ProgramFormModal isOpen={formOpen} onClose={() => setFormOpen(false)} client={client}
+          category={formCategory} existing={programs}
+          onSave={values => {
+            const created = onCreateProgram?.(values);
+            setFormOpen(false);
+            // A program with no targets is documentation, not a program. The
+            // platform offers the next step straight away.
+            setPendingTargets(created || null);
+          }} />
+
+        {pendingTargets && <div className="programs-prompt" role="dialog" aria-labelledby="programs-prompt-title">
+          <div className="programs-prompt-body">
+            <h2 id="programs-prompt-title">Do you want to add targets for this created program?</h2>
+            <p>Without targets, the program cannot be executed and no data can be recorded against it.</p>
+            <div className="dialog-actions">
+              <button type="button" className="button button--secondary" onClick={() => setPendingTargets(null)}>Maybe later</button>
+              <button type="button" className="button button--primary" onClick={() => {
+                onAddTargets?.(pendingTargets);
+                setPendingTargets(null);
+              }}>Yes, let’s add targets</button>
+            </div>
+          </div>
+        </div>}
       </>}
   </section>;
 }

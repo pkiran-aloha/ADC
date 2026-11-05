@@ -1963,3 +1963,33 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
   .programs-table th, .programs-table td { display: block; padding: 0.2rem 0.9rem; border: 0; }
   .programs-table-actions { text-align: left; }
 }
+
+/* ---- Program form ------------------------------------------------------------------
+   The form's sections are fieldsets, so a missing required field is marked both in
+   the field and against the section it belongs to. */
+.program-form { display: flex; flex-direction: column; gap: 1rem; }
+.program-form-sections { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.program-form-section {
+  padding: 0.15rem 0.5rem; border-radius: 999px; background: var(--color-slate-100);
+  color: var(--color-slate-600); font-size: 0.6875rem;
+}
+.program-form-section--incomplete { background: var(--color-amber-100); color: var(--color-amber-800); }
+.program-form-fieldset { display: flex; flex-direction: column; gap: 0.75rem; margin: 0; padding: 0.9rem 1rem 1rem; border: 1px solid var(--line); border-radius: 0.5rem; }
+.program-form-fieldset legend { padding: 0 0.35rem; color: var(--color-slate-600); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.program-form-note { margin: 0; color: var(--muted); font-size: 0.75rem; }
+.field-warning { margin: -0.4rem 0 0; color: var(--color-amber-700); font-size: 0.75rem; }
+
+.tag-input { display: flex; flex-direction: column; gap: 0.35rem; }
+.tag-input > label { color: var(--color-slate-700); font-size: 0.8125rem; font-weight: 500; }
+.tag-input-values { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0; padding: 0; list-style: none; }
+.tag-input-values li {
+  display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.1rem 0.2rem 0.1rem 0.5rem;
+  border-radius: 999px; background: var(--color-brand-100); color: var(--color-brand-900); font-size: 0.75rem;
+}
+.tag-input-remove { display: inline-flex; align-items: center; justify-content: center; width: 1.1rem; height: 1.1rem; padding: 0; border: 0; border-radius: 999px; background: none; color: inherit; cursor: pointer; }
+.tag-input-remove:hover { background: var(--color-brand-200); }
+
+.programs-prompt { position: fixed; inset: 0; z-index: var(--z-feedback); display: grid; place-items: center; padding: 1rem; background: rgb(32 44 35 / 35%); }
+.programs-prompt-body { max-width: 28rem; padding: 1.25rem 1.4rem; border-radius: 0.75rem; background: #fff; box-shadow: var(--shadow-popover); }
+.programs-prompt-body h2 { margin: 0 0 0.4rem; font-size: 1.05rem; }
+.programs-prompt-body p { margin: 0 0 1rem; color: var(--muted); font-size: 0.8125rem; }
