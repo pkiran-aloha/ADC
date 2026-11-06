@@ -2039,3 +2039,80 @@ test('programs can be grouped into a lesson in one action, and lessons persist',
   await expect(listing.getByRole('region', { name: 'Lessons' })).toContainText('Morning block');
   await accessible(page);
 });
+
+test('a lesson note plans a lesson, captures data through the recorder, and locks once approved', async ({ page }) => {
+  await open(page);
+  const metric = page.locator('.metric--sessions .metric-number');
+  const before = Number(await metric.textContent());
+
+  await activate(page, 'Programs');
+  const listing = page.locator('#programs');
+  await listing.getByLabel('Select Spontaneous Requests').check({ force: true });
+  await listing.getByRole('button', { name: 'Add to lesson', exact: true }).click();
+  await page.locator('dialog').getByLabel('Lesson name').fill('Requests block');
+  await page.locator('dialog').getByRole('button', { name: 'Create lesson' }).click();
+
+  // A new lesson note needs a title, and starts as a draft planning the lesson's targets.
+  await listing.getByRole('tab', { name: /Lesson notes/ }).click();
+  await expect(listing.getByText('No lesson notes yet.')).toBeVisible();
+  await listing.getByRole('button', { name: 'New lesson note' }).click();
+  const dialog = page.locator('dialog');
+  await dialog.getByLabel(/^Lesson/).selectOption({ label: 'Requests block' });
+  await dialog.getByRole('button', { name: 'Create lesson note' }).click();
+  await expect(dialog.getByText('Give the lesson note a title.')).toBeVisible();
+  await dialog.getByLabel('Title').fill('Requests run');
+  await dialog.getByRole('button', { name: 'Create lesson note' }).click();
+  await expect(dialog).toBeHidden();
+  const note = listing.locator('.program-view');
+  await expect(note.getByRole('heading', { name: 'Requests run', level: 2 })).toBeVisible();
+  await expect(note).toContainText('Draft');
+  await expect(note.locator('.lessons-panel').first()).toContainText('Spontaneous Requests');
+
+  // The recorder opens loaded with exactly the planned targets, and saves into the note.
+  await note.getByRole('button', { name: 'Record data' }).click();
+  const recorder = page.locator('dialog').filter({ hasText: /Record/ });
+  const spinners = recorder.getByRole('spinbutton');
+  const count = await spinners.count();
+  for (let i = 0; i < count; i += 1) await spinners.nth(i).fill('3');
+  await recorder.getByRole('button', { name: /^Save 2 observations$/ }).click();
+  await expect(note).toContainText('2 observations and 0 ABC observations');
+
+  // An ABC observation needs at least one part.
+  await note.getByRole('button', { name: 'Record ABC observation' }).click();
+  const abc = page.locator('dialog').filter({ hasText: 'Record an ABC observation' });
+  await abc.getByRole('button', { name: 'Save observation' }).click();
+  await expect(abc.getByText('Choose at least one antecedent, behavior, consequence or location.')).toBeVisible();
+  await abc.getByRole('checkbox').first().check();
+  await abc.getByRole('button', { name: 'Save observation' }).click();
+  await expect(note).toContainText('2 observations and 1 ABC observation');
+
+  // A signature carries a name and a role.
+  await note.getByRole('button', { name: 'Sign', exact: true }).click();
+  const sign = page.locator('dialog').filter({ hasText: 'Sign lesson note' });
+  await sign.getByRole('button', { name: 'Sign', exact: true }).click();
+  await expect(sign.getByText('Enter the name of the person signing.')).toBeVisible();
+  await sign.getByLabel('Name').fill('Mara Caregiver');
+  await sign.getByLabel('Role').selectOption('Caregiver');
+  await sign.getByRole('button', { name: 'Sign', exact: true }).click();
+  await expect(note.getByText(/Mara Caregiver · Caregiver/)).toBeVisible();
+
+  // Submit, then approve: the note locks.
+  await note.getByRole('button', { name: 'Submit for review' }).click();
+  await expect(note).toContainText('Unapproved');
+  await note.getByRole('button', { name: 'Approve', exact: true }).click();
+  await page.locator('dialog').getByRole('button', { name: 'Approve lesson note' }).click();
+  await expect(note.getByRole('status').filter({ hasText: 'This lesson note is approved' })).toBeVisible();
+  await expect(note.getByRole('button', { name: 'Record data' })).toHaveCount(0);
+  await expect(note.getByRole('button', { name: 'Sign', exact: true })).toHaveCount(0);
+
+  // It persists, and the recorded data reached the analytics.
+  await page.reload();
+  await activate(page, 'Programs');
+  await listing.getByRole('tab', { name: /Lesson notes/ }).click();
+  const row = listing.getByRole('row').filter({ hasText: 'Requests run' });
+  await expect(row).toContainText('Approved');
+  await expect(row).toContainText('3');
+  await activate(page, 'Progress overview');
+  expect(Number(await metric.textContent())).toBe(before + 2);
+  await accessible(page);
+});

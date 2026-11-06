@@ -268,8 +268,11 @@ export function intensityTrend(entries, behaviors) {
       behavior,
       points: weeks.map(week => {
         const relevant = entries.filter(entry => entry.behaviors.includes(behavior) && weekOf(entry.timestamp) === week);
-        return { week, n: relevant.length, intensity: mean(relevant.map(entry => entry.intensity)),
-          duration: mean(relevant.map(entry => entry.durationMinutes)) };
+        // An observation recorded without an intensity or a duration has none; it is left
+        // out of the average rather than counted as zero.
+        const measured = key => relevant.map(entry => entry[key]).filter(value => Number.isFinite(value));
+        return { week, n: relevant.length, intensity: mean(measured('intensity')),
+          duration: mean(measured('durationMinutes')) };
       })
     }))
   };

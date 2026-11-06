@@ -5,6 +5,8 @@
 // targets are ordered, what a listing shows, and which values a clinician may
 // type. Pure functions only, so they can be tested without a browser.
 
+import { isValidDate } from './formValidation.js';
+
 // The platform's program statuses. "Pending" is in the fixture already, so it
 // belongs here even though the older status control left it out.
 export const PROGRAM_STATUSES = [
@@ -334,4 +336,36 @@ export function behaviorPhaseOf(program) {
   if (program?.behaviorPhase) return program.behaviorPhase;
   const targetPhase = program?.targets?.[0]?.phase;
   return BEHAVIOR_PHASES.includes(targetPhase) ? targetPhase : 'Open';
+}
+
+// ---- Lesson notes ---------------------------------------------------------------------
+
+export const LESSON_NOTE_STATUSES = ['Draft', 'Unapproved', 'Approved'];
+export const SIGNATURE_ROLES = ['Staff', 'Caregiver', 'Approver'];
+
+// A lesson note can change until it is approved. An approved note is a finished record, so
+// its content, its signatures and the data recorded into it are locked.
+export function isLessonNoteEditable(note) {
+  return Boolean(note) && note.status !== 'Approved';
+}
+
+export function validateLessonNote(values = {}, { lessons = [] } = {}) {
+  const errors = {};
+  if (!lessons.some(lesson => lesson.id === values.lessonId)) errors.lessonId = 'Choose a lesson.';
+  if (!isValidDate(values.date)) errors.date = 'Choose a valid date.';
+  if (!String(values.title || '').trim()) errors.title = 'Give the lesson note a title.';
+  return errors;
+}
+
+export function validateSignature(values = {}) {
+  const errors = {};
+  if (!String(values.signedBy || '').trim()) errors.signedBy = 'Enter the name of the person signing.';
+  if (!SIGNATURE_ROLES.includes(values.role)) errors.role = 'Choose a role.';
+  return errors;
+}
+
+// An ABC observation needs at least one of its four parts.
+export function validateAbcEntry(values = {}) {
+  const has = ['antecedents', 'behaviors', 'consequences'].some(key => (values[key] || []).length) || Boolean(values.location);
+  return has ? {} : { entry: 'Choose at least one antecedent, behavior, consequence or location.' };
 }

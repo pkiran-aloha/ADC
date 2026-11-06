@@ -14,8 +14,9 @@ import {
   SEED_AS_OF_DATE
 } from '../data/mockData.js';
 import { applyObservationEdit, deletionAudit } from '../utils/observations.js';
+import { isValidDate } from '../utils/formValidation.js';
 import {
-  BEHAVIOR_PHASES, BEHAVIOR_TOOLS, CASCADING_STATUSES, PHASE_LABELS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS, TARGET_PHASES, toValueList
+  BEHAVIOR_PHASES, BEHAVIOR_TOOLS, CASCADING_STATUSES, LESSON_NOTE_STATUSES, PHASE_LABELS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS, SIGNATURE_ROLES, TARGET_PHASES, isLessonNoteEditable, toValueList
 } from '../utils/programManagement.js';
 
 const ABC_LIST_KEYS = ['antecedents', 'behaviors', 'consequences', 'locations'];
@@ -42,6 +43,7 @@ const STORAGE_KEYS = {
   ACTIVITY: 'welina_activity',
   LESSONS: 'welina_lessons',
   ABC_CONFIGS: 'welina_abc_configurations',
+  LESSON_NOTES: 'welina_lesson_notes',
   SEED_VERSION: 'welina_seed_version'
 };
 
@@ -89,6 +91,8 @@ class AnalyticsService {
     // Lessons group programs for delivery. The collection is empty until a
     // clinician builds one, so a fresh workspace reads as "not in a lesson".
     this.lessons = getStored(STORAGE_KEYS.LESSONS, []);
+    // A lesson note is one dated run of a lesson: what was planned, what was recorded, who signed.
+    this.lessonNotes = getStored(STORAGE_KEYS.LESSON_NOTES, []);
     // The ABC vocabulary is editable configuration, one record per client.
     this.abcConfigurations = getStored(STORAGE_KEYS.ABC_CONFIGS, null) || cloneSeed(INITIAL_ABC_CONFIGURATIONS);
     this.serviceSessions = SERVICE_SESSIONS;
@@ -113,6 +117,7 @@ class AnalyticsService {
       activity: [...(this.activity || [])],
       lessons: [...(this.lessons || [])],
       abcConfigurations: [...(this.abcConfigurations || [])],
+      lessonNotes: [...(this.lessonNotes || [])],
       storageError: Boolean(this.storageError)
     };
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
@@ -135,6 +140,7 @@ class AnalyticsService {
       [STORAGE_KEYS.ACTIVITY]: this.activity || [],
       [STORAGE_KEYS.LESSONS]: this.lessons || [],
       [STORAGE_KEYS.ABC_CONFIGS]: this.abcConfigurations,
+      [STORAGE_KEYS.LESSON_NOTES]: this.lessonNotes || [],
       [STORAGE_KEYS.SEED_VERSION]: SEED_VERSION
     };
     this.failedKeys = this.failedKeys || new Set();
@@ -162,6 +168,7 @@ class AnalyticsService {
     this.deletedRecords = [];
     this.activity = [];
     this.lessons = [];
+    this.lessonNotes = [];
     this.abcConfigurations = cloneSeed(INITIAL_ABC_CONFIGURATIONS);
     this.saveAll();
   }
@@ -874,6 +881,93 @@ class AnalyticsService {
   getActivity(entityId = null) {
     const log = this.activity || [];
     return entityId ? log.filter(entry => entry.entityId === entityId) : log;
+  }
+
+  // ---- Lesson notes -----------------------------------------------------------------
+  getLessonNotes(clientId = null) {
+    const notes = this.lessonNotes || [];
+    return clientId ? notes.filter(note => note.clientId === clientId) : notes;
+  }
+
+  // A lesson note plans the targets of the lesson's programs on the day it is made.
+  createLessonNote({ clientId, lessonId, date, title } = {}) {
+    const lesson = (this.lessons || []).find(item => item.id === lessonId && item.clientId === clientId);
+    if (!lesson || !String(title || '').trim() || !isValidDate(date)) return null;
+    const programs = lesson.programIds.map(id => this.findProgram(id)).filter(program => program && !program.archivedAt);
+    const note = {
+      id: `note-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      clientId, lessonId, date, title: String(title).trim(), status: 'Draft', signatures: [],
+      programIds: programs.map(program => program.id),
+      targetIds: programs.flatMap(program => (program.targets || []).map(target => target.id)),
+      createdAt: SEED_AS_OF_DATE
+    };
+    this.lessonNotes.push(note);
+    this.recordActivity('note.created', 'note', note.id, `Created lesson note “${note.title}” for ${date}.`);
+    this.saveAll([STORAGE_KEYS.LESSON_NOTES, STORAGE_KEYS.ACTIVITY]);
+    return note;
+  }
+
+  #editableNote(noteId) {
+    const note = (this.lessonNotes || []).find(item => item.id === noteId);
+    return isLessonNoteEditable(note) ? note : null;
+  }
+
+  updateLessonNote(noteId, { title, date } = {}) {
+    const note = this.#editableNote(noteId);
+    if (!note) return null;
+    if (title !== undefined && String(title).trim()) note.title = String(title).trim();
+    if (date !== undefined && isValidDate(date)) note.date = date;
+    this.recordActivity('note.updated', 'note', note.id, `Updated lesson note “${note.title}”.`);
+    this.saveAll([STORAGE_KEYS.LESSON_NOTES, STORAGE_KEYS.ACTIVITY]);
+    return note;
+  }
+
+  // Draft, then Unapproved, then Approved. An approved note never changes again.
+  setLessonNoteStatus(noteId, status) {
+    const note = this.#editableNote(noteId);
+    if (!note || !LESSON_NOTE_STATUSES.includes(status) || note.status === status) return null;
+    note.status = status;
+    this.recordActivity('note.status', 'note', note.id, `Lesson note “${note.title}” is now ${status}.`);
+    this.saveAll([STORAGE_KEYS.LESSON_NOTES, STORAGE_KEYS.ACTIVITY]);
+    return note;
+  }
+
+  signLessonNote(noteId, { signedBy, role } = {}) {
+    const note = this.#editableNote(noteId);
+    if (!note || !String(signedBy || '').trim() || !SIGNATURE_ROLES.includes(role)) return null;
+    const signature = { signedBy: String(signedBy).trim(), role, signedOn: SEED_AS_OF_DATE };
+    note.signatures = [...note.signatures, signature];
+    this.recordActivity('note.signed', 'note', note.id, `${signature.signedBy} signed lesson note “${note.title}” as ${role}.`);
+    this.saveAll([STORAGE_KEYS.LESSON_NOTES, STORAGE_KEYS.ACTIVITY]);
+    return signature;
+  }
+
+  // Data recorded into a note goes through the same recorder as everywhere else, and only
+  // for targets the note planned. A note that is approved takes no more data.
+  recordIntoLessonNote(noteId, points = []) {
+    const note = this.#editableNote(noteId);
+    if (!note) return [];
+    const planned = new Set(note.targetIds);
+    const accepted = points.filter(point => planned.has(point.targetId))
+      .map(point => ({ ...point, clientId: note.clientId, lessonNoteId: note.id }));
+    return accepted.length ? this.recordTrials(accepted) : [];
+  }
+
+  // An ABC observation needs at least one of its four parts; intensity and duration are
+  // left unrecorded unless given, never defaulted to zero.
+  recordAbcIntoLessonNote(noteId, { antecedents = [], behaviors = [], consequences = [], location = '', notes = '', timestamp = null, therapist = '' } = {}) {
+    const note = this.#editableNote(noteId);
+    if (!note || !(antecedents.length || behaviors.length || consequences.length || location)) return null;
+    const entry = {
+      id: `abc-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      clientId: note.clientId, lessonNoteId: note.id,
+      timestamp: timestamp || `${note.date}T09:00:00`,
+      therapist, antecedents, behaviors, consequences, location, notes
+    };
+    this.abcEntries.push(entry);
+    this.recordActivity('note.abc', 'note', note.id, `Recorded an ABC observation in lesson note “${note.title}”.`);
+    this.saveAll([STORAGE_KEYS.ABC_ENTRIES, STORAGE_KEYS.ACTIVITY]);
+    return entry;
   }
 
   // ---- Lessons ----------------------------------------------------------------------

@@ -366,3 +366,19 @@ test('the location list counts observations through their single location', () =
   assert.equal(usageCount(entries, 'locations', 'Hallway'), 2);
   assert.equal(usageCount(entries, 'location', 'Table'), 1);
 });
+
+import { intensityTrend } from '../frontend/src/utils/abcAnalytics.js';
+
+test('an ABC observation recorded without an intensity is not averaged as zero', () => {
+  const entries = [
+    { timestamp: '2026-10-05T09:00:00', behaviors: ['Screaming'], intensity: 4, durationMinutes: 6 },
+    { timestamp: '2026-10-06T09:00:00', behaviors: ['Screaming'] },
+    { timestamp: '2026-10-07T09:00:00', behaviors: ['Screaming'], intensity: 2, durationMinutes: null }
+  ];
+  const [point] = intensityTrend(entries, ['Screaming']).series[0].points;
+  assert.equal(point.n, 3, 'all three observations count');
+  assert.equal(point.intensity, 3, 'only the two measured intensities are averaged');
+  assert.equal(point.duration, 6, 'only the one measured duration');
+  const none = intensityTrend([{ timestamp: '2026-10-05T09:00:00', behaviors: ['X'] }], ['X']).series[0].points[0];
+  assert.equal(none.intensity, null, 'no measurement is null, never zero');
+});

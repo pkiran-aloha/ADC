@@ -86,6 +86,7 @@ export default function App() {
   const [recordTargetId, setRecordTargetId] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
   const [phasePrompt, setPhasePrompt] = useState(null);
+  const [noteRecording, setNoteRecording] = useState(null);
   const [annotationEditor, setAnnotationEditor] = useState(null);
   // Drill-down requests from summary views (e.g., the progress heat map) re-open the
   // target analysis focused on a program, target and week.
@@ -359,6 +360,51 @@ export default function App() {
     if (!lesson) { notify('The lesson could not be created.', 'error'); return null; }
     saved(`Lesson “${lesson.name}” created${lesson.programIds.length ? ` with ${lesson.programIds.length} program${lesson.programIds.length === 1 ? '' : 's'}` : ''}.`);
     return lesson;
+  }
+  // Lesson notes: one dated run of a lesson. Data recorded into a note uses the same
+  // recorder and the same validation as everywhere else.
+  function createLessonNote(values) {
+    const note = apiService.createLessonNote({ ...values, clientId: selectedClientId });
+    if (!note) { notify('The lesson note could not be created.', 'error'); return null; }
+    saved(`Lesson note “${note.title}” created as a draft.`);
+    return note;
+  }
+  function updateLessonNote(note, values) {
+    const updated = apiService.updateLessonNote(note.id, values);
+    if (!updated) { notify('This lesson note can no longer be changed.', 'error'); return null; }
+    saved('Lesson note details saved.');
+    return updated;
+  }
+  function setNoteStatus(note, status) {
+    const updated = apiService.setLessonNoteStatus(note.id, status);
+    if (!updated) { notify('This lesson note can no longer change status.', 'error'); return null; }
+    saved(`Lesson note “${updated.title}” is now ${status}.`);
+    return updated;
+  }
+  function signLessonNote(note, values) {
+    const signature = apiService.signLessonNote(note.id, values);
+    if (!signature) { notify('The signature could not be added.', 'error'); return null; }
+    saved(`${signature.signedBy} signed as ${signature.role}.`);
+    return signature;
+  }
+  function recordAbcNote(note, values) {
+    const entry = apiService.recordAbcIntoLessonNote(note.id, { ...values, therapist: currentClient?.supervisingBcba || '' });
+    if (!entry) { notify('The ABC observation could not be saved.', 'error'); return null; }
+    saved('ABC observation saved in this lesson note. It is in the ABC analytics now.');
+    return entry;
+  }
+  // The recorder opens loaded with only the targets the note planned.
+  const noteRecordingPrograms = useMemo(() => noteRecording
+    ? noteRecording.programIds.map(id => programs.find(program => program.id === id)).filter(Boolean)
+      .map(program => ({ ...program, targets: program.targets.filter(target => noteRecording.targetIds.includes(target.id)) }))
+      .filter(program => program.targets.length)
+    : [], [noteRecording, programs]);
+  function saveNoteSession({ points, phases, keepOpen }) {
+    const created = apiService.recordIntoLessonNote(noteRecording.id, points);
+    if (phases.length) apiService.updateTargetPhases(phases);
+    if (keepOpen) return;
+    notify(apiService.storageError ? 'Updated for this session only. Your browser couldn’t save changes.'
+      : `Saved ${created.length} observation${created.length === 1 ? '' : 's'} into “${noteRecording.title}”.`, apiService.storageError ? 'error' : 'success');
   }
   function unarchiveProgram(program) {
     const restored = apiService.unarchiveProgram(program.id);
@@ -650,6 +696,9 @@ export default function App() {
                   onRequestStatus={requestStatusChange} onRequestPhase={requestPhaseChange} onRequestBehaviorPhase={requestBehaviorPhaseChange}
                   onUpdateAbcConfig={updateAbcConfig} onAddAbcValue={addAbcValue} onRenameAbcValue={renameAbcValue}
                   onRemoveAbcValues={removeAbcValues} onImportAbcBehaviors={importAbcBehaviors} onSaveLesson={saveLesson}
+                  lessonNotes={apiService.getLessonNotes(selectedClientId)} observations={clientSessions}
+                  onCreateNote={createLessonNote} onUpdateNote={updateLessonNote} onNoteStatus={setNoteStatus}
+                  onSignNote={signLessonNote} onRecordNote={setNoteRecording} onRecordAbcNote={recordAbcNote}
                   activity={data.activity || []} asOf={SEED_AS_OF_DATE} />
               </Suspense>
             </WorkflowPanel>}
@@ -707,6 +756,9 @@ export default function App() {
     <GraphNoteModal key={`note-${annotationEditor?.initialData?.id || annotationEditor?.target.id || 'closed'}`}
       isOpen={annotationEditor?.kind === 'note'} onClose={() => setAnnotationEditor(null)} onSave={data => saveAnnotation('note', data)}
       target={annotationEditor?.target} initialData={annotationEditor?.initialData} scopeTargets={annotationEditor?.scopeTargets} />
+    {noteRecording && noteRecordingPrograms.length > 0 && <RecordSessionModal key={noteRecording.id} isOpen onClose={() => setNoteRecording(null)}
+      programs={noteRecordingPrograms} selectedClientId={selectedClientId} sessions={clientSessions}
+      serviceSessions={serviceSessions} onSaveSession={saveNoteSession} />}
     {recordOpen && <RecordSessionModal isOpen onClose={() => setRecordOpen(false)} programs={programs} selectedClientId={selectedClientId} initialTargetId={recordTargetId}
       sessions={clientSessions} serviceSessions={serviceSessions} onSaveSession={saveSession} />}
     <Suspense fallback={null}>

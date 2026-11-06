@@ -369,3 +369,100 @@ test('lessons persist and are listed per client', () => {
   assert.equal(apiService.getLessons('cli-emma').some(lesson => lesson.name === 'Add block'), false);
   assert.ok(apiService.getActivity().some(entry => entry.kind === 'lesson.programs'));
 });
+
+// ---- Lesson notes ---------------------------------------------------------------------
+
+function noteFixture(name) {
+  const program = apiService.createProgram({ clientId: CLIENT, name: `${name} program` });
+  const target = apiService.addTarget(program.id, { name: `${name} target`, type: 'Frequency' });
+  const lesson = apiService.createLesson({ clientId: CLIENT, name: `${name} lesson`, programIds: [program.id] });
+  const note = apiService.createLessonNote({ clientId: CLIENT, lessonId: lesson.id, date: SEED_AS_OF_DATE, title: `${name} note` });
+  return { program, target, lesson, note };
+}
+
+test('a lesson note plans the targets of its lesson and starts as a draft', () => {
+  const { program, target, note } = noteFixture('Plan');
+  assert.equal(note.status, 'Draft');
+  assert.deepEqual(note.programIds, [program.id]);
+  assert.deepEqual(note.targetIds, [target.id]);
+  assert.deepEqual(note.signatures, []);
+  assert.equal(apiService.createLessonNote({ clientId: CLIENT, lessonId: 'nope', date: SEED_AS_OF_DATE, title: 'x' }), null, 'an unknown lesson');
+  assert.equal(apiService.createLessonNote({ clientId: CLIENT, lessonId: note.lessonId, date: 'not-a-date', title: 'x' }), null, 'an invalid date');
+  assert.equal(apiService.createLessonNote({ clientId: CLIENT, lessonId: note.lessonId, date: SEED_AS_OF_DATE, title: '  ' }), null, 'no title');
+  assert.equal(apiService.createLessonNote({ clientId: 'cli-emma', lessonId: note.lessonId, date: SEED_AS_OF_DATE, title: 'x' }), null, 'another client lesson');
+});
+
+test('an archived program is not planned into a new lesson note', () => {
+  const { program, lesson } = noteFixture('Archived plan');
+  apiService.archiveProgram(program.id, { asOf: SEED_AS_OF_DATE });
+  const note = apiService.createLessonNote({ clientId: CLIENT, lessonId: lesson.id, date: SEED_AS_OF_DATE, title: 'After archive' });
+  assert.deepEqual(note.targetIds, []);
+});
+
+test('a lesson note can be edited until it is approved, and never afterwards', () => {
+  const { note } = noteFixture('Gate');
+  assert.equal(apiService.updateLessonNote(note.id, { title: 'Renamed draft' }).title, 'Renamed draft', 'a draft is editable');
+  assert.equal(apiService.setLessonNoteStatus(note.id, 'Unapproved').status, 'Unapproved');
+  assert.equal(apiService.updateLessonNote(note.id, { title: 'Renamed again' }).title, 'Renamed again', 'unapproved is editable');
+  apiService.signLessonNote(note.id, { signedBy: 'Sarah Jenkins, BCBA', role: 'Approver' });
+  assert.equal(apiService.setLessonNoteStatus(note.id, 'Approved').status, 'Approved');
+  // Approved is final.
+  assert.equal(apiService.updateLessonNote(note.id, { title: 'Too late' }), null);
+  assert.equal(apiService.setLessonNoteStatus(note.id, 'Draft'), null);
+  assert.equal(apiService.signLessonNote(note.id, { signedBy: 'Late Signer', role: 'Staff' }), null);
+  assert.equal(apiService.getLessonNotes(CLIENT).find(item => item.id === note.id).title, 'Renamed again');
+  assert.equal(apiService.setLessonNoteStatus(noteFixture('Same').note.id, 'Draft'), null, 'the same status is not a change');
+  assert.equal(apiService.setLessonNoteStatus(noteFixture('Bad').note.id, 'Nonsense'), null);
+});
+
+test('a lesson note is signed with a role and a date', () => {
+  const { note } = noteFixture('Sign');
+  const signature = apiService.signLessonNote(note.id, { signedBy: '  Joe Ronald, RBT ', role: 'Staff' });
+  assert.deepEqual(signature, { signedBy: 'Joe Ronald, RBT', role: 'Staff', signedOn: SEED_AS_OF_DATE });
+  apiService.signLessonNote(note.id, { signedBy: 'A Caregiver', role: 'Caregiver' });
+  assert.equal(apiService.getLessonNotes(CLIENT).find(item => item.id === note.id).signatures.length, 2);
+  assert.equal(apiService.signLessonNote(note.id, { signedBy: '', role: 'Staff' }), null, 'a name is required');
+  assert.equal(apiService.signLessonNote(note.id, { signedBy: 'X', role: 'Visitor' }), null, 'a known role is required');
+});
+
+test('data recorded into a lesson note belongs to it, for planned targets only', () => {
+  const { target, note } = noteFixture('Record');
+  const other = apiService.addTarget(apiService.createProgram({ clientId: CLIENT, name: 'Unplanned program' }).id, { name: 'Unplanned', type: 'Frequency' });
+  const created = apiService.recordIntoLessonNote(note.id, [
+    { targetId: target.id, occurrenceCount: 4, lessonDurationMinutes: 10, timestamp: `${SEED_AS_OF_DATE} 09:00` },
+    { targetId: other.id, occurrenceCount: 9, lessonDurationMinutes: 10, timestamp: `${SEED_AS_OF_DATE} 09:00` }
+  ]);
+  assert.equal(created.length, 1, 'the unplanned target is refused');
+  assert.equal(created[0].lessonNoteId, note.id);
+  assert.equal(created[0].clientId, CLIENT);
+  assert.ok(apiService.getSnapshot().sessions.some(row => row.id === created[0].id), 'it is in the data every analytic reads');
+  // Approved notes take no more data.
+  apiService.setLessonNoteStatus(note.id, 'Approved');
+  assert.deepEqual(apiService.recordIntoLessonNote(note.id, [{ targetId: target.id, occurrenceCount: 1, lessonDurationMinutes: 5 }]), []);
+});
+
+test('observations that predate lesson notes stay valid and belong to none', () => {
+  const rows = apiService.getSnapshot().sessions.filter(row => seed.sessionData.some(item => item.id === row.id));
+  assert.ok(rows.length > 3000);
+  assert.ok(rows.every(row => row.lessonNoteId === undefined));
+});
+
+test('an ABC observation can be recorded into a lesson note, and needs at least one part', () => {
+  const { note } = noteFixture('Abc');
+  assert.equal(apiService.recordAbcIntoLessonNote(note.id, {}), null, 'nothing chosen');
+  const entry = apiService.recordAbcIntoLessonNote(note.id, { antecedents: ['Tabletop demand'], behaviors: ['Screaming'], location: 'Hallway', notes: 'Brief.' });
+  assert.equal(entry.lessonNoteId, note.id);
+  assert.equal(entry.clientId, CLIENT);
+  assert.equal(entry.intensity, undefined, 'intensity is unrecorded, not zero');
+  assert.equal(entry.durationMinutes, undefined);
+  assert.ok(apiService.getSnapshot().abcEntries.some(item => item.id === entry.id));
+  apiService.setLessonNoteStatus(note.id, 'Approved');
+  assert.equal(apiService.recordAbcIntoLessonNote(note.id, { behaviors: ['Screaming'] }), null, 'approved takes no more');
+});
+
+test('lesson notes persist and are listed per client', () => {
+  const { note } = noteFixture('Persist');
+  assert.ok(JSON.parse(localStorage.getItem('welina_lesson_notes')).some(item => item.id === note.id));
+  assert.equal(apiService.getLessonNotes('cli-emma').some(item => item.id === note.id), false);
+  assert.ok(apiService.getActivity(note.id).some(entry => entry.kind === 'note.created'));
+});

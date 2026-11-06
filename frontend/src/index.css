@@ -2040,3 +2040,6 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 .lessons-panel h3 { margin: 0; font-size: 0.9375rem; }
 .lessons-panel ul { margin: 0.4rem 0 0; padding-left: 1.1rem; font-size: 0.8125rem; color: var(--color-slate-700); }
 .lesson-dialog-programs { margin: 0; padding-left: 1.1rem; font-size: 0.8125rem; }
+.status-pill--draft { background: var(--color-slate-100); color: var(--color-slate-700); }
+.status-pill--unapproved { background: var(--color-amber-100); color: var(--color-amber-800); }
+.status-pill--approved { background: var(--color-brand-100); color: var(--color-brand-900); }

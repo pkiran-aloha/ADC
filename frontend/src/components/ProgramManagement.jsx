@@ -7,6 +7,7 @@ import ProgramFormModal from './Modals/ProgramFormModal';
 import ProgramView from './ProgramView';
 import LessonDialog from './Modals/LessonDialog';
 import AbcConfiguration from './AbcConfiguration';
+import LessonNotes from './LessonNotes';
 import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
 import Popover from './ui/Popover';
@@ -20,14 +21,16 @@ import {
 const TABS = [
   { id: 'skill', label: 'Skill acquisition', category: PROGRAM_CATEGORIES.SKILL, icon: Target },
   { id: 'behavior', label: 'Behavior reduction', category: PROGRAM_CATEGORIES.BEHAVIOR, icon: Layers },
-  { id: 'abc', label: 'ABC data recording', category: null, icon: Notebook }
+  { id: 'abc', label: 'ABC data recording', category: null, icon: Notebook },
+  { id: 'notes', label: 'Lesson notes', category: null, icon: Notebook }
 ];
 
 export default function ProgramManagement({
   client, programs = [], lessons = [], abcConfiguration = null, abcEntries = [],
   canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram,
   onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram, onAddTarget, onUpdateTarget, onDeleteTargets, onRequestStatus, onRequestPhase, onRequestBehaviorPhase, activity = [], asOf,
-  onUpdateAbcConfig, onAddAbcValue, onRenameAbcValue, onRemoveAbcValues, onImportAbcBehaviors, onSaveLesson
+  onUpdateAbcConfig, onAddAbcValue, onRenameAbcValue, onRemoveAbcValues, onImportAbcBehaviors, onSaveLesson,
+  lessonNotes = [], observations = [], onCreateNote, onUpdateNote, onNoteStatus, onSignNote, onRecordNote, onRecordAbcNote
 }) {
   const [tab, setTab] = useState('skill');
   const [formOpen, setFormOpen] = useState(false);
@@ -41,9 +44,10 @@ export default function ProgramManagement({
   const counts = useMemo(() => ({
     skill: countByCategory(programs, PROGRAM_CATEGORIES.SKILL),
     behavior: countByCategory(programs, PROGRAM_CATEGORIES.BEHAVIOR),
+    notes: lessonNotes.length,
     abc: (abcConfiguration?.antecedents?.length || 0) + (abcConfiguration?.behaviors?.length || 0)
       + (abcConfiguration?.consequences?.length || 0) + (abcConfiguration?.locations?.length || 0)
-  }), [programs, abcConfiguration]);
+  }), [programs, abcConfiguration, lessonNotes.length]);
 
   const lessonNames = useMemo(() => {
     const names = new Map();
@@ -128,7 +132,12 @@ export default function ProgramManagement({
         </div>
 
         <div role="tabpanel" id={`programs-panel-${activeTab.id}`} aria-labelledby={`programs-tab-${activeTab.id}`}>
-          {activeTab.id === 'abc'
+          {activeTab.id === 'notes'
+            ? <LessonNotes notes={lessonNotes} lessons={lessons} programs={programs} observations={observations}
+              abcEntries={abcEntries} abcConfiguration={abcConfiguration} canEdit={canEdit} asOf={asOf}
+              onCreate={onCreateNote} onUpdate={onUpdateNote} onStatus={onNoteStatus} onSign={onSignNote}
+              onRecord={onRecordNote} onRecordAbc={onRecordAbcNote} />
+            : activeTab.id === 'abc'
             ? <AbcConfiguration key={client?.id} configuration={abcConfiguration} entries={abcEntries} canEdit={canEdit}
               behaviorNames={programs.filter(program => program.category === PROGRAM_CATEGORIES.BEHAVIOR && !program.archivedAt).map(program => program.name)}
               onUpdateConfig={onUpdateAbcConfig} onAddValue={onAddAbcValue} onRenameValue={onRenameAbcValue}
