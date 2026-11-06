@@ -1710,8 +1710,8 @@ test('a program can be defined in Program Management and joins the listing', asy
   await expect(dialog.getByText('Describe how the program is taught.')).toBeVisible();
 
   // A treatment area added with Enter becomes a removable value.
-  await dialog.getByLabel('Treatment area').fill('Communication');
-  await dialog.getByLabel('Treatment area').press('Enter');
+  await dialog.getByRole('textbox', { name: 'Treatment area' }).fill('Communication');
+  await dialog.getByRole('textbox', { name: 'Treatment area' }).press('Enter');
   await expect(dialog.getByRole('button', { name: 'Remove Communication' })).toBeVisible();
 
   // A complete program saves and joins the listing.
