@@ -218,7 +218,8 @@ export const ABC_LISTS = [
 export function usageCount(entries = [], listKey, value) {
   const wanted = String(value || '');
   return entries.filter(entry => {
-    const values = listKey === 'location' ? [entry.location] : entry[listKey];
+    // An observation holds one location, under the singular key.
+    const values = listKey === 'location' || listKey === 'locations' ? [entry.location] : entry[listKey];
     return Array.isArray(values) && values.includes(wanted);
   }).length;
 }

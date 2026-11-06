@@ -319,6 +319,34 @@ export default function App() {
     saved(removed.length === 1 ? `Target “${removed[0].name}” deleted.` : `${removed.length} targets deleted.`);
     return removed;
   }
+  // The ABC vocabulary is edited here, for the client being worked with.
+  function updateAbcConfig(values) {
+    const config = apiService.updateAbcConfig(selectedClientId, values);
+    saved(config ? 'ABC treatment area and teaching instructions saved.' : 'The ABC configuration could not be saved.');
+    return config;
+  }
+  function addAbcValue(listKey, value) {
+    const added = apiService.addAbcValue(selectedClientId, listKey, value);
+    if (added === null) { notify('That value is empty or already in the list.', 'error'); return null; }
+    saved(`“${added}” added.`);
+    return added;
+  }
+  function renameAbcValue(listKey, from, to) {
+    const renamed = apiService.renameAbcValue(selectedClientId, listKey, from, to);
+    if (renamed === null) { notify('That name is empty or already in the list.', 'error'); return null; }
+    saved(`Renamed to “${renamed}”. Recorded observations keep the text they were saved with.`);
+    return renamed;
+  }
+  function removeAbcValues(listKey, values) {
+    const removed = apiService.removeAbcValues(selectedClientId, listKey, values);
+    if (removed.length) saved(`${removed.length === 1 ? `“${removed[0]}” deleted` : `${removed.length} values deleted`}. Recorded observations are unchanged.`);
+    return removed;
+  }
+  function importAbcBehaviors(names) {
+    const added = apiService.importAbcBehaviors(selectedClientId, names);
+    saved(added.length ? `${added.length} behavior${added.length === 1 ? '' : 's'} added to the ABC list.` : 'Nothing new to import.');
+    return added;
+  }
   function unarchiveProgram(program) {
     const restored = apiService.unarchiveProgram(program.id);
     if (!restored) { notify('The program could not be restored.', 'error'); return null; }
@@ -607,6 +635,8 @@ export default function App() {
                   onUnarchiveProgram={unarchiveProgram}
                   onAddTarget={addTargets} onUpdateTarget={updateTarget} onDeleteTargets={deleteTargets}
                   onRequestStatus={requestStatusChange} onRequestPhase={requestPhaseChange} onRequestBehaviorPhase={requestBehaviorPhaseChange}
+                  onUpdateAbcConfig={updateAbcConfig} onAddAbcValue={addAbcValue} onRenameAbcValue={renameAbcValue}
+                  onRemoveAbcValues={removeAbcValues} onImportAbcBehaviors={importAbcBehaviors}
                   activity={data.activity || []} asOf={SEED_AS_OF_DATE} />
               </Suspense>
             </WorkflowPanel>}

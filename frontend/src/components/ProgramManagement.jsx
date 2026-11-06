@@ -5,6 +5,7 @@ import {
 } from '../utils/programManagement';
 import ProgramFormModal from './Modals/ProgramFormModal';
 import ProgramView from './ProgramView';
+import AbcConfiguration from './AbcConfiguration';
 import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
 import Popover from './ui/Popover';
@@ -24,7 +25,8 @@ const TABS = [
 export default function ProgramManagement({
   client, programs = [], lessons = [], abcConfiguration = null, abcEntries = [],
   canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram,
-  onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram, onAddTarget, onUpdateTarget, onDeleteTargets, onRequestStatus, onRequestPhase, onRequestBehaviorPhase, activity = [], asOf
+  onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram, onAddTarget, onUpdateTarget, onDeleteTargets, onRequestStatus, onRequestPhase, onRequestBehaviorPhase, activity = [], asOf,
+  onUpdateAbcConfig, onAddAbcValue, onRenameAbcValue, onRemoveAbcValues, onImportAbcBehaviors
 }) {
   const [tab, setTab] = useState('skill');
   const [formOpen, setFormOpen] = useState(false);
@@ -125,7 +127,10 @@ export default function ProgramManagement({
 
         <div role="tabpanel" id={`programs-panel-${activeTab.id}`} aria-labelledby={`programs-tab-${activeTab.id}`}>
           {activeTab.id === 'abc'
-            ? <AbcConfigurationPanel configuration={abcConfiguration} entries={abcEntries} />
+            ? <AbcConfiguration key={client?.id} configuration={abcConfiguration} entries={abcEntries} canEdit={canEdit}
+              behaviorNames={programs.filter(program => program.category === PROGRAM_CATEGORIES.BEHAVIOR && !program.archivedAt).map(program => program.name)}
+              onUpdateConfig={onUpdateAbcConfig} onAddValue={onAddAbcValue} onRenameValue={onRenameAbcValue}
+              onRemoveValues={onRemoveAbcValues} onImportBehaviors={onImportAbcBehaviors} />
             : <ProgramListing category={activeTab.category} programs={programs} lessonNames={lessonNames}
               canEdit={canEdit} viewOnlyReason={viewOnlyReason} onCreate={openCreate} onOpen={program => setViewing({ id: program.id, adding: false })}
               onEdit={openEdit} onDuplicate={askDuplicate} onArchive={askArchive} onUnarchive={onUnarchive} onRequestStatus={onRequestStatus} onRequestBehaviorPhase={onRequestBehaviorPhase} />}
@@ -277,31 +282,6 @@ function ProgramRowActions({ program, showArchived, onEdit, onDuplicate, onArchi
         </button>}
     </>}
   </Popover>;
-}
-
-// The ABC vocabulary, for now read-only: the configuration screen arrives with
-// the rest of the module's editing work.
-function AbcConfigurationPanel({ configuration, entries }) {
-  const lists = [
-    { key: 'antecedents', label: 'Antecedent' },
-    { key: 'behaviors', label: 'Behavior' },
-    { key: 'consequences', label: 'Consequence' },
-    { key: 'locations', label: 'Location' }
-  ];
-  if (!configuration) return <EmptyState title="No ABC configuration." icon={Notebook}
-    description="This client has no ABC vocabulary configured." />;
-  return <>
-    <div className="programs-listing-header">
-      <p className="programs-listing-count">{entries.length} recorded ABC observations</p>
-    </div>
-    {configuration.teachingInstructions && <p className="programs-abc-instructions">{configuration.teachingInstructions}</p>}
-    <div className="programs-abc-lists">
-      {lists.map(list => <div key={list.key} className="programs-abc-list">
-        <h3>{list.label}</h3>
-        <ul>{(configuration[list.key] || []).map(value => <li key={value}>{value}</li>)}</ul>
-      </div>)}
-    </div>
-  </>;
 }
 
 export { TABS as PROGRAM_TABS };

@@ -293,3 +293,50 @@ test('a duplicated behavior begins again, open and unmeasured', () => {
   assert.equal(copy.targets[0].type, 'Frequency');
   assert.equal(apiService.findProgram(behavior.id).behaviorPhase, 'Completed');
 });
+
+// ---- ABC configuration ----------------------------------------------------------------
+
+test('ABC treatment area and teaching instructions can be edited and persist', () => {
+  apiService.updateAbcConfig(CLIENT, { treatmentArea: 'Communication', teachingInstructions: 'Record only what you saw.' });
+  const config = apiService.getAbcConfiguration(CLIENT);
+  assert.equal(config.treatmentArea, 'Communication');
+  assert.equal(config.teachingInstructions, 'Record only what you saw.');
+  const stored = JSON.parse(localStorage.getItem('welina_abc_configurations'));
+  assert.equal(stored.find(item => item.clientId === CLIENT).treatmentArea, 'Communication', 'written to the browser');
+  assert.equal(apiService.updateAbcConfig('nobody', { treatmentArea: 'x' }), null);
+});
+
+test('ABC values can be added, edited and removed, with no duplicates', () => {
+  assert.equal(apiService.addAbcValue(CLIENT, 'antecedents', '  Loud bell  '), 'Loud bell');
+  assert.equal(apiService.addAbcValue(CLIENT, 'antecedents', 'loud BELL'), null, 'a case-insensitive duplicate is refused');
+  assert.equal(apiService.addAbcValue(CLIENT, 'antecedents', '   '), null);
+  assert.equal(apiService.addAbcValue(CLIENT, 'nonsense', 'x'), null);
+  assert.equal(apiService.renameAbcValue(CLIENT, 'antecedents', 'Loud bell', 'Fire drill bell'), 'Fire drill bell');
+  assert.ok(apiService.getAbcConfiguration(CLIENT).antecedents.includes('Fire drill bell'));
+  assert.ok(!apiService.getAbcConfiguration(CLIENT).antecedents.includes('Loud bell'));
+  assert.equal(apiService.renameAbcValue(CLIENT, 'antecedents', 'Fire drill bell', 'Tabletop demand'), null, 'a rename cannot collide with another value');
+  assert.deepEqual(apiService.removeAbcValues(CLIENT, 'antecedents', ['Fire drill bell', 'never there']), ['Fire drill bell']);
+  assert.ok(!apiService.getAbcConfiguration(CLIENT).antecedents.includes('Fire drill bell'));
+});
+
+test('removing an ABC value never rewrites the observations that used it', () => {
+  const entry = seed.abcEntries.find(item => item.clientId === CLIENT);
+  const value = entry.antecedents[0];
+  const before = JSON.stringify(apiService.getSnapshot().abcEntries.filter(item => item.clientId === CLIENT));
+  apiService.removeAbcValues(CLIENT, 'antecedents', [value]);
+  assert.ok(!apiService.getAbcConfiguration(CLIENT).antecedents.includes(value));
+  assert.equal(JSON.stringify(apiService.getSnapshot().abcEntries.filter(item => item.clientId === CLIENT)), before, 'the recorded text is untouched');
+});
+
+test('behaviors can be imported into the ABC list without duplicating what is there', () => {
+  const existing = apiService.getAbcConfiguration(CLIENT).behaviors[0];
+  const added = apiService.importAbcBehaviors(CLIENT, ['Throwing', existing.toUpperCase(), 'Throwing', '  ']);
+  assert.deepEqual(added, ['Throwing']);
+  assert.equal(apiService.getAbcConfiguration(CLIENT).behaviors.filter(item => item === 'Throwing').length, 1);
+  assert.deepEqual(apiService.importAbcBehaviors(CLIENT, ['Throwing']), []);
+});
+
+test('ABC changes are written to the activity log', () => {
+  assert.ok(apiService.getActivity(CLIENT).some(entry => entry.kind === 'abc.value.added'));
+  assert.ok(apiService.getActivity(CLIENT).some(entry => entry.kind === 'abc.value.removed'));
+});

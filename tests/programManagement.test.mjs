@@ -360,3 +360,9 @@ test('a behavior without a stored phase reads from its target, and open when the
   assert.equal(behaviorPhaseOf({ targets: [{ phase: 'Baseline' }] }), 'Open');
   assert.equal(behaviorPhaseOf({ targets: [] }), 'Open');
 });
+
+test('the location list counts observations through their single location', () => {
+  const entries = [{ location: 'Hallway' }, { location: 'Hallway' }, { location: 'Table' }];
+  assert.equal(usageCount(entries, 'locations', 'Hallway'), 2);
+  assert.equal(usageCount(entries, 'location', 'Table'), 1);
+});

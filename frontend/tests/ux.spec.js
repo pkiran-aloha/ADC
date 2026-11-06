@@ -1936,3 +1936,69 @@ test('a behavior is defined with its operational definition and a locked measure
   await expect(view.getByLabel('Behavior phase')).toHaveValue('Maintenance');
   await accessible(page);
 });
+
+test('the ABC vocabulary can be edited, warns before removing a used value, and imports behaviors', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = page.locator('#programs');
+  await listing.getByRole('tab', { name: /ABC data recording/ }).click();
+  const antecedents = listing.getByRole('region', { name: 'Antecedent values' });
+  const behaviors = listing.getByRole('region', { name: 'Behavior values' });
+
+  // Add a value, and a duplicate is refused.
+  await antecedents.getByLabel('Add antecedent value').fill('Fire drill bell');
+  await antecedents.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(antecedents.getByText('Fire drill bell', { exact: true })).toBeVisible();
+
+  // Edit it.
+  await antecedents.getByRole('button', { name: 'Edit Fire drill bell' }).click();
+  await antecedents.getByLabel('Rename Fire drill bell').fill('Fire alarm');
+  await antecedents.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(antecedents.getByText('Fire alarm', { exact: true })).toBeVisible();
+
+  // The edit survives a reload.
+  await page.reload();
+  await activate(page, 'Programs');
+  await listing.getByRole('tab', { name: /ABC data recording/ }).click();
+  await expect(antecedents.getByText('Fire alarm', { exact: true })).toBeVisible();
+
+  // Removing a value that observations use warns how many, and names it.
+  const used = seed.abcEntries.find(entry => entry.clientId === client.id).antecedents[0];
+  await antecedents.getByLabel(`Select ${used}`).check({ force: true });
+  await antecedents.getByRole('button', { name: /Delete selected/ }).click();
+  const confirm = page.locator('dialog').filter({ hasText: 'Are you sure you want to delete' });
+  await expect(confirm).toContainText(used);
+  await expect(confirm).toContainText(/recorded observations? uses?|recorded observations? use/);
+  await expect(confirm).toContainText('keep the text they were recorded with');
+  await confirm.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(antecedents.getByText(used, { exact: true })).toBeVisible();
+
+  // A value no observation uses says so.
+  await antecedents.getByLabel('Select Fire alarm').check({ force: true });
+  await antecedents.getByRole('button', { name: /Delete selected/ }).click();
+  await expect(confirm).toContainText('No recorded observation uses this value.');
+  await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(antecedents.getByText('Fire alarm', { exact: true })).toHaveCount(0);
+
+  // Every behavior already defined is in this client's list, so a new one is the only
+  // thing there is to import.
+  await listing.getByRole('tab', { name: /Behavior reduction/ }).click();
+  await listing.getByRole('button', { name: 'New behavior' }).click();
+  const dialog = page.locator('dialog');
+  await dialog.getByLabel('Program name').fill('Hair pulling');
+  await dialog.getByLabel('Operational definition').fill('Grasping hair and pulling until it moves the head.');
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await page.locator('.programs-prompt').getByRole('button', { name: 'Maybe later' }).click();
+
+  await listing.getByRole('tab', { name: /ABC data recording/ }).click();
+  const before = await behaviors.locator('.abc-value').count();
+  await behaviors.getByRole('button', { name: 'Import' }).click();
+  await expect(dialog.getByRole('checkbox')).toHaveCount(2);
+  await expect(dialog.getByText('Vocal Disruption / Screaming')).toHaveCount(0);
+  await dialog.getByRole('checkbox').nth(1).check();
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(behaviors.locator('.abc-value')).toHaveCount(before + 1);
+  await expect(behaviors.getByText('Hair pulling', { exact: true })).toBeVisible();
+  await accessible(page);
+});

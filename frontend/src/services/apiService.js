@@ -18,6 +18,7 @@ import {
   BEHAVIOR_PHASES, BEHAVIOR_TOOLS, CASCADING_STATUSES, PHASE_LABELS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS, TARGET_PHASES, toValueList
 } from '../utils/programManagement.js';
 
+const ABC_LIST_KEYS = ['antecedents', 'behaviors', 'consequences', 'locations'];
 const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
 
 // First date a target entered a mastered phase; falls back to the current phase for
@@ -40,6 +41,7 @@ const STORAGE_KEYS = {
   DELETION_AUDIT: 'welina_deletion_audit',
   ACTIVITY: 'welina_activity',
   LESSONS: 'welina_lessons',
+  ABC_CONFIGS: 'welina_abc_configurations',
   SEED_VERSION: 'welina_seed_version'
 };
 
@@ -87,7 +89,8 @@ class AnalyticsService {
     // Lessons group programs for delivery. The collection is empty until a
     // clinician builds one, so a fresh workspace reads as "not in a lesson".
     this.lessons = getStored(STORAGE_KEYS.LESSONS, []);
-    this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
+    // The ABC vocabulary is editable configuration, one record per client.
+    this.abcConfigurations = getStored(STORAGE_KEYS.ABC_CONFIGS, null) || cloneSeed(INITIAL_ABC_CONFIGURATIONS);
     this.serviceSessions = SERVICE_SESSIONS;
     this.staff = STAFF;
     this.standards = CLINICAL_STANDARDS;
@@ -109,6 +112,7 @@ class AnalyticsService {
       graphNotes: [...this.graphNotes], serviceSessions: SERVICE_SESSIONS, deletedRecords: [...this.deletedRecords],
       activity: [...(this.activity || [])],
       lessons: [...(this.lessons || [])],
+      abcConfigurations: [...(this.abcConfigurations || [])],
       storageError: Boolean(this.storageError)
     };
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
@@ -130,6 +134,7 @@ class AnalyticsService {
       [STORAGE_KEYS.DELETION_AUDIT]: this.deletedRecords,
       [STORAGE_KEYS.ACTIVITY]: this.activity || [],
       [STORAGE_KEYS.LESSONS]: this.lessons || [],
+      [STORAGE_KEYS.ABC_CONFIGS]: this.abcConfigurations,
       [STORAGE_KEYS.SEED_VERSION]: SEED_VERSION
     };
     this.failedKeys = this.failedKeys || new Set();
@@ -157,7 +162,7 @@ class AnalyticsService {
     this.deletedRecords = [];
     this.activity = [];
     this.lessons = [];
-    this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
+    this.abcConfigurations = cloneSeed(INITIAL_ABC_CONFIGURATIONS);
     this.saveAll();
   }
 
@@ -266,6 +271,73 @@ class AnalyticsService {
   // Section C: ABC Data
   getAbcConfiguration(clientId) {
     return this.abcConfigurations.find(config => config.clientId === clientId) || null;
+  }
+
+  // ---- ABC vocabulary ---------------------------------------------------------------
+  // The four lists are plain strings. An observation keeps the text it was recorded with,
+  // so editing or removing a value never rewrites the record; the warning before a removal
+  // says how many observations use the value.
+  updateAbcConfig(clientId, { treatmentArea, teachingInstructions } = {}) {
+    const config = this.getAbcConfiguration(clientId);
+    if (!config) return null;
+    if (treatmentArea !== undefined) config.treatmentArea = treatmentArea;
+    if (teachingInstructions !== undefined) config.teachingInstructions = teachingInstructions;
+    this.recordActivity('abc.config', 'abc', clientId, 'Updated the ABC treatment area and teaching instructions.');
+    this.saveAll([STORAGE_KEYS.ABC_CONFIGS, STORAGE_KEYS.ACTIVITY]);
+    return config;
+  }
+
+  addAbcValue(clientId, listKey, value) {
+    const config = this.getAbcConfiguration(clientId);
+    const text = String(value || '').trim();
+    if (!config || !ABC_LIST_KEYS.includes(listKey) || !text) return null;
+    if ((config[listKey] || []).some(item => item.toLowerCase() === text.toLowerCase())) return null;
+    config[listKey] = [...(config[listKey] || []), text];
+    this.recordActivity('abc.value.added', 'abc', clientId, `Added “${text}” to ${listKey}.`);
+    this.saveAll([STORAGE_KEYS.ABC_CONFIGS, STORAGE_KEYS.ACTIVITY]);
+    return text;
+  }
+
+  renameAbcValue(clientId, listKey, from, to) {
+    const config = this.getAbcConfiguration(clientId);
+    const text = String(to || '').trim();
+    if (!config || !ABC_LIST_KEYS.includes(listKey) || !text || !(config[listKey] || []).includes(from)) return null;
+    if (text !== from && config[listKey].some(item => item.toLowerCase() === text.toLowerCase())) return null;
+    config[listKey] = config[listKey].map(item => (item === from ? text : item));
+    this.recordActivity('abc.value.renamed', 'abc', clientId, `Renamed “${from}” to “${text}” in ${listKey}.`);
+    this.saveAll([STORAGE_KEYS.ABC_CONFIGS, STORAGE_KEYS.ACTIVITY]);
+    return text;
+  }
+
+  removeAbcValues(clientId, listKey, values = []) {
+    const config = this.getAbcConfiguration(clientId);
+    if (!config || !ABC_LIST_KEYS.includes(listKey)) return [];
+    const wanted = new Set(values);
+    const removed = (config[listKey] || []).filter(item => wanted.has(item));
+    if (!removed.length) return [];
+    config[listKey] = config[listKey].filter(item => !wanted.has(item));
+    this.recordActivity('abc.value.removed', 'abc', clientId, `Removed ${removed.map(item => `“${item}”`).join(', ')} from ${listKey}.`);
+    this.saveAll([STORAGE_KEYS.ABC_CONFIGS, STORAGE_KEYS.ACTIVITY]);
+    return removed;
+  }
+
+  // Behaviors already defined under Behavior Reduction can join the ABC behavior list, so
+  // one vocabulary serves both. Names already in the list are skipped.
+  importAbcBehaviors(clientId, names = []) {
+    const config = this.getAbcConfiguration(clientId);
+    if (!config) return [];
+    const have = new Set((config.behaviors || []).map(item => item.toLowerCase()));
+    const added = [];
+    names.map(name => String(name || '').trim()).filter(Boolean).forEach(name => {
+      if (have.has(name.toLowerCase())) return;
+      have.add(name.toLowerCase());
+      added.push(name);
+    });
+    if (!added.length) return [];
+    config.behaviors = [...(config.behaviors || []), ...added];
+    this.recordActivity('abc.behaviors.imported', 'abc', clientId, `Imported ${added.length} behavior${added.length === 1 ? '' : 's'} into the ABC list.`);
+    this.saveAll([STORAGE_KEYS.ABC_CONFIGS, STORAGE_KEYS.ACTIVITY]);
+    return added;
   }
 
   getAbcData(clientId, durationFilter = 'Past 1 Month') {
