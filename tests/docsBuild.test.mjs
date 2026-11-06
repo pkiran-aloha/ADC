@@ -8,7 +8,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const wiki = readFileSync(join(repoRoot, 'docs', 'wiki', 'Home.md'), 'utf8').replace(/\r\n/g, '\n');
 const tech = readFileSync(join(repoRoot, 'TECH_STACK.md'), 'utf8').replace(/\r\n/g, '\n');
-const generated = readFileSync(join(repoRoot, 'frontend', 'src', 'data', 'docs', 'wikiPages.js'), 'utf8');
+const generated = readFileSync(join(repoRoot, 'frontend', 'src', 'data', 'docs', 'wikiPages.js'), 'utf8').replace(/\r\n/g, '\n');
 
 const slugify = text =>
   String(text)

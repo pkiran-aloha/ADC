@@ -111,7 +111,9 @@ Things a later change must not get wrong: a behavior is a program with one targe
 
 ## Work started (not yet landed)
 
-Nothing is pending. The Program Management branch (`feat/program-management-spec`) was merged into `main` with `--no-ff` after the gate passed (247 of 247 node tests, oxlint with no warnings, docs check, smoke, build, 172 of 172 Playwright scenarios), and `main` was then synced to GHE with the `-s ours` route in `Claude outputs/SYNC_ADC_TO_GHE.md` on 6 November 2026.
+UI audit pass (6 November 2026, from `/impeccable audit`, 15 of 20): side-stripe borders replaced with full borders and tints, the 11px text floor raised to 12px, the one `width` transition removed, and CSS `#fff` and translucent whites moved onto `--surface` and `--on-accent` tokens. Dark mode is the next pass (`feat/dark-mode`). The docs test and `docs:check` now ignore CRLF, which a Windows checkout adds to the generated module.
+
+Nothing else is pending. The Program Management branch (`feat/program-management-spec`) was merged into `main` with `--no-ff` after the gate passed (247 of 247 node tests, oxlint with no warnings, docs check, smoke, build, 172 of 172 Playwright scenarios), and `main` was then synced to GHE with the `-s ours` route in `Claude outputs/SYNC_ADC_TO_GHE.md` on 6 November 2026.
 
 When a pass is half-finished, record it here before ending the session: branch, what is done, what is next. Do not leave a pass unrecorded.
 
