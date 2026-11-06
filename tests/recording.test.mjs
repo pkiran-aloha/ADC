@@ -123,3 +123,13 @@ test('"next session" moves to the client’s next appointment when it is known',
   assert.equal(nextSessionTimestamp('2026-10-14T13:30', []), '2026-10-15T13:30');
   assert.equal(nextSessionTimestamp('2026-10-14T09:00', [{ date: '2026-10-01' }]), '2026-10-15T09:00');
 });
+
+test('a recorded phase change plots a line unless the clinician declines it', () => {
+  const session = { timestamp: '2026-10-14T09:00' };
+  const target = { id: 'tgt-x' };
+  assert.equal(phaseChangeFor({ phaseChange: 'Maintenance' }, target, session).addPhaseLine, true, 'plotted by default');
+  assert.equal(phaseChangeFor({ phaseChange: 'Maintenance', plotPhaseLine: true }, target, session).addPhaseLine, true);
+  assert.equal(phaseChangeFor({ phaseChange: 'Maintenance', plotPhaseLine: false }, target, session).addPhaseLine, false, 'declined');
+  // The phase still changes when the line is declined.
+  assert.equal(phaseChangeFor({ phaseChange: 'Maintenance', plotPhaseLine: false }, target, session).newPhase, 'Maintenance');
+});

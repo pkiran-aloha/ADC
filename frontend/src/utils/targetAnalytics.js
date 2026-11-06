@@ -200,6 +200,7 @@ export function unitLabel(view) {
 
 const MILESTONE_LABELS = {
   Baseline: { kind: 'Baseline', label: 'Baseline started' },
+  Open: { kind: 'Open', label: 'Behavior opened' },
   Acquisition: { kind: 'Introduced', label: 'Teaching introduced' },
   Maintenance: { kind: 'Mastered', label: 'Moved to maintenance' },
   Generalization: { kind: 'Generalized', label: 'Generalization phase' },
@@ -230,7 +231,7 @@ export function milestoneOn(target, predicate) {
 }
 
 export function introducedOn(target) {
-  return milestoneOn(target, milestone => ['Baseline', 'Introduced', 'Pending'].includes(milestone.kind))?.date || null;
+  return milestoneOn(target, milestone => ['Baseline', 'Open', 'Introduced', 'Pending'].includes(milestone.kind))?.date || null;
 }
 
 export function masteredOn(target) {

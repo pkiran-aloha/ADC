@@ -11,6 +11,8 @@ import Dialog from './components/ui/Dialog';
 import { AnalyticsSkeleton } from './components/ui/EmptyState';
 import { useFeedback } from './utils/useFeedback';
 import { readAccessLevel, writeAccessLevel, viewOnlyNotice } from './utils/permissions';
+import { behaviorPhaseOf, isMastered, splitTargetNames } from './utils/programManagement';
+import PhaseChangePrompt from './components/Modals/PhaseChangePrompt';
 import { supervisorObservations } from './utils/observations';
 import { workflowFromHash } from './data/workflows';
 import { User, Calendar, ChartLineUp, Target, Notebook, CheckCircle2, ArrowRight, ArrowCounterClockwise, AlertTriangle, ShieldCheck } from './components/ui/Icons';
@@ -31,6 +33,7 @@ import {
 } from './utils/overviewOrder';
 
 const ClientSpecificSection = lazy(() => import('./components/ClientSpecificSection'));
+const ProgramManagement = lazy(() => import('./components/ProgramManagement'));
 const AbcDataSection = lazy(() => import('./components/AbcDataSection'));
 const ProgressHeatmap = lazy(() => import('./components/overview/ProgressHeatmap'));
 const PortfolioTriage = lazy(() => import('./components/overview/PortfolioTriage'));
@@ -82,6 +85,9 @@ export default function App() {
   const [recordOpen, setRecordOpen] = useState(false);
   const [recordTargetId, setRecordTargetId] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
+  const [phasePrompt, setPhasePrompt] = useState(null);
+  const [noteRecording, setNoteRecording] = useState(null);
+  const [programFocus, setProgramFocus] = useState(null);
   const [annotationEditor, setAnnotationEditor] = useState(null);
   // Drill-down requests from summary views (e.g., the progress heat map) re-open the
   // target analysis focused on a program, target and week.
@@ -121,11 +127,16 @@ export default function App() {
   }, [sessions, behaviorTargets]);
   const annotations = useMemo(() => ({ phaseLines: data.phaseLines, phaseRanges: data.phaseRanges, graphNotes: data.graphNotes }), [data.phaseLines, data.phaseRanges, data.graphNotes]);
   const currentClient = clients.find(client => client.id === selectedClientId);
-  const skillPrograms = programs.filter(program => program.category === 'SkillAcquisition');
+  // An archived program no longer drives today's work: it leaves the overview, the mastery
+  // counts and the recorder. Its history and recorded data stay in the target analysis,
+  // marked as archived, because archiving tidies the list and never erases the record.
+  const activePrograms = useMemo(() => programs.filter(program => !program.archivedAt), [programs]);
+  const analysisPrograms = useMemo(() => programs.map(program => (program.archivedAt ? { ...program, name: `${program.name} (archived)` } : program)), [programs]);
+  const skillPrograms = activePrograms.filter(program => program.category === 'SkillAcquisition');
   const clientSessions = useMemo(() => sessions.filter(session => session.clientId === selectedClientId), [sessions, selectedClientId]);
   // Program scope is a derived view of the existing categories; the window is the one shared
   // time range. "All time" starts at the client's earliest record rather than a magic number.
-  const scopedPrograms = useMemo(() => scopePrograms(programs, overviewScope.programScope), [programs, overviewScope.programScope]);
+  const scopedPrograms = useMemo(() => scopePrograms(activePrograms, overviewScope.programScope), [activePrograms, overviewScope.programScope]);
   const scopeWindow = useMemo(() => resolveScopeWindow({
     asOfDate: SEED_AS_OF_DATE, rangeId: overviewScope.rangeId, programs, sessions: clientSessions
   }), [overviewScope.rangeId, programs, clientSessions]);
@@ -143,7 +154,7 @@ export default function App() {
     : scopedSkillPrograms.filter(program => program.id === selectedMasteryProgId);
   const masteryData = cumulativeMasterySeries(masteryPrograms, { from: scopeWindow.start, to: scopeWindow.asOfDate });
   const skillTargets = skillPrograms.flatMap(program => program.targets);
-  const masteredCount = skillTargets.filter(target => ['Maintenance', 'Generalization', 'Completed'].includes(target.phase)).length;
+  const masteredCount = skillTargets.filter(isMastered).length;
   const canEdit = accessLevel === 'full';
   const viewOnlyReason = viewOnlyNotice(accessLevel);
   // Supervision and IOA observations belong to the appointment, not to the learner's chart.
@@ -261,6 +272,166 @@ export default function App() {
     const target = program?.targets.find(entry => entry.id === item.targetId);
     if (program && target) openTargetFocus({ program, target });
   }
+  // A program created in Program Management joins the client listing and the activity
+  // trail. The listing refreshes from the same snapshot the analytics read.
+  function createProgram(values) {
+    const payload = { ...values, clientId: selectedClientId, asOf: SEED_AS_OF_DATE };
+    const created = values.measurementTool ? apiService.createBehavior(payload) : apiService.createProgram(payload);
+    if (!created) { notify('The program could not be created.', 'error'); return null; }
+    saved(apiService.storageError ? 'Created for this session only. Your browser couldn’t save changes.' : `Program “${created.name}” created.`);
+    return created;
+  }
+  // Editing keeps the program's identity and its client; only the fields the form
+  // collects change.
+  function updateProgram(program, values) {
+    const updated = apiService.updateProgram(program.id, values);
+    if (updated && program.category === 'BehaviorReduction' && program.targets?.[0]) {
+      apiService.updateTarget(program.targets[0].id, { name: values.name, intervalSettings: values.intervalSettings });
+    }
+    if (!updated) { notify('The program could not be updated.', 'error'); return null; }
+    saved(apiService.storageError ? 'Updated for this session only. Your browser couldn’t save changes.' : `Program “${updated.name}” updated.`);
+    return updated;
+  }
+  // A duplicate starts again, so it lands in the working list as a new program.
+  function duplicateProgram(program) {
+    const copy = apiService.duplicateProgram(program.id, { clientId: selectedClientId, asOf: SEED_AS_OF_DATE });
+    if (!copy) { notify('The program could not be duplicated.', 'error'); return null; }
+    saved(`Duplicated “${program.name}” as “${copy.name}”. The copy starts again, in Pending.`);
+    return copy;
+  }
+  // Archiving tidies the working list. The program keeps its history and its data.
+  function archiveProgram(program) {
+    const archived = apiService.archiveProgram(program.id, { asOf: SEED_AS_OF_DATE });
+    if (!archived) { notify('The program could not be archived.', 'error'); return null; }
+    saved(`“${archived.name}” archived. Its history and its recorded data are kept.`);
+    return archived;
+  }
+  // Several names entered together each become their own target.
+  function addTargets(program, values) {
+    const names = splitTargetNames(values.name);
+    const created = names.map(name => apiService.addTarget(program.id, { ...values, name, phaseEnteredDate: SEED_AS_OF_DATE })).filter(Boolean);
+    if (!created.length) { notify('The target could not be added.', 'error'); return []; }
+    saved(created.length === 1 ? `Target “${created[0].name}” added.` : `${created.length} targets added.`);
+    return created;
+  }
+  function updateTarget(target, values) {
+    const updated = apiService.updateTarget(target.id, values);
+    if (!updated) { notify('The target could not be updated.', 'error'); return null; }
+    saved(`Target “${updated.name}” updated.`);
+    return updated;
+  }
+  function deleteTargets(program, ids) {
+    const removed = apiService.deleteTargets(program.id, ids);
+    if (!removed.length) { notify('Nothing was deleted.', 'error'); return []; }
+    saved(removed.length === 1 ? `Target “${removed[0].name}” deleted.` : `${removed.length} targets deleted.`);
+    return removed;
+  }
+  // The ABC vocabulary is edited here, for the client being worked with.
+  function updateAbcConfig(values) {
+    const config = apiService.updateAbcConfig(selectedClientId, values);
+    saved(config ? 'ABC treatment area and teaching instructions saved.' : 'The ABC configuration could not be saved.');
+    return config;
+  }
+  function addAbcValue(listKey, value) {
+    const added = apiService.addAbcValue(selectedClientId, listKey, value);
+    if (added === null) { notify('That value is empty or already in the list.', 'error'); return null; }
+    saved(`“${added}” added.`);
+    return added;
+  }
+  function renameAbcValue(listKey, from, to) {
+    const renamed = apiService.renameAbcValue(selectedClientId, listKey, from, to);
+    if (renamed === null) { notify('That name is empty or already in the list.', 'error'); return null; }
+    saved(`Renamed to “${renamed}”. Recorded observations keep the text they were saved with.`);
+    return renamed;
+  }
+  function removeAbcValues(listKey, values) {
+    const removed = apiService.removeAbcValues(selectedClientId, listKey, values);
+    if (removed.length) saved(`${removed.length === 1 ? `“${removed[0]}” deleted` : `${removed.length} values deleted`}. Recorded observations are unchanged.`);
+    return removed;
+  }
+  function importAbcBehaviors(names) {
+    const added = apiService.importAbcBehaviors(selectedClientId, names);
+    saved(added.length ? `${added.length} behavior${added.length === 1 ? '' : 's'} added to the ABC list.` : 'Nothing new to import.');
+    return added;
+  }
+  // Choose an existing lesson or start a new one; either way the programs join it in one action.
+  function saveLesson({ lessonId, name, programIds }) {
+    if (lessonId) {
+      const added = apiService.addProgramsToLesson(lessonId, programIds);
+      const lesson = apiService.getLessons(selectedClientId).find(item => item.id === lessonId);
+      saved(added.length ? `${added.length} program${added.length === 1 ? '' : 's'} added to “${lesson?.name}”.` : 'Those programs are already in that lesson.');
+      return added;
+    }
+    const lesson = apiService.createLesson({ clientId: selectedClientId, name, programIds });
+    if (!lesson) { notify('The lesson could not be created.', 'error'); return null; }
+    saved(`Lesson “${lesson.name}” created${lesson.programIds.length ? ` with ${lesson.programIds.length} program${lesson.programIds.length === 1 ? '' : 's'}` : ''}.`);
+    return lesson;
+  }
+  // Lesson notes: one dated run of a lesson. Data recorded into a note uses the same
+  // recorder and the same validation as everywhere else.
+  function createLessonNote(values) {
+    const note = apiService.createLessonNote({ ...values, clientId: selectedClientId });
+    if (!note) { notify('The lesson note could not be created.', 'error'); return null; }
+    saved(`Lesson note “${note.title}” created as a draft.`);
+    return note;
+  }
+  function updateLessonNote(note, values) {
+    const updated = apiService.updateLessonNote(note.id, values);
+    if (!updated) { notify('This lesson note can no longer be changed.', 'error'); return null; }
+    saved('Lesson note details saved.');
+    return updated;
+  }
+  function setNoteStatus(note, status) {
+    const updated = apiService.setLessonNoteStatus(note.id, status);
+    if (!updated) { notify('This lesson note can no longer change status.', 'error'); return null; }
+    saved(`Lesson note “${updated.title}” is now ${status}.`);
+    return updated;
+  }
+  function signLessonNote(note, values) {
+    const signature = apiService.signLessonNote(note.id, values);
+    if (!signature) { notify('The signature could not be added.', 'error'); return null; }
+    saved(`${signature.signedBy} signed as ${signature.role}.`);
+    return signature;
+  }
+  function recordAbcNote(note, values) {
+    const entry = apiService.recordAbcIntoLessonNote(note.id, { ...values, therapist: currentClient?.supervisingBcba || '' });
+    if (!entry) { notify('The ABC observation could not be saved.', 'error'); return null; }
+    saved('ABC observation saved in this lesson note. It is in the ABC analytics now.');
+    return entry;
+  }
+  // The recorder opens loaded with only the targets the note planned.
+  const noteRecordingPrograms = useMemo(() => noteRecording
+    ? noteRecording.programIds.map(id => activePrograms.find(program => program.id === id)).filter(Boolean)
+      .map(program => ({ ...program, targets: program.targets.filter(target => noteRecording.targetIds.includes(target.id)) }))
+      .filter(program => program.targets.length)
+    : [], [noteRecording, activePrograms]);
+  function saveNoteSession({ points, phases, keepOpen }) {
+    const created = apiService.recordIntoLessonNote(noteRecording.id, points);
+    if (phases.length) apiService.updateTargetPhases(phases);
+    if (keepOpen) return;
+    notify(apiService.storageError ? 'Updated for this session only. Your browser couldn’t save changes.'
+      : `Saved ${created.length} observation${created.length === 1 ? '' : 's'} into “${noteRecording.title}”.`, apiService.storageError ? 'error' : 'success');
+  }
+  function unarchiveProgram(program) {
+    const restored = apiService.unarchiveProgram(program.id);
+    if (!restored) { notify('The program could not be restored.', 'error'); return null; }
+    saved(`“${restored.name}” is back in the working list.`);
+    return restored;
+  }
+  // Opening a program from the listing lands on its targets in the target analysis,
+  // which is where the plan and its measurement meet.
+  function openProgram(program, { addTargets = false } = {}) {
+    const first = program?.targets?.[0];
+    if (first) {
+      openTargetFocus({ program, target: first });
+      return;
+    }
+    // A program with no targets has no chart to open, so the listing stays put.
+    notify(addTargets
+      ? 'Add the first target to this program to begin recording against it.'
+      : `“${program?.name}” has no targets yet, so there is nothing to graph.`);
+    activateWorkflow('programs', { scrollToTop: false });
+  }
   // Timeline events carry the same ids plus the date the change happened, so the drilldown
   // lands on the target's chart with that date inside the visible range.
   function openTimelineEvent(event) {
@@ -330,9 +501,55 @@ export default function App() {
     saved('Observation removed. The removal is documented in the change history.');
     return result;
   }
+  // Every status change asks the same question: plot a phase change line? Cancel changes
+  // nothing at all. The analysis panel and the listing both come through here.
   function changeProgramStatus(programId, status, options = {}) {
-    apiService.updateProgramStatus(programId, status, { ...options, asOf: SEED_AS_OF_DATE });
-    saved(`Program status updated to ${status}.`);
+    const program = data.programs.find(item => item.id === programId);
+    if (program) requestStatusChange(program, status, options.reason || '');
+  }
+  function requestStatusChange(program, status) {
+    if (!program || status === program.status) return;
+    setPhasePrompt({
+      subject: `program “${program.name}” to ${status}`, withReason: true,
+      apply: (plotLine, reason) => {
+        apiService.applyProgramStatus(program.id, status, { reason, asOf: SEED_AS_OF_DATE, plotLine });
+        saved(`Program status updated to ${status}${plotLine ? ' and a phase line was plotted' : ''}.`);
+      }
+    });
+  }
+  // Learning material is saved in this browser, and the message says exactly that.
+  function addMaterial(program, file) {
+    const result = apiService.addLearningMaterial(program.id, file);
+    if (result.ok) saved(apiService.storageError ? 'Attached for this session only. Your browser couldn’t save changes.' : `“${result.material.fileName}” saved in this browser and attached to “${program.name}”.`);
+    return result;
+  }
+  function removeMaterial(program, fileName) {
+    if (apiService.removeLearningMaterial(program.id, fileName)) saved(`“${fileName}” removed from “${program.name}”.`);
+  }
+  // From a chart back to the plan: the Programs workspace opens on that program.
+  function openInPrograms(program) {
+    setProgramFocus({ programId: program.id, nonce: Date.now() });
+    activateWorkflow('programs', { scrollToTop: false });
+  }
+  function requestBehaviorPhaseChange(program, phase) {
+    if (!program || phase === behaviorPhaseOf(program)) return;
+    setPhasePrompt({
+      subject: `behavior “${program.name}” to ${phase}`, withReason: true,
+      apply: (plotLine, reason) => {
+        apiService.changeBehaviorPhase(program.id, phase, { plotLine, reason, asOf: SEED_AS_OF_DATE });
+        saved(`Behavior “${program.name}” moved to ${phase}${plotLine ? ' and a phase line was plotted' : ''}.`);
+      }
+    });
+  }
+  function requestPhaseChange(program, target, phase) {
+    if (!target || phase === target.phase) return;
+    setPhasePrompt({
+      subject: `target “${target.name}” to ${phase}`,
+      apply: plotLine => {
+        apiService.changeTargetPhase(target.id, phase, { plotLine, asOf: SEED_AS_OF_DATE });
+        saved(`Target “${target.name}” moved to ${phase}${plotLine ? ' and a phase line was plotted' : ''}.`);
+      }
+    });
   }
   function openRecorder(target = null) {
     setRecordTargetId(target?.id || '');
@@ -409,7 +626,7 @@ export default function App() {
                 </div>
                 <dl className="metrics-strip" aria-label={`${currentClient.name}'s demo data summary`}>
                   {[
-                    { id: 'programs', label: 'Programs', value: programs.length, note: `${skillPrograms.length} skill · ${programs.length - skillPrograms.length} behavior`, icon: Target },
+                    { id: 'programs', label: 'Programs', value: activePrograms.length, note: `${skillPrograms.length} skill · ${activePrograms.length - skillPrograms.length} behavior`, icon: Target },
                     { id: 'mastery', label: 'Targets mastered', value: `${masteredCount} / ${skillTargets.length}`, note: 'Across skill programs', icon: CheckCircle2 },
                     { id: 'sessions', label: 'Session observations', value: clientSessions.length, note: 'All measurement types', icon: ChartLineUp },
                     { id: 'abc', label: 'ABC observations', value: abcEntries.length, note: 'Antecedent to consequence', icon: Notebook }
@@ -466,7 +683,8 @@ export default function App() {
           {currentClient && <>
             {workflowVisible('target-analysis') && <WorkflowPanel id="target-analysis" active={activeSection === 'target-analysis'}>
               <Suspense fallback={<AnalyticsSkeleton />}>
-                <ClientSpecificSection key={`${selectedClientId}-${clientFocus?.nonce || 0}`} client={currentClient} programs={programs} sessions={sessions} annotations={annotations}
+                <ClientSpecificSection key={`${selectedClientId}-${clientFocus?.nonce || 0}`} client={currentClient} programs={analysisPrograms}
+                  onOpenInPrograms={openInPrograms} sessions={sessions} annotations={annotations}
                   serviceSessions={serviceSessions} abcEntries={abcEntries} abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
                   templates={PROMPT_HIERARCHY_TEMPLATES} standards={CLINICAL_STANDARDS} initialFocus={clientFocus}
                   onAddPhaseLineClick={target => openAnnotation('line', target)}
@@ -481,6 +699,30 @@ export default function App() {
                   onCorrectObservation={correctObservation} onDeleteObservation={deleteObservation}
                   onProgramStatusChange={changeProgramStatus}
                   canEdit={canEdit} viewOnlyReason={viewOnlyReason} supervisionRecords={supervisionRecords} />
+              </Suspense>
+            </WorkflowPanel>}
+            {workflowVisible('programs') && <WorkflowPanel id="programs" active={activeSection === 'programs'}>
+              <Suspense fallback={<AnalyticsSkeleton />}>
+                <ProgramManagement key={`${selectedClientId}-${programFocus?.nonce || 0}`} client={currentClient} programs={programs}
+                  initialProgramId={programFocus?.programId || null} onOpenTarget={(program, target) => openTargetFocus({ program, target })}
+                  onAddMaterial={addMaterial} onRemoveMaterial={removeMaterial}
+                  lessons={apiService.getLessons(selectedClientId)} abcEntries={abcEntries}
+                  abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
+                  canEdit={canEdit} viewOnlyReason={viewOnlyReason}
+                  onCreateProgram={createProgram}
+                  onOpenProgram={openProgram}
+                  onUpdateProgram={updateProgram}
+                  onDuplicateProgram={duplicateProgram}
+                  onArchiveProgram={archiveProgram}
+                  onUnarchiveProgram={unarchiveProgram}
+                  onAddTarget={addTargets} onUpdateTarget={updateTarget} onDeleteTargets={deleteTargets}
+                  onRequestStatus={requestStatusChange} onRequestPhase={requestPhaseChange} onRequestBehaviorPhase={requestBehaviorPhaseChange}
+                  onUpdateAbcConfig={updateAbcConfig} onAddAbcValue={addAbcValue} onRenameAbcValue={renameAbcValue}
+                  onRemoveAbcValues={removeAbcValues} onImportAbcBehaviors={importAbcBehaviors} onSaveLesson={saveLesson}
+                  lessonNotes={apiService.getLessonNotes(selectedClientId)} observations={clientSessions}
+                  onCreateNote={createLessonNote} onUpdateNote={updateLessonNote} onNoteStatus={setNoteStatus}
+                  onSignNote={signLessonNote} onRecordNote={setNoteRecording} onRecordAbcNote={recordAbcNote}
+                  activity={data.activity || []} asOf={SEED_AS_OF_DATE} />
               </Suspense>
             </WorkflowPanel>}
             {workflowVisible('abc-observations') && <WorkflowPanel id="abc-observations" active={activeSection === 'abc-observations'}>
@@ -526,6 +768,8 @@ export default function App() {
       <p className="field-hint">This affects only this browser. Export any records you want to keep before resetting.</p>
       <div className="form-actions"><button type="button" className="button button--secondary" onClick={() => setResetOpen(false)} data-autofocus>Keep my changes</button><button type="button" className="button button--danger" onClick={resetData}>Restore demo data</button></div>
     </Dialog>
+    <PhaseChangePrompt prompt={phasePrompt} onCancel={() => setPhasePrompt(null)}
+      onChoose={(plotLine, reason) => { phasePrompt?.apply(plotLine, reason); setPhasePrompt(null); }} />
     <PhaseLineModal key={`line-${annotationEditor?.initialData?.id || annotationEditor?.target.id || 'closed'}`}
       isOpen={annotationEditor?.kind === 'line'} onClose={() => setAnnotationEditor(null)} onSave={data => saveAnnotation('line', data)}
       target={annotationEditor?.target} initialData={annotationEditor?.initialData} scopeTargets={annotationEditor?.scopeTargets} />
@@ -535,7 +779,10 @@ export default function App() {
     <GraphNoteModal key={`note-${annotationEditor?.initialData?.id || annotationEditor?.target.id || 'closed'}`}
       isOpen={annotationEditor?.kind === 'note'} onClose={() => setAnnotationEditor(null)} onSave={data => saveAnnotation('note', data)}
       target={annotationEditor?.target} initialData={annotationEditor?.initialData} scopeTargets={annotationEditor?.scopeTargets} />
-    {recordOpen && <RecordSessionModal isOpen onClose={() => setRecordOpen(false)} programs={programs} selectedClientId={selectedClientId} initialTargetId={recordTargetId}
+    {noteRecording && noteRecordingPrograms.length > 0 && <RecordSessionModal key={noteRecording.id} isOpen onClose={() => setNoteRecording(null)}
+      programs={noteRecordingPrograms} selectedClientId={selectedClientId} sessions={clientSessions}
+      serviceSessions={serviceSessions} onSaveSession={saveNoteSession} />}
+    {recordOpen && <RecordSessionModal isOpen onClose={() => setRecordOpen(false)} programs={activePrograms} selectedClientId={selectedClientId} initialTargetId={recordTargetId}
       sessions={clientSessions} serviceSessions={serviceSessions} onSaveSession={saveSession} />}
     <Suspense fallback={null}>
       <DataEntryModal key={entryTab || 'closed'} isOpen={entryTab !== null} initialTab={entryTab || 'entry'} onClose={() => setEntryTab(null)}

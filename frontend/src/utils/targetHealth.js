@@ -25,7 +25,7 @@ const PAUSED_PHASES = ['OnHold'];
 const ENDED_PHASES = ['Discontinued'];
 
 export const PHASE_LABELS = {
-  Baseline: 'Baseline', Pending: 'Pending', Introduced: 'Introduced', Acquisition: 'In acquisition',
+  Baseline: 'Baseline', Open: 'Open', Pending: 'Pending', Introduced: 'Introduced', Acquisition: 'In acquisition',
   Maintenance: 'Maintenance', Generalization: 'Generalization', Completed: 'Completed',
   OnHold: 'Paused', Discontinued: 'Discontinued'
 };

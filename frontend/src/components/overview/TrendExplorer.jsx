@@ -18,6 +18,7 @@ const LIFECYCLE_TONE = { mastered: 'positive', paused: 'attention', ended: 'neut
 //   Right rail  — clinical insights, annotations and target definitions.
 export default function TrendExplorer({
   catalog,
+  onOpenInPrograms,
   dataCategory = 'Programs',
   onDataCategoryChange,
   skillPrograms = [],
@@ -502,7 +503,7 @@ export default function TrendExplorer({
           )}
         </section>
 
-        <ProgramDetails programs={detailPrograms} activeTarget={activeTarget} />
+        <ProgramDetails programs={detailPrograms} activeTarget={activeTarget} onOpenInPrograms={onOpenInPrograms} />
       </aside>)}
     </div>
   );

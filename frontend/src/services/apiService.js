@@ -14,7 +14,12 @@ import {
   SEED_AS_OF_DATE
 } from '../data/mockData.js';
 import { applyObservationEdit, deletionAudit } from '../utils/observations.js';
+import { isValidDate } from '../utils/formValidation.js';
+import {
+  BEHAVIOR_PHASES, BEHAVIOR_TOOLS, CASCADING_STATUSES, LESSON_NOTE_STATUSES, PHASE_LABELS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS, SIGNATURE_ROLES, TARGET_PHASES, isLessonNoteEditable, toValueList, validateMaterial
+} from '../utils/programManagement.js';
 
+const ABC_LIST_KEYS = ['antecedents', 'behaviors', 'consequences', 'locations'];
 const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
 
 // First date a target entered a mastered phase; falls back to the current phase for
@@ -35,6 +40,10 @@ const STORAGE_KEYS = {
   GRAPH_NOTES: 'welina_graph_notes',
   ABC_ENTRIES: 'welina_abc_entries',
   DELETION_AUDIT: 'welina_deletion_audit',
+  ACTIVITY: 'welina_activity',
+  LESSONS: 'welina_lessons',
+  ABC_CONFIGS: 'welina_abc_configurations',
+  LESSON_NOTES: 'welina_lesson_notes',
   SEED_VERSION: 'welina_seed_version'
 };
 
@@ -76,7 +85,16 @@ class AnalyticsService {
     }
     // Removed observations keep an audit entry so a post-billing correction stays traceable.
     this.deletedRecords = getStored(STORAGE_KEYS.DELETION_AUDIT, []);
-    this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
+    // Program Management changes leave a trail too, so a clinician can see how the plan
+    // reached its current state.
+    this.activity = getStored(STORAGE_KEYS.ACTIVITY, []);
+    // Lessons group programs for delivery. The collection is empty until a
+    // clinician builds one, so a fresh workspace reads as "not in a lesson".
+    this.lessons = getStored(STORAGE_KEYS.LESSONS, []);
+    // A lesson note is one dated run of a lesson: what was planned, what was recorded, who signed.
+    this.lessonNotes = getStored(STORAGE_KEYS.LESSON_NOTES, []);
+    // The ABC vocabulary is editable configuration, one record per client.
+    this.abcConfigurations = getStored(STORAGE_KEYS.ABC_CONFIGS, null) || cloneSeed(INITIAL_ABC_CONFIGURATIONS);
     this.serviceSessions = SERVICE_SESSIONS;
     this.staff = STAFF;
     this.standards = CLINICAL_STANDARDS;
@@ -96,6 +114,10 @@ class AnalyticsService {
       clients: [...this.clients], programs: [...this.programs], sessions: [...this.sessions],
       abcEntries: [...this.abcEntries], phaseLines: [...this.phaseLines], phaseRanges: [...this.phaseRanges],
       graphNotes: [...this.graphNotes], serviceSessions: SERVICE_SESSIONS, deletedRecords: [...this.deletedRecords],
+      activity: [...(this.activity || [])],
+      lessons: [...(this.lessons || [])],
+      abcConfigurations: [...(this.abcConfigurations || [])],
+      lessonNotes: [...(this.lessonNotes || [])],
       storageError: Boolean(this.storageError)
     };
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
@@ -115,6 +137,10 @@ class AnalyticsService {
       [STORAGE_KEYS.GRAPH_NOTES]: this.graphNotes,
       [STORAGE_KEYS.ABC_ENTRIES]: this.abcEntries,
       [STORAGE_KEYS.DELETION_AUDIT]: this.deletedRecords,
+      [STORAGE_KEYS.ACTIVITY]: this.activity || [],
+      [STORAGE_KEYS.LESSONS]: this.lessons || [],
+      [STORAGE_KEYS.ABC_CONFIGS]: this.abcConfigurations,
+      [STORAGE_KEYS.LESSON_NOTES]: this.lessonNotes || [],
       [STORAGE_KEYS.SEED_VERSION]: SEED_VERSION
     };
     this.failedKeys = this.failedKeys || new Set();
@@ -140,7 +166,10 @@ class AnalyticsService {
     this.graphNotes = cloneSeed(INITIAL_GRAPH_NOTES);
     this.abcEntries = cloneSeed(INITIAL_ABC_ENTRIES);
     this.deletedRecords = [];
-    this.abcConfigurations = INITIAL_ABC_CONFIGURATIONS;
+    this.activity = [];
+    this.lessons = [];
+    this.lessonNotes = [];
+    this.abcConfigurations = cloneSeed(INITIAL_ABC_CONFIGURATIONS);
     this.saveAll();
   }
 
@@ -249,6 +278,73 @@ class AnalyticsService {
   // Section C: ABC Data
   getAbcConfiguration(clientId) {
     return this.abcConfigurations.find(config => config.clientId === clientId) || null;
+  }
+
+  // ---- ABC vocabulary ---------------------------------------------------------------
+  // The four lists are plain strings. An observation keeps the text it was recorded with,
+  // so editing or removing a value never rewrites the record; the warning before a removal
+  // says how many observations use the value.
+  updateAbcConfig(clientId, { treatmentArea, teachingInstructions } = {}) {
+    const config = this.getAbcConfiguration(clientId);
+    if (!config) return null;
+    if (treatmentArea !== undefined) config.treatmentArea = treatmentArea;
+    if (teachingInstructions !== undefined) config.teachingInstructions = teachingInstructions;
+    this.recordActivity('abc.config', 'abc', clientId, 'Updated the ABC treatment area and teaching instructions.');
+    this.saveAll([STORAGE_KEYS.ABC_CONFIGS, STORAGE_KEYS.ACTIVITY]);
+    return config;
+  }
+
+  addAbcValue(clientId, listKey, value) {
+    const config = this.getAbcConfiguration(clientId);
+    const text = String(value || '').trim();
+    if (!config || !ABC_LIST_KEYS.includes(listKey) || !text) return null;
+    if ((config[listKey] || []).some(item => item.toLowerCase() === text.toLowerCase())) return null;
+    config[listKey] = [...(config[listKey] || []), text];
+    this.recordActivity('abc.value.added', 'abc', clientId, `Added “${text}” to ${listKey}.`);
+    this.saveAll([STORAGE_KEYS.ABC_CONFIGS, STORAGE_KEYS.ACTIVITY]);
+    return text;
+  }
+
+  renameAbcValue(clientId, listKey, from, to) {
+    const config = this.getAbcConfiguration(clientId);
+    const text = String(to || '').trim();
+    if (!config || !ABC_LIST_KEYS.includes(listKey) || !text || !(config[listKey] || []).includes(from)) return null;
+    if (text !== from && config[listKey].some(item => item.toLowerCase() === text.toLowerCase())) return null;
+    config[listKey] = config[listKey].map(item => (item === from ? text : item));
+    this.recordActivity('abc.value.renamed', 'abc', clientId, `Renamed “${from}” to “${text}” in ${listKey}.`);
+    this.saveAll([STORAGE_KEYS.ABC_CONFIGS, STORAGE_KEYS.ACTIVITY]);
+    return text;
+  }
+
+  removeAbcValues(clientId, listKey, values = []) {
+    const config = this.getAbcConfiguration(clientId);
+    if (!config || !ABC_LIST_KEYS.includes(listKey)) return [];
+    const wanted = new Set(values);
+    const removed = (config[listKey] || []).filter(item => wanted.has(item));
+    if (!removed.length) return [];
+    config[listKey] = config[listKey].filter(item => !wanted.has(item));
+    this.recordActivity('abc.value.removed', 'abc', clientId, `Removed ${removed.map(item => `“${item}”`).join(', ')} from ${listKey}.`);
+    this.saveAll([STORAGE_KEYS.ABC_CONFIGS, STORAGE_KEYS.ACTIVITY]);
+    return removed;
+  }
+
+  // Behaviors already defined under Behavior Reduction can join the ABC behavior list, so
+  // one vocabulary serves both. Names already in the list are skipped.
+  importAbcBehaviors(clientId, names = []) {
+    const config = this.getAbcConfiguration(clientId);
+    if (!config) return [];
+    const have = new Set((config.behaviors || []).map(item => item.toLowerCase()));
+    const added = [];
+    names.map(name => String(name || '').trim()).filter(Boolean).forEach(name => {
+      if (have.has(name.toLowerCase())) return;
+      have.add(name.toLowerCase());
+      added.push(name);
+    });
+    if (!added.length) return [];
+    config.behaviors = [...(config.behaviors || []), ...added];
+    this.recordActivity('abc.behaviors.imported', 'abc', clientId, `Imported ${added.length} behavior${added.length === 1 ? '' : 's'} into the ABC list.`);
+    this.saveAll([STORAGE_KEYS.ABC_CONFIGS, STORAGE_KEYS.ACTIVITY]);
+    return added;
   }
 
   getAbcData(clientId, durationFilter = 'Past 1 Month') {
@@ -495,6 +591,452 @@ class AnalyticsService {
     this.saveAll([STORAGE_KEYS.PROGRAMS]);
     return program;
   }
+
+  // ---- Program Management -----------------------------------------------------------
+  // Programs are defined here, not only analysed. Every change is one user action, one
+  // state change, written to the browser and recorded in the activity log.
+
+  findProgram(programId) {
+    return this.programs.find(item => item.id === programId) || null;
+  }
+
+  // A program as the listing shows it: archived programs are kept out of the working
+  // list, and every program carries the scope it lives in.
+  listPrograms(clientId, { category = null, includeArchived = false } = {}) {
+    return this.programs
+      .filter(program => program.clientId === clientId)
+      .filter(program => (category ? program.category === category : true))
+      .filter(program => (includeArchived ? true : !program.archivedAt));
+  }
+
+  // Create a program. The new program starts active, in client scope, and with the
+  // fields the platform's form collects.
+  createProgram({ clientId, name, category = PROGRAM_CATEGORIES.SKILL, status = 'Pending', ...fields } = {}) {
+    if (!clientId || !String(name || '').trim()) return null;
+    const program = {
+      id: `prog-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      clientId,
+      name: String(name).trim(),
+      category,
+      status,
+      scope: 'client',
+      domain: fields.domain || '',
+      treatmentArea: toValueList(fields.treatmentArea),
+      tags: toValueList(fields.tags),
+      baseline: fields.baseline || '',
+      programObjective: fields.programObjective || '',
+      teachingInstructions: fields.teachingInstructions || '',
+      description: fields.programObjective || '',
+      learningMaterials: fields.learningMaterials || [],
+      customFields: fields.customFields || {},
+      targets: [],
+      archivedAt: null,
+      statusHistory: [{ status, date: fields.asOf || SEED_AS_OF_DATE, reason: 'Program created', staffName: fields.staffName || '' }]
+    };
+    if (category === PROGRAM_CATEGORIES.BEHAVIOR) {
+      program.behaviorPhase = fields.behaviorPhase || 'Open';
+      program.operationalDefinition = fields.operationalDefinition || '';
+    }
+    this.programs.push(program);
+    this.recordActivity('program.created', 'program', program.id, `Created program “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  // A behavior is a program with a reduction purpose and exactly one target, which
+  // carries the measurement tool. The tool is chosen here and never changed afterwards.
+  createBehavior({ measurementTool, intervalSettings, ...fields } = {}) {
+    if (!BEHAVIOR_TOOLS.includes(measurementTool)) return null;
+    const program = this.createProgram({ ...fields, category: PROGRAM_CATEGORIES.BEHAVIOR });
+    if (!program) return null;
+    this.addTarget(program.id, {
+      name: program.name, type: measurementTool, phase: 'Open',
+      discriminativeStimuli: '', masterySettings: 'Manual',
+      intervalSettings: measurementTool === 'IntervalData' ? intervalSettings : undefined,
+      phaseEnteredDate: fields.asOf || SEED_AS_OF_DATE
+    });
+    return program;
+  }
+
+  // The behavior's own lifecycle, separate from its target's measurement progress.
+  changeBehaviorPhase(programId, phase, { plotLine = false, asOf = null, reason = '' } = {}) {
+    const program = this.findProgram(programId);
+    if (!program || program.category !== PROGRAM_CATEGORIES.BEHAVIOR || !BEHAVIOR_PHASES.includes(phase)) return null;
+    if (program.behaviorPhase === phase) return null;
+    const date = asOf || SEED_AS_OF_DATE;
+    program.behaviorPhase = phase;
+    program.behaviorPhaseHistory = [...(program.behaviorPhaseHistory || []), { phase, date, reason }];
+    if (plotLine) {
+      (program.targets || []).forEach(target => {
+        this.phaseLines.push({
+          id: `pcl-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+          targetId: target.id, date, label: `${phase} starts`, style: 'Solid', color: '#34634c',
+          isAutomated: false, source: 'Manual'
+        });
+      });
+    }
+    this.recordActivity('behavior.phase', 'program', program.id, `Moved behavior “${program.name}” to ${phase}.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.PHASE_LINES, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  // Edit a program. The scope and the client's identity never change.
+  updateProgram(programId, patch = {}) {
+    const program = this.findProgram(programId);
+    if (!program) return null;
+    const allowed = ['name', 'status', 'domain', 'treatmentArea', 'tags', 'baseline', 'programObjective',
+      'teachingInstructions', 'description', 'learningMaterials', 'customFields', 'behaviorPhase',
+      'operationalDefinition', 'scope'];
+    allowed.forEach(key => {
+      if (key in patch) program[key] = patch[key];
+    });
+    // Treatment areas and tags are lists in the form; the fixture stores a
+    // treatment area as a single string, so both are normalized to lists here.
+    if ('treatmentArea' in patch) program.treatmentArea = toValueList(patch.treatmentArea);
+    if ('tags' in patch) program.tags = toValueList(patch.tags);
+    if ('programObjective' in patch && !('description' in patch)) program.description = patch.programObjective;
+    this.recordActivity('program.updated', 'program', program.id, `Updated program “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  // Archive keeps the program and everything recorded against it; it only stops the
+  // program from driving today's work.
+  archiveProgram(programId, { asOf = null, reason = '' } = {}) {
+    const program = this.findProgram(programId);
+    if (!program) return null;
+    program.archivedAt = asOf || SEED_AS_OF_DATE;
+    program.archiveReason = reason || undefined;
+    this.recordActivity('program.archived', 'program', program.id, `Archived program “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  unarchiveProgram(programId) {
+    const program = this.findProgram(programId);
+    if (!program) return null;
+    program.archivedAt = null;
+    program.archiveReason = undefined;
+    this.recordActivity('program.unarchived', 'program', program.id, `Restored program “${program.name}” to the active list.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  // A duplicate starts again: new identities, no observations, no phase history.
+  duplicateProgram(programId, { clientId = null, asOf = null } = {}) {
+    const source = this.findProgram(programId);
+    if (!source) return null;
+    const stamp = Date.now();
+    const copy = {
+      ...JSON.parse(JSON.stringify(source)),
+      id: `prog-${stamp}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      clientId: clientId || source.clientId,
+      name: `${source.name} (copy)`,
+      status: 'Pending',
+      behaviorPhase: source.category === PROGRAM_CATEGORIES.BEHAVIOR ? 'Open' : undefined,
+      behaviorPhaseHistory: undefined,
+      archivedAt: null,
+      archiveReason: undefined,
+      targets: (source.targets || []).map((target, index) => ({
+        ...JSON.parse(JSON.stringify(target)),
+        id: `tgt-${stamp}-${index}-${(this.sequence = (this.sequence || 0) + 1)}`,
+        phase: 'Pending',
+        phaseEnteredDate: asOf || SEED_AS_OF_DATE,
+        phaseHistory: [],
+        masteryRule: undefined,
+        manualMastery: undefined
+      }))
+    };
+    copy.targets = copy.targets.map(target => ({ ...target, programId: copy.id }));
+    this.programs.push(copy);
+    this.recordActivity('program.duplicated', 'program', copy.id, `Duplicated program “${source.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return copy;
+  }
+
+  // The platform's cascade: a program that is pending, completed, on hold or
+  // discontinued carries its targets with it. The active teaching statuses do not.
+  applyProgramStatus(programId, status, { reason = '', staffName = '', asOf = null, plotLine = false } = {}) {
+    const program = this.findProgram(programId);
+    if (!program || !PROGRAM_STATUSES.includes(status)) return null;
+    const date = asOf || SEED_AS_OF_DATE;
+    program.status = status;
+    program.statusHistory = [...(program.statusHistory || []), { status, date, reason, staffName }];
+    if (CASCADING_STATUSES.includes(status)) {
+      (program.targets || []).forEach(target => {
+        this.applyTargetPhase({ targetId: target.id, newPhase: status, phaseDate: date });
+      });
+    }
+    // Charts read phase lines by target, so a program-level change is plotted on each
+    // of the program's targets.
+    if (plotLine) {
+      (program.targets || []).forEach(target => {
+        this.phaseLines.push({
+          id: `pcl-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+          targetId: target.id,
+          date,
+          label: `${PROGRAM_STATUS_LABELS[status] || status} starts`,
+          style: 'Solid',
+          color: '#34634c',
+          isAutomated: false,
+          source: 'Manual'
+        });
+      });
+    }
+    this.recordActivity('program.status', 'program', program.id, `Set program “${program.name}” to ${status}.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.PHASE_LINES, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  // A target is one measurable unit inside a program. The measurement tool is fixed
+  // once the target exists, so that data collected under one method is never
+  // compared against data collected under another.
+  addTarget(programId, target = {}) {
+    const program = this.findProgram(programId);
+    if (!program || !String(target.name || '').trim() || !target.type) return null;
+    const created = {
+      id: `tgt-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      name: String(target.name).trim(),
+      description: target.description || '',
+      type: target.type,
+      phase: target.phase || 'Pending',
+      phaseEnteredDate: target.phaseEnteredDate || SEED_AS_OF_DATE,
+      phaseHistory: [],
+      discriminativeStimuli: target.discriminativeStimuli || '',
+      masterySettings: target.masterySettings || 'Automatic',
+      masteryCriteria: target.masteryCriteria || '',
+      color: target.color || '#3B82F6',
+      programId: program.id,
+      promptHierarchyId: target.promptHierarchyId,
+      targetInstructions: target.targetInstructions,
+      intervalSettings: target.intervalSettings,
+      fluencySettings: target.fluencySettings,
+      masteryRule: target.masteryRule,
+      manualMastery: target.manualMastery
+    };
+    program.targets = [...(program.targets || []), created];
+    this.recordActivity('target.created', 'target', created.id, `Added target “${created.name}” to “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return created;
+  }
+
+  // One phase change is one state change: the phase, its dated history entry, and the
+  // optional phase line the clinician chose to plot.
+  changeTargetPhase(targetId, newPhase, { plotLine = false, asOf = null } = {}) {
+    const target = this.findTarget(targetId);
+    if (!target || !TARGET_PHASES.includes(newPhase) || target.phase === newPhase) return null;
+    const date = asOf || SEED_AS_OF_DATE;
+    this.applyTargetPhase({
+      targetId, newPhase, addPhaseLine: plotLine, phaseDate: date,
+      phaseLineLabel: `${PHASE_LABELS[newPhase] || newPhase} starts`
+    });
+    this.recordActivity('target.phase', 'target', target.id, `Moved target “${target.name}” to ${PHASE_LABELS[newPhase] || newPhase}.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.PHASE_LINES, STORAGE_KEYS.ACTIVITY]);
+    return target;
+  }
+
+  // Editing keeps the measurement type fixed and the identity unchanged.
+  updateTarget(targetId, patch = {}) {
+    const target = this.findTarget(targetId);
+    if (!target) return null;
+    const allowed = ['name', 'description', 'discriminativeStimuli', 'masterySettings', 'masteryCriteria',
+      'masteryRule', 'manualMastery', 'promptHierarchyId', 'targetInstructions', 'intervalSettings', 'fluencySettings'];
+    allowed.forEach(key => { if (key in patch) target[key] = patch[key]; });
+    this.recordActivity('target.updated', 'target', target.id, `Updated target “${target.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return target;
+  }
+
+  // Deleting removes the target from its program. Observations already recorded
+  // against it stay in the data, so a deletion never silently erases a record.
+  deleteTargets(programId, targetIds = []) {
+    const program = this.findProgram(programId);
+    if (!program) return [];
+    const wanted = new Set(targetIds);
+    const removed = (program.targets || []).filter(target => wanted.has(target.id));
+    if (!removed.length) return [];
+    program.targets = program.targets.filter(target => !wanted.has(target.id));
+    removed.forEach(target => this.recordActivity('target.deleted', 'target', target.id, `Deleted target “${target.name}” from “${program.name}”.`));
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return removed;
+  }
+
+  // Learning material is text kept in this browser. The size is measured here from the
+  // content itself, so a caller cannot understate it, and a refused file says why.
+  addLearningMaterial(programId, { fileName, content } = {}) {
+    const program = this.findProgram(programId);
+    if (!program) return { ok: false, reason: 'That program no longer exists.' };
+    const text = typeof content === 'string' ? content : '';
+    const size = new TextEncoder().encode(text).length;
+    const check = validateMaterial({ name: fileName, size }, program.learningMaterials || []);
+    if (!check.ok) return check;
+    const material = { fileName: String(fileName).trim(), contentType: 'text/plain', content: text, size, addedOn: SEED_AS_OF_DATE };
+    program.learningMaterials = [...(program.learningMaterials || []), material];
+    this.recordActivity('program.material.added', 'program', program.id, `Attached “${material.fileName}” to “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return { ok: true, material };
+  }
+
+  removeLearningMaterial(programId, fileName) {
+    const program = this.findProgram(programId);
+    const had = (program?.learningMaterials || []).some(material => material.fileName === fileName);
+    if (!had) return false;
+    program.learningMaterials = program.learningMaterials.filter(material => material.fileName !== fileName);
+    this.recordActivity('program.material.removed', 'program', program.id, `Removed “${fileName}” from “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return true;
+  }
+
+  findTarget(targetId) {
+    for (const program of this.programs) {
+      const target = (program.targets || []).find(item => item.id === targetId);
+      if (target) return target;
+    }
+    return null;
+  }
+
+  // ---- Activity log -----------------------------------------------------------------
+  // Every change made in Program Management leaves a trail, so a clinician can see how
+  // the plan reached its current state. The log is capped, like the deletion audit.
+  recordActivity(kind, entityType, entityId, summary) {
+    if (!this.activity) this.activity = [];
+    this.activity = [{ id: `act-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`, at: SEED_AS_OF_DATE, kind, entityType, entityId, summary }, ...this.activity].slice(0, 500);
+    return this.activity[0];
+  }
+
+  getActivity(entityId = null) {
+    const log = this.activity || [];
+    return entityId ? log.filter(entry => entry.entityId === entityId) : log;
+  }
+
+  // ---- Lesson notes -----------------------------------------------------------------
+  getLessonNotes(clientId = null) {
+    const notes = this.lessonNotes || [];
+    return clientId ? notes.filter(note => note.clientId === clientId) : notes;
+  }
+
+  // A lesson note plans the targets of the lesson's programs on the day it is made.
+  createLessonNote({ clientId, lessonId, date, title } = {}) {
+    const lesson = (this.lessons || []).find(item => item.id === lessonId && item.clientId === clientId);
+    if (!lesson || !String(title || '').trim() || !isValidDate(date)) return null;
+    const programs = lesson.programIds.map(id => this.findProgram(id)).filter(program => program && !program.archivedAt);
+    const note = {
+      id: `note-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      clientId, lessonId, date, title: String(title).trim(), status: 'Draft', signatures: [],
+      programIds: programs.map(program => program.id),
+      targetIds: programs.flatMap(program => (program.targets || []).map(target => target.id)),
+      createdAt: SEED_AS_OF_DATE
+    };
+    this.lessonNotes.push(note);
+    this.recordActivity('note.created', 'note', note.id, `Created lesson note “${note.title}” for ${date}.`);
+    this.saveAll([STORAGE_KEYS.LESSON_NOTES, STORAGE_KEYS.ACTIVITY]);
+    return note;
+  }
+
+  #editableNote(noteId) {
+    const note = (this.lessonNotes || []).find(item => item.id === noteId);
+    return isLessonNoteEditable(note) ? note : null;
+  }
+
+  updateLessonNote(noteId, { title, date } = {}) {
+    const note = this.#editableNote(noteId);
+    if (!note) return null;
+    if (title !== undefined && String(title).trim()) note.title = String(title).trim();
+    if (date !== undefined && isValidDate(date)) note.date = date;
+    this.recordActivity('note.updated', 'note', note.id, `Updated lesson note “${note.title}”.`);
+    this.saveAll([STORAGE_KEYS.LESSON_NOTES, STORAGE_KEYS.ACTIVITY]);
+    return note;
+  }
+
+  // Draft, then Unapproved, then Approved. An approved note never changes again.
+  setLessonNoteStatus(noteId, status) {
+    const note = this.#editableNote(noteId);
+    if (!note || !LESSON_NOTE_STATUSES.includes(status) || note.status === status) return null;
+    note.status = status;
+    this.recordActivity('note.status', 'note', note.id, `Lesson note “${note.title}” is now ${status}.`);
+    this.saveAll([STORAGE_KEYS.LESSON_NOTES, STORAGE_KEYS.ACTIVITY]);
+    return note;
+  }
+
+  signLessonNote(noteId, { signedBy, role } = {}) {
+    const note = this.#editableNote(noteId);
+    if (!note || !String(signedBy || '').trim() || !SIGNATURE_ROLES.includes(role)) return null;
+    const signature = { signedBy: String(signedBy).trim(), role, signedOn: SEED_AS_OF_DATE };
+    note.signatures = [...note.signatures, signature];
+    this.recordActivity('note.signed', 'note', note.id, `${signature.signedBy} signed lesson note “${note.title}” as ${role}.`);
+    this.saveAll([STORAGE_KEYS.LESSON_NOTES, STORAGE_KEYS.ACTIVITY]);
+    return signature;
+  }
+
+  // Data recorded into a note goes through the same recorder as everywhere else, and only
+  // for targets the note planned. A note that is approved takes no more data.
+  recordIntoLessonNote(noteId, points = []) {
+    const note = this.#editableNote(noteId);
+    if (!note) return [];
+    const planned = new Set(note.targetIds);
+    const accepted = points.filter(point => planned.has(point.targetId))
+      .map(point => ({ ...point, clientId: note.clientId, lessonNoteId: note.id }));
+    return accepted.length ? this.recordTrials(accepted) : [];
+  }
+
+  // An ABC observation needs at least one of its four parts; intensity and duration are
+  // left unrecorded unless given, never defaulted to zero.
+  recordAbcIntoLessonNote(noteId, { antecedents = [], behaviors = [], consequences = [], location = '', notes = '', timestamp = null, therapist = '' } = {}) {
+    const note = this.#editableNote(noteId);
+    if (!note || !(antecedents.length || behaviors.length || consequences.length || location)) return null;
+    const entry = {
+      id: `abc-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      clientId: note.clientId, lessonNoteId: note.id,
+      timestamp: timestamp || `${note.date}T09:00:00`,
+      therapist, antecedents, behaviors, consequences, location, notes
+    };
+    this.abcEntries.push(entry);
+    this.recordActivity('note.abc', 'note', note.id, `Recorded an ABC observation in lesson note “${note.title}”.`);
+    this.saveAll([STORAGE_KEYS.ABC_ENTRIES, STORAGE_KEYS.ACTIVITY]);
+    return entry;
+  }
+
+  // ---- Lessons ----------------------------------------------------------------------
+  // A lesson is a reusable group of programs for one client: the shape of a recurring
+  // session, defined once and used each time it runs.
+  getLessons(clientId = null) {
+    const lessons = this.lessons || [];
+    return clientId ? lessons.filter(lesson => lesson.clientId === clientId) : lessons;
+  }
+
+  // A lesson belongs to one client and can only hold that client's programs.
+  createLesson({ clientId, name, programIds = [] } = {}) {
+    if (!clientId || !String(name || '').trim()) return null;
+    const lesson = {
+      id: `lesson-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+      clientId,
+      name: String(name).trim(),
+      programIds: this.#programsOfClient(clientId, programIds),
+      createdAt: SEED_AS_OF_DATE
+    };
+    this.lessons.push(lesson);
+    this.recordActivity('lesson.created', 'lesson', lesson.id, `Created lesson “${lesson.name}” with ${lesson.programIds.length} program${lesson.programIds.length === 1 ? '' : 's'}.`);
+    this.saveAll([STORAGE_KEYS.LESSONS, STORAGE_KEYS.ACTIVITY]);
+    return lesson;
+  }
+
+  // Programs of another client, unknown programs and programs already in the lesson are skipped.
+  addProgramsToLesson(lessonId, programIds = []) {
+    const lesson = (this.lessons || []).find(item => item.id === lessonId);
+    if (!lesson) return [];
+    const added = this.#programsOfClient(lesson.clientId, programIds).filter(id => !lesson.programIds.includes(id));
+    if (!added.length) return [];
+    lesson.programIds = [...lesson.programIds, ...added];
+    this.recordActivity('lesson.programs', 'lesson', lesson.id, `Added ${added.length} program${added.length === 1 ? '' : 's'} to lesson “${lesson.name}”.`);
+    this.saveAll([STORAGE_KEYS.LESSONS, STORAGE_KEYS.ACTIVITY]);
+    return added;
+  }
+
+  #programsOfClient(clientId, programIds) {
+    const own = new Set(this.programs.filter(program => program.clientId === clientId).map(program => program.id));
+    return [...new Set(programIds)].filter(id => own.has(id));
+  }
+
 
   recordTrial(data) {
     const [newPoint] = this.recordTrials([data]);
