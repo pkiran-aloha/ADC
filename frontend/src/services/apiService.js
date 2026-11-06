@@ -884,20 +884,39 @@ class AnalyticsService {
     return clientId ? lessons.filter(lesson => lesson.clientId === clientId) : lessons;
   }
 
+  // A lesson belongs to one client and can only hold that client's programs.
   createLesson({ clientId, name, programIds = [] } = {}) {
     if (!clientId || !String(name || '').trim()) return null;
     const lesson = {
       id: `lesson-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
       clientId,
       name: String(name).trim(),
-      programIds: [...programIds],
+      programIds: this.#programsOfClient(clientId, programIds),
       createdAt: SEED_AS_OF_DATE
     };
     this.lessons.push(lesson);
-    this.recordActivity('lesson.created', 'lesson', lesson.id, `Created lesson “${lesson.name}”.`);
+    this.recordActivity('lesson.created', 'lesson', lesson.id, `Created lesson “${lesson.name}” with ${lesson.programIds.length} program${lesson.programIds.length === 1 ? '' : 's'}.`);
     this.saveAll([STORAGE_KEYS.LESSONS, STORAGE_KEYS.ACTIVITY]);
     return lesson;
   }
+
+  // Programs of another client, unknown programs and programs already in the lesson are skipped.
+  addProgramsToLesson(lessonId, programIds = []) {
+    const lesson = (this.lessons || []).find(item => item.id === lessonId);
+    if (!lesson) return [];
+    const added = this.#programsOfClient(lesson.clientId, programIds).filter(id => !lesson.programIds.includes(id));
+    if (!added.length) return [];
+    lesson.programIds = [...lesson.programIds, ...added];
+    this.recordActivity('lesson.programs', 'lesson', lesson.id, `Added ${added.length} program${added.length === 1 ? '' : 's'} to lesson “${lesson.name}”.`);
+    this.saveAll([STORAGE_KEYS.LESSONS, STORAGE_KEYS.ACTIVITY]);
+    return added;
+  }
+
+  #programsOfClient(clientId, programIds) {
+    const own = new Set(this.programs.filter(program => program.clientId === clientId).map(program => program.id));
+    return [...new Set(programIds)].filter(id => own.has(id));
+  }
+
 
   recordTrial(data) {
     const [newPoint] = this.recordTrials([data]);

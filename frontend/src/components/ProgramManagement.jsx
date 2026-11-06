@@ -5,6 +5,7 @@ import {
 } from '../utils/programManagement';
 import ProgramFormModal from './Modals/ProgramFormModal';
 import ProgramView from './ProgramView';
+import LessonDialog from './Modals/LessonDialog';
 import AbcConfiguration from './AbcConfiguration';
 import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
@@ -26,7 +27,7 @@ export default function ProgramManagement({
   client, programs = [], lessons = [], abcConfiguration = null, abcEntries = [],
   canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram,
   onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram, onAddTarget, onUpdateTarget, onDeleteTargets, onRequestStatus, onRequestPhase, onRequestBehaviorPhase, activity = [], asOf,
-  onUpdateAbcConfig, onAddAbcValue, onRenameAbcValue, onRemoveAbcValues, onImportAbcBehaviors
+  onUpdateAbcConfig, onAddAbcValue, onRenameAbcValue, onRemoveAbcValues, onImportAbcBehaviors, onSaveLesson
 }) {
   const [tab, setTab] = useState('skill');
   const [formOpen, setFormOpen] = useState(false);
@@ -35,6 +36,7 @@ export default function ProgramManagement({
   const [confirming, setConfirming] = useState(null);
   const [pendingTargets, setPendingTargets] = useState(null);
   const [viewing, setViewing] = useState({ id: null, adding: false });
+  const [lessonDialog, setLessonDialog] = useState(null);
 
   const counts = useMemo(() => ({
     skill: countByCategory(programs, PROGRAM_CATEGORIES.SKILL),
@@ -132,7 +134,9 @@ export default function ProgramManagement({
               onUpdateConfig={onUpdateAbcConfig} onAddValue={onAddAbcValue} onRenameValue={onRenameAbcValue}
               onRemoveValues={onRemoveAbcValues} onImportBehaviors={onImportAbcBehaviors} />
             : <ProgramListing category={activeTab.category} programs={programs} lessonNames={lessonNames}
-              canEdit={canEdit} viewOnlyReason={viewOnlyReason} onCreate={openCreate} onOpen={program => setViewing({ id: program.id, adding: false })}
+              canEdit={canEdit} viewOnlyReason={viewOnlyReason} lessons={lessons}
+              onAddToLesson={selected => setLessonDialog({ programs: selected, lessons })} onNewLesson={() => setLessonDialog({ programs: [], lessons: [] })}
+              onCreate={openCreate} onOpen={program => setViewing({ id: program.id, adding: false })}
               onEdit={openEdit} onDuplicate={askDuplicate} onArchive={askArchive} onUnarchive={onUnarchive} onRequestStatus={onRequestStatus} onRequestBehaviorPhase={onRequestBehaviorPhase} />}
         </div>
         </>}
@@ -147,6 +151,12 @@ export default function ProgramManagement({
             // platform offers the next step straight away.
             if (!editing) setPendingTargets(saved || null);
           }} />
+
+        {lessonDialog && <LessonDialog key={lessonDialog.programs.map(program => program.id).join('|') || 'new'} isOpen
+          lessons={lessonDialog.lessons} programs={lessonDialog.programs}
+          title={lessonDialog.programs.length ? 'Add to lesson' : 'New lesson'}
+          onClose={() => setLessonDialog(null)}
+          onSave={values => { onSaveLesson?.(values); setLessonDialog(null); }} />}
 
         <ConfirmDialog isOpen={Boolean(confirming)} onClose={() => setConfirming(null)}
           title={confirming?.title || ''} description={confirming?.description}
@@ -172,7 +182,7 @@ export default function ProgramManagement({
 
 // The listing: what each program is, how many targets it holds, where it runs,
 // and what a clinician can do with it.
-function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReason, onCreate, onOpen, onEdit, onDuplicate, onArchive, onUnarchive, onRequestStatus, onRequestBehaviorPhase }) {
+function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReason, onCreate, onOpen, onEdit, onDuplicate, onArchive, onUnarchive, onRequestStatus, onRequestBehaviorPhase, lessons = [], onAddToLesson, onNewLesson }) {
   const [showArchived, setShowArchived] = useState(false);
   const scoped = useMemo(() => programs.filter(program => program.category === category), [programs, category]);
   const { active, archived } = useMemo(() => partitionByArchive(scoped), [scoped]);
@@ -182,6 +192,14 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
   const viewingArchived = showArchived && archived.length > 0;
   const shown = viewingArchived ? archived : active;
   const isBehavior = category === PROGRAM_CATEGORIES.BEHAVIOR;
+  const [selected, setSelected] = useState(() => new Set());
+  const selectable = canEdit && !isBehavior && !viewingArchived;
+  const chosen = shown.filter(program => selected.has(program.id));
+  const toggle = id => setSelected(current => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   return <>
     <div className="programs-listing-header">
@@ -202,6 +220,25 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
       View-only access. {viewOnlyReason || 'Programs can be read but not changed.'}
     </p>}
 
+    {!isBehavior && !viewingArchived && <section className="lessons-panel" aria-label="Lessons">
+      <header className="abc-list-header">
+        <h3>Lessons</h3>
+        {canEdit && <button type="button" className="button button--tertiary" onClick={() => onNewLesson?.()}><Plus size={15} />New lesson</button>}
+      </header>
+      {lessons.length === 0
+        ? <p className="program-form-note">No lessons yet. A lesson groups programs that are run together.</p>
+        : <ul>{lessons.map(lesson => <li key={lesson.id}>
+          <strong>{lesson.name}</strong>
+          <span> · {lesson.programIds.map(id => programs.find(program => program.id === id)?.name).filter(Boolean).join(', ') || 'No programs yet'}</span>
+        </li>)}</ul>}
+    </section>}
+
+    {selectable && chosen.length > 0 && <div className="target-bulk" role="status">
+      <span>{chosen.length} selected</span>
+      <button type="button" className="button button--primary" onClick={() => { onAddToLesson?.(chosen); setSelected(new Set()); }}>Add to lesson</button>
+      <button type="button" className="button button--tertiary" onClick={() => setSelected(new Set())}>Clear selection</button>
+    </div>}
+
     {shown.length === 0
       ? <EmptyState title={viewingArchived ? 'No archived programs.' : 'No programs yet.'} icon={Target}
         description={viewingArchived
@@ -213,6 +250,7 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
         </caption>
         <thead>
           <tr>
+            {selectable && <th scope="col"><span className="sr-only">Select</span></th>}
             <th scope="col">{isBehavior ? 'Behavior' : 'Program'}</th>
             {isBehavior ? <>
               <th scope="col">Measurement tool</th>
@@ -228,6 +266,9 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
         </thead>
         <tbody>
           {shown.map(program => <tr key={program.id}>
+            {selectable && <td><label className="program-form-check">
+              <input type="checkbox" checked={selected.has(program.id)} onChange={() => toggle(program.id)} />
+              <span className="sr-only">Select {program.name}</span></label></td>}
             <th scope="row">
               <button type="button" className="programs-table-name" onClick={() => onOpen?.(program)}>{program.name}</button>
               {program.tags?.length > 0 && <span className="programs-table-tags">{program.tags.join(' · ')}</span>}

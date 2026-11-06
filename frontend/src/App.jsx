@@ -347,6 +347,19 @@ export default function App() {
     saved(added.length ? `${added.length} behavior${added.length === 1 ? '' : 's'} added to the ABC list.` : 'Nothing new to import.');
     return added;
   }
+  // Choose an existing lesson or start a new one; either way the programs join it in one action.
+  function saveLesson({ lessonId, name, programIds }) {
+    if (lessonId) {
+      const added = apiService.addProgramsToLesson(lessonId, programIds);
+      const lesson = apiService.getLessons(selectedClientId).find(item => item.id === lessonId);
+      saved(added.length ? `${added.length} program${added.length === 1 ? '' : 's'} added to “${lesson?.name}”.` : 'Those programs are already in that lesson.');
+      return added;
+    }
+    const lesson = apiService.createLesson({ clientId: selectedClientId, name, programIds });
+    if (!lesson) { notify('The lesson could not be created.', 'error'); return null; }
+    saved(`Lesson “${lesson.name}” created${lesson.programIds.length ? ` with ${lesson.programIds.length} program${lesson.programIds.length === 1 ? '' : 's'}` : ''}.`);
+    return lesson;
+  }
   function unarchiveProgram(program) {
     const restored = apiService.unarchiveProgram(program.id);
     if (!restored) { notify('The program could not be restored.', 'error'); return null; }
@@ -636,7 +649,7 @@ export default function App() {
                   onAddTarget={addTargets} onUpdateTarget={updateTarget} onDeleteTargets={deleteTargets}
                   onRequestStatus={requestStatusChange} onRequestPhase={requestPhaseChange} onRequestBehaviorPhase={requestBehaviorPhaseChange}
                   onUpdateAbcConfig={updateAbcConfig} onAddAbcValue={addAbcValue} onRenameAbcValue={renameAbcValue}
-                  onRemoveAbcValues={removeAbcValues} onImportAbcBehaviors={importAbcBehaviors}
+                  onRemoveAbcValues={removeAbcValues} onImportAbcBehaviors={importAbcBehaviors} onSaveLesson={saveLesson}
                   activity={data.activity || []} asOf={SEED_AS_OF_DATE} />
               </Suspense>
             </WorkflowPanel>}

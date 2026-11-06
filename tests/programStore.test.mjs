@@ -340,3 +340,32 @@ test('ABC changes are written to the activity log', () => {
   assert.ok(apiService.getActivity(CLIENT).some(entry => entry.kind === 'abc.value.added'));
   assert.ok(apiService.getActivity(CLIENT).some(entry => entry.kind === 'abc.value.removed'));
 });
+
+// ---- Lessons --------------------------------------------------------------------------
+
+test('a lesson holds only programs of its own client', () => {
+  const mine = apiService.createProgram({ clientId: CLIENT, name: 'Lesson own' });
+  const theirs = apiService.createProgram({ clientId: 'cli-emma', name: 'Lesson foreign' });
+  const lesson = apiService.createLesson({ clientId: CLIENT, name: 'Boundary block', programIds: [mine.id, theirs.id, 'nope', mine.id] });
+  assert.deepEqual(lesson.programIds, [mine.id], 'foreign, unknown and duplicate programs are dropped');
+  assert.equal(apiService.createLesson({ clientId: CLIENT, name: '   ' }), null);
+  assert.equal(apiService.createLesson({ name: 'No client' }), null);
+});
+
+test('programs can be added to a lesson in one action, skipping what does not belong', () => {
+  const a = apiService.createProgram({ clientId: CLIENT, name: 'Lesson add A' });
+  const b = apiService.createProgram({ clientId: CLIENT, name: 'Lesson add B' });
+  const foreign = apiService.createProgram({ clientId: 'cli-noah', name: 'Lesson add foreign' });
+  const lesson = apiService.createLesson({ clientId: CLIENT, name: 'Add block', programIds: [a.id] });
+  assert.deepEqual(apiService.addProgramsToLesson(lesson.id, [a.id, b.id, foreign.id]), [b.id], 'only the new, own program is added');
+  assert.deepEqual(apiService.getLessons(CLIENT).find(item => item.id === lesson.id).programIds, [a.id, b.id]);
+  assert.deepEqual(apiService.addProgramsToLesson(lesson.id, [b.id]), [], 'nothing new to add');
+  assert.deepEqual(apiService.addProgramsToLesson('nope', [a.id]), []);
+});
+
+test('lessons persist and are listed per client', () => {
+  const stored = JSON.parse(localStorage.getItem('welina_lessons'));
+  assert.ok(stored.some(lesson => lesson.name === 'Add block'), 'written to the browser');
+  assert.equal(apiService.getLessons('cli-emma').some(lesson => lesson.name === 'Add block'), false);
+  assert.ok(apiService.getActivity().some(entry => entry.kind === 'lesson.programs'));
+});

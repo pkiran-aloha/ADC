@@ -2002,3 +2002,40 @@ test('the ABC vocabulary can be edited, warns before removing a used value, and 
   await expect(behaviors.getByText('Hair pulling', { exact: true })).toBeVisible();
   await accessible(page);
 });
+
+test('programs can be grouped into a lesson in one action, and lessons persist', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = page.locator('#programs');
+  const pick = name => listing.getByLabel(`Select ${name}`).check({ force: true });
+  const lessons = listing.getByRole('region', { name: 'Lessons' });
+  await expect(lessons).toContainText('No lessons yet');
+
+  // Several programs, one action, a new lesson.
+  await pick('Fluent Naming');
+  await pick('Playing with Toys');
+  await expect(listing.getByRole('status').filter({ hasText: '2 selected' })).toBeVisible();
+  await listing.getByRole('button', { name: 'Add to lesson', exact: true }).click();
+  const dialog = page.locator('dialog');
+  await expect(dialog.getByLabel('Selected programs')).toContainText('Fluent Naming');
+  await dialog.getByRole('button', { name: 'Create lesson' }).click();
+  await expect(dialog.getByText('Give the lesson a name.')).toBeVisible();
+  await dialog.getByLabel('Lesson name').fill('Morning block');
+  await dialog.getByRole('button', { name: 'Create lesson' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(lessons).toContainText('Morning block');
+  await expect(lessons).toContainText('Fluent Naming, Playing with Toys');
+  await expect(listing.getByRole('row').filter({ hasText: 'Fluent Naming' })).toContainText('Morning block');
+
+  // A later program joins the existing lesson.
+  await pick('Spontaneous Requests');
+  await listing.getByRole('button', { name: 'Add to lesson', exact: true }).click();
+  await expect(dialog.getByLabel('Lesson', { exact: true })).toHaveValue(/lesson-/);
+  await dialog.getByRole('button', { name: 'Add to lesson', exact: true }).click();
+  await expect(lessons).toContainText('Spontaneous Requests');
+
+  // Lessons persist across a reload.
+  await page.reload();
+  await activate(page, 'Programs');
+  await expect(listing.getByRole('region', { name: 'Lessons' })).toContainText('Morning block');
+  await accessible(page);
+});
