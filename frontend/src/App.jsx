@@ -11,6 +11,7 @@ import Dialog from './components/ui/Dialog';
 import { AnalyticsSkeleton } from './components/ui/EmptyState';
 import { useFeedback } from './utils/useFeedback';
 import { readAccessLevel, writeAccessLevel, viewOnlyNotice } from './utils/permissions';
+import { splitTargetNames } from './utils/programManagement';
 import { supervisorObservations } from './utils/observations';
 import { workflowFromHash } from './data/workflows';
 import { User, Calendar, ChartLineUp, Target, Notebook, CheckCircle2, ArrowRight, ArrowCounterClockwise, AlertTriangle, ShieldCheck } from './components/ui/Icons';
@@ -292,6 +293,26 @@ export default function App() {
     saved(`“${archived.name}” archived. Its history and its recorded data are kept.`);
     return archived;
   }
+  // Several names entered together each become their own target.
+  function addTargets(program, values) {
+    const names = splitTargetNames(values.name);
+    const created = names.map(name => apiService.addTarget(program.id, { ...values, name, phaseEnteredDate: SEED_AS_OF_DATE })).filter(Boolean);
+    if (!created.length) { notify('The target could not be added.', 'error'); return []; }
+    saved(created.length === 1 ? `Target “${created[0].name}” added.` : `${created.length} targets added.`);
+    return created;
+  }
+  function updateTarget(target, values) {
+    const updated = apiService.updateTarget(target.id, values);
+    if (!updated) { notify('The target could not be updated.', 'error'); return null; }
+    saved(`Target “${updated.name}” updated.`);
+    return updated;
+  }
+  function deleteTargets(program, ids) {
+    const removed = apiService.deleteTargets(program.id, ids);
+    if (!removed.length) { notify('Nothing was deleted.', 'error'); return []; }
+    saved(removed.length === 1 ? `Target “${removed[0].name}” deleted.` : `${removed.length} targets deleted.`);
+    return removed;
+  }
   function unarchiveProgram(program) {
     const restored = apiService.unarchiveProgram(program.id);
     if (!restored) { notify('The program could not be restored.', 'error'); return null; }
@@ -546,7 +567,8 @@ export default function App() {
                   onDuplicateProgram={duplicateProgram}
                   onArchiveProgram={archiveProgram}
                   onUnarchiveProgram={unarchiveProgram}
-                  onAddTargets={program => openProgram(program, { addTargets: true })} />
+                  onAddTarget={addTargets} onUpdateTarget={updateTarget} onDeleteTargets={deleteTargets}
+                  activity={data.activity || []} asOf={SEED_AS_OF_DATE} />
               </Suspense>
             </WorkflowPanel>}
             {workflowVisible('abc-observations') && <WorkflowPanel id="abc-observations" active={activeSection === 'abc-observations'}>

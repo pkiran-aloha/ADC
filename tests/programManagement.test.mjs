@@ -240,3 +240,76 @@ test('the form is incomplete while any required field is missing', () => {
   assert.equal(programFormComplete(validateProgram({ name: '' }, { category: PROGRAM_CATEGORIES.SKILL, existing: [] })), false);
   assert.equal(programFormComplete(validateProgram(validSkillProgram, { category: PROGRAM_CATEGORIES.SKILL, existing: [] })), true);
 });
+
+// ---- Target definition ----------------------------------------------------------------
+
+import {
+  splitTargetNames, targetTypeTabs, validateTarget, validateTypeConfig
+} from '../frontend/src/utils/programManagement.js';
+
+const baseTarget = { name: 'Food items', type: 'Frequency', phase: 'Baseline' };
+
+test('several target names entered together each become their own target', () => {
+  assert.deepEqual(splitTargetNames('Apple, Banana,Cherry'), ['Apple', 'Banana', 'Cherry']);
+  assert.deepEqual(splitTargetNames('Apple\nBanana\n\n'), ['Apple', 'Banana']);
+  assert.deepEqual(splitTargetNames('   '), []);
+});
+
+test('a target needs a name, a measurement type and a phase', () => {
+  const errors = validateTarget({});
+  assert.ok(errors.name && errors.type && errors.phase);
+  assert.deepEqual(validateTarget(baseTarget), {});
+});
+
+test('a trial by trial target requires a prompt hierarchy', () => {
+  const errors = validateTarget({ ...baseTarget, type: 'TrialByTrial' }, { promptHierarchyIds: ['least-to-most'] });
+  assert.ok(errors.promptHierarchyId);
+  assert.deepEqual(validateTarget({ ...baseTarget, type: 'TrialByTrial', promptHierarchyId: 'least-to-most' },
+    { promptHierarchyIds: ['least-to-most'] }), {});
+  assert.ok(validateTarget({ ...baseTarget, type: 'TrialByTrial', promptHierarchyId: 'made-up' },
+    { promptHierarchyIds: ['least-to-most'] }).promptHierarchyId, 'an unknown hierarchy is refused');
+});
+
+test('an interval target requires a start type, a length and a capture type', () => {
+  const errors = validateTypeConfig({ type: 'IntervalData' });
+  assert.ok(errors.intervalStartType && errors.intervalLength && errors.intervalCaptureType);
+  const ok = { type: 'IntervalData', intervalSettings: { startType: 'LessonStart', intervalLength: '00:30', captureType: 'Whole' } };
+  assert.deepEqual(validateTypeConfig(ok), {});
+  // The interval count is optional, but must be a whole number when given.
+  assert.deepEqual(validateTypeConfig({ ...ok, intervalSettings: { ...ok.intervalSettings, numberOfIntervals: 20 } }), {});
+  assert.ok(validateTypeConfig({ ...ok, intervalSettings: { ...ok.intervalSettings, numberOfIntervals: 2.5 } }).numberOfIntervals);
+  assert.ok(validateTypeConfig({ ...ok, intervalSettings: { ...ok.intervalSettings, intervalLength: '00:00' } }).intervalLength);
+});
+
+test('a fluency target requires a timer setting', () => {
+  assert.ok(validateTypeConfig({ type: 'FluencyRate' }).fluencyStartType);
+  assert.deepEqual(validateTypeConfig({ type: 'FluencyRate', fluencySettings: { startType: 'ManualStartCountDown' } }), {});
+});
+
+test('mastery is an automatic rule or a recorded clinician decision', () => {
+  const rule = { measure: 'percentCorrect', comparison: 'atLeast', threshold: 80, consecutiveSessions: 3 };
+  assert.deepEqual(validateTarget({ ...baseTarget, masterySettings: 'Automatic', masteryRule: rule }), {});
+  assert.ok(validateTarget({ ...baseTarget, masterySettings: 'Automatic', masteryRule: { ...rule, consecutiveSessions: 0 } }).masterySessions);
+  assert.ok(validateTarget({ ...baseTarget, masterySettings: 'Automatic', masteryRule: { ...rule, threshold: -1 } }).masteryThreshold);
+  // A manual decision carries its date.
+  assert.ok(validateTarget({ ...baseTarget, masterySettings: 'Manual', manualMastery: { achieved: true } }).manualDecidedOn);
+  assert.deepEqual(validateTarget({ ...baseTarget, masterySettings: 'Manual', manualMastery: { achieved: true, decidedOn: '2026-10-01' } }), {});
+});
+
+test('only measurement types that exist get a tab, and none when there are no targets', () => {
+  assert.deepEqual(targetTypeTabs([]), []);
+  assert.deepEqual(targetTypeTabs([{ type: 'Duration' }, { type: 'Frequency' }, { type: 'Duration' }]), ['All', 'Frequency', 'Duration']);
+});
+
+test('every target in the fixture passes target validation, so none is refused on edit', async () => {
+  const { default: seed } = await import('../data/clinicalSeed.json', { with: { type: 'json' } });
+  const hierarchyIds = seed.promptHierarchyTemplates.map(item => item.id);
+  const refused = [];
+  for (const program of seed.programs) {
+    for (const target of program.targets) {
+      const errors = validateTarget(target, { promptHierarchyIds: hierarchyIds });
+      if (Object.keys(errors).length) refused.push({ id: target.id, errors });
+    }
+  }
+  assert.deepEqual(refused, []);
+});

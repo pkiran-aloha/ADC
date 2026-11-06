@@ -10,6 +10,8 @@ import { CLINICAL_STANDARDS, PROMPT_HIERARCHY_TEMPLATES, SEED_AS_OF_DATE } from 
 import ClientSpecificSection from '../src/components/ClientSpecificSection.jsx';
 import ProgramManagement from '../src/components/ProgramManagement.jsx';
 import ProgramFormModal from '../src/components/Modals/ProgramFormModal.jsx';
+import TargetFormModal from '../src/components/Modals/TargetFormModal.jsx';
+import ProgramView from '../src/components/ProgramView.jsx';
 import AbcDataSection from '../src/components/AbcDataSection.jsx';
 import ServiceQualitySection from '../src/components/ServiceQualitySection.jsx';
 import ReportsSection from '../src/components/ReportsSection.jsx';
@@ -70,6 +72,9 @@ const portalCases = [
     isOpen: true, onClose: noop, onSave: noop,
     target: programs[0].targets[0], scopeTargets: programs[0].targets.map(target => ({ id: target.id, name: target.name, phase: target.phase }))
   }, ['phase line']],
+  ['TargetFormModal', TargetFormModal, {
+    isOpen: true, onClose: noop, onSave: noop, program: programs[0], asOf: SEED_AS_OF_DATE
+  }, ['Measurement tool', 'Prompt hierarchy', 'Mastery']],
   ['ProgramFormModal', ProgramFormModal, {
     isOpen: true, onClose: noop, onSave: noop, client, category: 'SkillAcquisition',
     existing: programs
@@ -110,6 +115,12 @@ const cases = [
     abcConfiguration: seed.abcConfigurations[0],
     canEdit: false, viewOnlyReason: 'View-only analytics access.', onCreateProgram: noop, onOpenProgram: noop
   }, ['View-only access']],
+  ['ProgramView', ProgramView, {
+    program: programs[0], canEdit: true, asOf: SEED_AS_OF_DATE, onBack: noop, onAddTargets: noop, onOpenAnalysis: noop
+  }, ['Total targets', 'Targets mastered', 'Completion', 'Discriminative stimuli:']],
+  ['ProgramView (no targets)', ProgramView, {
+    program: { ...programs[0], targets: [] }, canEdit: true, asOf: SEED_AS_OF_DATE, onBack: noop, onAddTargets: noop
+  }, ['No targets yet.', 'documentation']],
   ['ServiceQualitySection', ServiceQualitySection, {
     client, serviceSessions, sessions: sessions.filter(row => row.clientId === client.id),
     standards: CLINICAL_STANDARDS, asOfDate: SEED_AS_OF_DATE

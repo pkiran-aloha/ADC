@@ -1718,7 +1718,7 @@ test('a program can be defined in Program Management and joins the listing', asy
   await dialog.getByLabel('Teaching instructions').fill('Teach the learner to hand over a break card.');
   await dialog.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(dialog).toBeHidden();
-  await expect(listing.getByRole('button', { name: 'Requesting a Break' })).toBeVisible();
+  await expect(listing.getByRole('button', { name: 'Requesting a Break', exact: true })).toBeVisible();
 
   // The platform offers the next step straight away.
   const prompt = page.locator('.programs-prompt');
@@ -1729,7 +1729,7 @@ test('a program can be defined in Program Management and joins the listing', asy
   // The new program is in the browser, so a reload keeps it.
   await page.reload();
   await activate(page, 'Programs');
-  await expect(page.locator('#programs').getByRole('button', { name: 'Requesting a Break' })).toBeVisible();
+  await expect(page.locator('#programs').getByRole('button', { name: 'Requesting a Break', exact: true })).toBeVisible();
   await accessible(page);
 });
 
@@ -1780,5 +1780,72 @@ test('a program can be edited, duplicated and archived', async ({ page }) => {
   await page.getByRole('button', { name: 'Unarchive' }).click();
   await expect(listing.getByRole('button', { name: 'Show archived' })).toHaveCount(0);
   await expect(listing.getByRole('button', { name: 'Expressive Labeling and Requesting', exact: true })).toBeVisible();
+  await accessible(page);
+});
+
+test('a program view shows its targets and a target can be defined', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = page.locator('#programs');
+  await listing.getByRole('button', { name: 'Expressive Labeling', exact: true }).click();
+
+  // The summary and the target cards, ordered by phase.
+  const view = listing.locator('.program-view');
+  await expect(view.getByRole('heading', { name: 'Expressive Labeling', level: 2 })).toBeVisible();
+  await expect(view.getByLabel('Program summary')).toContainText('Total targets');
+  await expect(view.getByLabel('Program summary')).toContainText('Targets mastered');
+  await expect(view.locator('.target-card').first()).toBeVisible();
+  // A type tab filters, and only types that exist are offered.
+  await expect(view.getByRole('button', { name: 'Trial by trial', exact: true })).toBeVisible();
+  await expect(view.getByRole('button', { name: 'Anecdotal', exact: true })).toBeVisible();
+  await expect(view.getByRole('button', { name: 'Duration', exact: true })).toHaveCount(0);
+
+  // A trial by trial target needs its prompt hierarchy.
+  await view.getByRole('button', { name: 'Add target' }).click();
+  const dialog = page.locator('dialog');
+  await dialog.getByLabel('Target name or names').fill('Zebra, Giraffe');
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(dialog.getByText('Choose a prompt hierarchy.')).toBeVisible();
+  await dialog.getByLabel('Prompt hierarchy').selectOption({ index: 1 });
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(dialog).toBeHidden();
+
+  // Each name became its own target.
+  const cards = view.locator('.target-card');
+  await expect(cards.filter({ hasText: 'Zebra' })).toHaveCount(1);
+  await expect(cards.filter({ hasText: 'Giraffe' })).toHaveCount(1);
+  await accessible(page);
+});
+
+test('targets can be edited, deleted singly and in bulk, and the activity trail follows', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = page.locator('#programs');
+  await listing.getByRole('button', { name: 'Fluent Naming', exact: true }).click();
+  const view = listing.locator('.program-view');
+  const cards = view.locator('.target-card');
+  const start = await cards.count();
+
+  // Editing keeps the measurement tool fixed.
+  await view.getByRole('button', { name: /^Edit / }).first().click();
+  const dialog = page.locator('dialog');
+  await expect(dialog.getByLabel('Measurement tool')).toBeDisabled();
+  const original = await dialog.getByLabel('Target name').inputValue();
+  await dialog.getByLabel('Target name').fill(`${original} revised`);
+  await dialog.getByRole('button', { name: 'Save changes' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(cards.filter({ hasText: `${original} revised` })).toHaveCount(1);
+  await expect(view.locator('.program-activity')).toContainText('Updated target');
+
+  // Deleting one asks first.
+  await view.getByRole('button', { name: /^Delete / }).first().click();
+  await expect(page.locator('dialog').getByText(/^Delete “/)).toBeVisible();
+  await page.locator('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(cards).toHaveCount(start - 1);
+
+  // Bulk delete asks too, and clears the selection.
+  await cards.nth(0).getByRole('checkbox').check({ force: true });
+  await expect(view.getByRole('status').filter({ hasText: '1 selected' })).toBeVisible();
+  await view.getByRole('button', { name: 'Delete selected' }).click();
+  await page.locator('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(cards).toHaveCount(start - 2);
   await accessible(page);
 });

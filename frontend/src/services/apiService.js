@@ -699,6 +699,32 @@ class AnalyticsService {
     return created;
   }
 
+  // Editing keeps the measurement type fixed and the identity unchanged.
+  updateTarget(targetId, patch = {}) {
+    const target = this.findTarget(targetId);
+    if (!target) return null;
+    const allowed = ['name', 'description', 'discriminativeStimuli', 'masterySettings', 'masteryCriteria',
+      'masteryRule', 'manualMastery', 'promptHierarchyId', 'targetInstructions', 'intervalSettings', 'fluencySettings'];
+    allowed.forEach(key => { if (key in patch) target[key] = patch[key]; });
+    this.recordActivity('target.updated', 'target', target.id, `Updated target “${target.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return target;
+  }
+
+  // Deleting removes the target from its program. Observations already recorded
+  // against it stay in the data, so a deletion never silently erases a record.
+  deleteTargets(programId, targetIds = []) {
+    const program = this.findProgram(programId);
+    if (!program) return [];
+    const wanted = new Set(targetIds);
+    const removed = (program.targets || []).filter(target => wanted.has(target.id));
+    if (!removed.length) return [];
+    program.targets = program.targets.filter(target => !wanted.has(target.id));
+    removed.forEach(target => this.recordActivity('target.deleted', 'target', target.id, `Deleted target “${target.name}” from “${program.name}”.`));
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return removed;
+  }
+
   findTarget(targetId) {
     for (const program of this.programs) {
       const target = (program.targets || []).find(item => item.id === targetId);

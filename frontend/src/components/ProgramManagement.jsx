@@ -3,6 +3,7 @@ import {
   countByCategory, partitionByArchive, PROGRAM_CATEGORIES, PROGRAM_STATUS_LABELS
 } from '../utils/programManagement';
 import ProgramFormModal from './Modals/ProgramFormModal';
+import ProgramView from './ProgramView';
 import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
 import Popover from './ui/Popover';
@@ -21,8 +22,8 @@ const TABS = [
 
 export default function ProgramManagement({
   client, programs = [], lessons = [], abcConfiguration = null, abcEntries = [],
-  canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram, onAddTargets,
-  onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram
+  canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram,
+  onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram, onAddTarget, onUpdateTarget, onDeleteTargets, activity = [], asOf
 }) {
   const [tab, setTab] = useState('skill');
   const [formOpen, setFormOpen] = useState(false);
@@ -30,6 +31,7 @@ export default function ProgramManagement({
   const [editing, setEditing] = useState(null);
   const [confirming, setConfirming] = useState(null);
   const [pendingTargets, setPendingTargets] = useState(null);
+  const [viewing, setViewing] = useState({ id: null, adding: false });
 
   const counts = useMemo(() => ({
     skill: countByCategory(programs, PROGRAM_CATEGORIES.SKILL),
@@ -47,6 +49,7 @@ export default function ProgramManagement({
   }, [lessons]);
 
   const activeTab = TABS.find(entry => entry.id === tab) || TABS[0];
+  const viewingProgram = programs.find(program => program.id === viewing.id) || null;
 
   function openCreate(category) {
     setFormCategory(category);
@@ -98,6 +101,10 @@ export default function ProgramManagement({
     {!client ? <EmptyState title="Choose a client." icon={Target}
       description="A client's programs belong to that client, so pick one before you open this workspace." />
       : <>
+        {viewingProgram ? <ProgramView key={viewingProgram.id + (viewing.adding ? '-add' : '')} program={viewingProgram} canEdit={canEdit}
+          asOf={asOf} startAdding={viewing.adding} onBack={() => setViewing({ id: null, adding: false })}
+          onAddTargets={onAddTarget} onUpdateTarget={onUpdateTarget} onDeleteTargets={onDeleteTargets}
+          activity={activity} onOpenAnalysis={onOpenProgram} /> : <>
         <div className="programs-tabs" role="tablist" aria-label="Program types">
           {TABS.map(entry => {
             const Icon = entry.icon;
@@ -119,9 +126,10 @@ export default function ProgramManagement({
           {activeTab.id === 'abc'
             ? <AbcConfigurationPanel configuration={abcConfiguration} entries={abcEntries} />
             : <ProgramListing category={activeTab.category} programs={programs} lessonNames={lessonNames}
-              canEdit={canEdit} viewOnlyReason={viewOnlyReason} onCreate={openCreate} onOpen={onOpenProgram}
+              canEdit={canEdit} viewOnlyReason={viewOnlyReason} onCreate={openCreate} onOpen={program => setViewing({ id: program.id, adding: false })}
               onEdit={openEdit} onDuplicate={askDuplicate} onArchive={askArchive} onUnarchive={onUnarchive} />}
         </div>
+        </>}
 
         <ProgramFormModal key={editing?.id || 'new'} isOpen={formOpen} onClose={() => { setFormOpen(false); setEditing(null); }}
           client={client} category={formCategory} program={editing} existing={programs}
@@ -146,7 +154,7 @@ export default function ProgramManagement({
             <div className="dialog-actions">
               <button type="button" className="button button--secondary" onClick={() => setPendingTargets(null)}>Maybe later</button>
               <button type="button" className="button button--primary" onClick={() => {
-                onAddTargets?.(pendingTargets);
+                setViewing({ id: pendingTargets.id, adding: true });
                 setPendingTargets(null);
               }}>Yes, let’s add targets</button>
             </div>

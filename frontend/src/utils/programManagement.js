@@ -222,3 +222,94 @@ export function usageCount(entries = [], listKey, value) {
     return Array.isArray(values) && values.includes(wanted);
   }).length;
 }
+
+// ---- Targets --------------------------------------------------------------------------
+
+export const TARGET_TYPES = ['TrialByTrial', 'Frequency', 'Duration', 'IntervalData', 'Anecdotal', 'FluencyRate'];
+export const TARGET_TYPE_LABELS = {
+  TrialByTrial: 'Trial by trial', Frequency: 'Frequency', Duration: 'Duration',
+  IntervalData: 'Interval data', Anecdotal: 'Anecdotal', FluencyRate: 'Fluency / rate'
+};
+export const INTERVAL_START_TYPES = ['Manual', 'LessonStart'];
+export const INTERVAL_CAPTURE_TYPES = ['Whole', 'Partial', 'MomentaryTimeSampling'];
+export const FLUENCY_START_TYPES = ['LessonStartCountUp', 'ManualStartCountUp', 'ManualStartCountDown'];
+// Taken from the rules the fixture already carries, so every existing target is valid.
+export const MASTERY_MEASURES = ['percentCorrect', 'percentIntervals', 'durationSeconds', 'ratePerHour', 'correctPerMinute', 'count', 'intervalCount'];
+export const MASTERY_COMPARISONS = ['atLeast', 'atMost', 'below'];
+
+// A target's measurement type decides which configuration it must carry. The
+// recorder reads the same configuration, so the checks live in one place.
+export function validateTypeConfig(target = {}, { promptHierarchyIds = [] } = {}) {
+  const errors = {};
+  if (target.type === 'TrialByTrial') {
+    if (!target.promptHierarchyId) errors.promptHierarchyId = 'Choose a prompt hierarchy.';
+    else if (promptHierarchyIds.length && !promptHierarchyIds.includes(target.promptHierarchyId)) {
+      errors.promptHierarchyId = 'Choose a prompt hierarchy from the list.';
+    }
+  }
+  if (target.type === 'IntervalData') {
+    const settings = target.intervalSettings || {};
+    if (!INTERVAL_START_TYPES.includes(settings.startType)) errors.intervalStartType = 'Choose how the intervals start.';
+    if (!/^\d{1,2}:\d{2}$/.test(String(settings.intervalLength || '')) || settings.intervalLength === '00:00') {
+      errors.intervalLength = 'Enter the interval length as minutes and seconds, such as 00:30.';
+    }
+    if (!INTERVAL_CAPTURE_TYPES.includes(settings.captureType)) errors.intervalCaptureType = 'Choose how each interval is scored.';
+    if (settings.numberOfIntervals != null && settings.numberOfIntervals !== '') {
+      const count = Number(settings.numberOfIntervals);
+      if (!Number.isInteger(count) || count < 1) errors.numberOfIntervals = 'Enter a whole number of intervals, or leave it blank.';
+    }
+  }
+  if (target.type === 'FluencyRate') {
+    if (!FLUENCY_START_TYPES.includes(target.fluencySettings?.startType)) errors.fluencyStartType = 'Choose how the timer runs.';
+  }
+  return errors;
+}
+
+// Mastery is either computed from a stated rule, or decided by a clinician.
+export function validateMastery(target = {}) {
+  const errors = {};
+  if (target.masterySettings === 'Manual') {
+    if (target.manualMastery?.achieved && !target.manualMastery.decidedOn) errors.manualDecidedOn = 'Record the date of the decision.';
+    return errors;
+  }
+  const rule = target.masteryRule;
+  if (rule) {
+    if (!MASTERY_MEASURES.includes(rule.measure)) errors.masteryMeasure = 'Choose what is measured.';
+    if (!MASTERY_COMPARISONS.includes(rule.comparison)) errors.masteryComparison = 'Choose a comparison.';
+    if (!Number.isFinite(Number(rule.threshold)) || rule.threshold === '' || Number(rule.threshold) < 0) {
+      errors.masteryThreshold = 'Enter a threshold of 0 or more.';
+    }
+    const sessions = Number(rule.consecutiveSessions);
+    if (!Number.isInteger(sessions) || sessions < 1) errors.masterySessions = 'Enter a whole number of sessions.';
+  }
+  return errors;
+}
+
+export function validateTarget(values = {}, { promptHierarchyIds = [] } = {}) {
+  const errors = {};
+  const names = splitTargetNames(values.name);
+  if (!names.length) errors.name = 'Give the target a name.';
+  if (!TARGET_TYPES.includes(values.type)) errors.type = 'Choose a measurement type.';
+  if (!TARGET_PHASES.includes(values.phase)) errors.phase = 'Choose a phase.';
+  if (values.targetInstructions && !withinLimit(values.targetInstructions, FIELD_LIMITS.targetInstructions)) {
+    errors.targetInstructions = `Keep this to ${FIELD_LIMITS.targetInstructions} characters.`;
+  }
+  return { ...errors, ...validateTypeConfig(values, { promptHierarchyIds }), ...validateMastery(values) };
+}
+
+// Several names entered together each become their own target.
+export function splitTargetNames(raw) {
+  return String(raw || '').split(/[\n,]/).map(part => part.trim()).filter(Boolean);
+}
+
+// A target's measurement type is fixed once it exists, so data collected under
+// one method is never compared against data collected under another.
+export function lockedTargetFields(target) {
+  return target ? ['type'] : [];
+}
+
+// The type tabs on a program view: only types that exist are offered.
+export function targetTypeTabs(targets = []) {
+  const present = TARGET_TYPES.filter(type => targets.some(target => target.type === type));
+  return present.length ? ['All', ...present] : [];
+}

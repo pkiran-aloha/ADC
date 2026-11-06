@@ -196,3 +196,26 @@ test('treatment areas and tags are always lists, whatever the fixture held', () 
   apiService.updateProgram(program.id, { treatmentArea: ['Communication', 'Play'] });
   assert.deepEqual(apiService.findProgram(program.id).treatmentArea, ['Communication', 'Play']);
 });
+
+test('editing a target keeps its measurement type and its identity', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Target edit demo' });
+  const target = apiService.addTarget(program.id, { name: 'Greets', type: 'Frequency' });
+  const updated = apiService.updateTarget(target.id, { name: 'Greets peers', type: 'Duration', discriminativeStimuli: 'A peer arrives' });
+  assert.equal(updated.id, target.id);
+  assert.equal(updated.type, 'Frequency', 'the measurement type is fixed once the target exists');
+  assert.equal(updated.name, 'Greets peers');
+  assert.equal(updated.discriminativeStimuli, 'A peer arrives');
+});
+
+test('deleting targets removes them from the program but not their recorded data', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Target delete demo' });
+  const a = apiService.addTarget(program.id, { name: 'A', type: 'Frequency' });
+  const b = apiService.addTarget(program.id, { name: 'B', type: 'Frequency' });
+  apiService.addObservation({ clientId: CLIENT, targetId: a.id, occurrenceCount: 3, lessonDurationMinutes: 10, timestamp: `${SEED_AS_OF_DATE} 09:00` });
+  const removed = apiService.deleteTargets(program.id, [a.id, b.id]);
+  assert.equal(removed.length, 2);
+  assert.deepEqual(apiService.findProgram(program.id).targets, []);
+  assert.ok(apiService.getSnapshot().sessions.some(row => row.targetId === a.id), 'the recorded observation is kept');
+  assert.equal(apiService.getActivity().filter(entry => entry.kind === 'target.deleted').length >= 2, true);
+  assert.deepEqual(apiService.deleteTargets(program.id, ['nope']), []);
+});
