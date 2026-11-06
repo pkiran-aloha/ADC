@@ -418,3 +418,53 @@ test('the program mastered count never disagrees with the phase-based count on t
     assert.equal(targets.filter(isMastered).length, targets.filter(phaseBased).length, client.id);
   }
 });
+
+// ---- Search and filter ----------------------------------------------------------------
+
+import { filterPrograms, matchesQuery, searchFields } from '../frontend/src/utils/programManagement.js';
+
+const skillA = { id: 'a', name: 'Expressive Labeling', category: 'SkillAcquisition', status: 'Generalizing', tags: ['Tacting', 'Communication'] };
+const skillB = { id: 'b', name: 'Fluent Naming', category: 'SkillAcquisition', status: 'OnHold', tags: ['Fluency'] };
+const behaviorA = { id: 'c', name: 'Elopement', category: 'BehaviorReduction', status: 'Teaching', treatmentArea: 'Safety', tags: ['Escape'], behaviorPhase: 'Maintenance', targets: [{ type: 'Duration', phase: 'Open' }] };
+const lessons = new Map([['a', 'Morning block']]);
+
+test('a skill program is found by name, tag, lesson and status, partially and ignoring case', () => {
+  assert.ok(matchesQuery(skillA, 'expres'), 'partial name');
+  assert.ok(matchesQuery(skillA, 'EXPRESSIVE LABELING'), 'case-insensitive');
+  assert.ok(matchesQuery(skillA, 'tact'), 'tag');
+  assert.ok(matchesQuery(skillA, 'morning', { lessonName: 'Morning block' }), 'lesson name');
+  assert.ok(matchesQuery(skillA, 'general'), 'status');
+  assert.ok(matchesQuery(skillB, 'on hold'), 'status shown with a space');
+  assert.ok(!matchesQuery(skillA, 'fluen'));
+});
+
+test('a behavior is found by name, tag, tool, treatment area and phase', () => {
+  ['elope', 'escape', 'duration', 'safety', 'maintenance'].forEach(word => assert.ok(matchesQuery(behaviorA, word), word));
+  assert.ok(!matchesQuery(behaviorA, 'frequency'));
+  assert.ok(searchFields(behaviorA).includes('Duration'));
+});
+
+test('every word must match, so combined terms narrow the list', () => {
+  assert.ok(matchesQuery(skillA, 'expressive communication'), 'name and tag together');
+  assert.ok(!matchesQuery(skillA, 'expressive fluency'), 'one word that does not match excludes it');
+  assert.ok(matchesQuery(skillA, '   '), 'a blank search matches everything');
+  assert.ok(matchesQuery(skillA, ''));
+});
+
+test('a status filter combines with a search term', () => {
+  const all = [skillA, skillB, behaviorA];
+  assert.deepEqual(filterPrograms([skillA, skillB], { status: 'OnHold' }).map(p => p.id), ['b']);
+  assert.deepEqual(filterPrograms([skillA, skillB], { status: 'Generalizing', query: 'label' }).map(p => p.id), ['a']);
+  assert.deepEqual(filterPrograms([skillA, skillB], { status: 'Generalizing', query: 'fluent' }).map(p => p.id), []);
+  assert.deepEqual(filterPrograms([behaviorA], { status: 'Maintenance' }).map(p => p.id), ['c'], 'a behavior filters by phase');
+  assert.deepEqual(filterPrograms([behaviorA], { status: 'Open' }).map(p => p.id), []);
+  assert.deepEqual(filterPrograms(all, {}).length, 3, 'no filter keeps everything');
+  assert.deepEqual(filterPrograms([skillA, skillB], { query: 'morning', lessonNames: lessons }).map(p => p.id), ['a']);
+});
+
+test('filtering never reorders or mutates the list it was given', () => {
+  const input = [skillB, skillA];
+  const output = filterPrograms(input, { query: 'e' });
+  assert.deepEqual(input.map(p => p.id), ['b', 'a']);
+  assert.deepEqual(output.map(p => p.id), ['b', 'a']);
+});

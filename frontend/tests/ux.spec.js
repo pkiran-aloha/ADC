@@ -7,6 +7,7 @@ import { buildInterventionTimeline } from '../src/utils/interventionTimeline.js'
 import { durationFilterForDate, weekCountFor } from '../src/utils/analyticsScope.js';
 import { ALL_PROGRAMS_ID, cumulativeMasterySeries } from '../src/utils/targetAnalytics.js';
 import { buildExplorerCatalog } from '../src/utils/trendExplorer.js';
+import { behaviorPhaseOf } from '../src/utils/programManagement.js';
 
 const read = promisify(readFile);
 const seed = JSON.parse(readFileSync(new URL('../../data/clinicalSeed.json', import.meta.url), 'utf8'));
@@ -2157,5 +2158,57 @@ test('Program Management changes reach the analytics, and the plan and the chart
   // And the chart links back to the plan.
   await analysis.getByRole('button', { name: 'Open in Programs' }).first().click();
   await expect(page.locator('#programs .program-view').getByRole('heading', { name: 'Greeting Familiar Adults', level: 2 })).toBeVisible();
+  await accessible(page);
+});
+
+test('programs and behaviors can be searched and filtered, with a clear and a no-results state', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = page.locator('#programs');
+  const rows = listing.locator('tbody tr');
+  const search = listing.getByRole('textbox', { name: 'Search programs' });
+  await expect(rows).toHaveCount(6);
+  // Alphabetical by default.
+  await expect(rows.first()).toContainText('Expressive Labeling');
+
+  // Partial, case-insensitive, and as the clinician types.
+  await search.pressSequentially('FLUEN');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('Fluent Naming');
+
+  // The clear button restores everything.
+  await listing.getByRole('button', { name: 'Clear search' }).click();
+  await expect(rows).toHaveCount(6);
+  await expect(search).toHaveValue('');
+
+  // A search that matches nothing says so, and Reset recovers.
+  await search.fill('zzzz');
+  await expect(listing.getByText('No results found.')).toBeVisible();
+  await listing.getByRole('button', { name: 'Reset search' }).click();
+  await expect(rows).toHaveCount(6);
+
+  // Status and a search term combine.
+  const status = listing.getByLabel('Filter by status');
+  await status.selectOption('Teaching');
+  await expect(rows).toHaveCount(2);
+  await search.fill('spont');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('Spontaneous Requests');
+  await listing.getByRole('button', { name: 'Reset', exact: true }).click();
+  await expect(rows).toHaveCount(6);
+
+  // Behaviors search their own fields: measurement tool, treatment area and phase.
+  await listing.getByRole('tab', { name: /Behavior reduction/ }).click();
+  const behaviorRows = listing.locator('tbody tr');
+  const behaviorSearch = listing.getByRole('textbox', { name: 'Search behaviors' });
+  await expect(behaviorRows).toHaveCount(3);
+  await behaviorSearch.fill('duration');
+  await expect(behaviorRows).toHaveCount(1);
+  await expect(behaviorRows.first()).toContainText('Elopement');
+  await behaviorSearch.fill('');
+  await listing.getByLabel('Filter by phase').selectOption('Open');
+  // The phase filter matches exactly the behaviors whose derived phase is Open.
+  await expect(behaviorRows).toHaveCount(behaviorPrograms.filter(program => behaviorPhaseOf(program) === 'Open').length);
+  await listing.getByLabel('Filter by phase').selectOption('Maintenance');
+  await expect(behaviorRows).toHaveCount(behaviorPrograms.filter(program => behaviorPhaseOf(program) === 'Maintenance').length);
   await accessible(page);
 });

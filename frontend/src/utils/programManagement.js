@@ -372,3 +372,38 @@ export function validateAbcEntry(values = {}) {
   const has = ['antecedents', 'behaviors', 'consequences'].some(key => (values[key] || []).length) || Boolean(values.location);
   return has ? {} : { entry: 'Choose at least one antecedent, behavior, consequence or location.' };
 }
+
+// ---- Search and filter ----------------------------------------------------------------
+
+// The text a program can be found by. A skill program is found by its name, tags, lesson
+// and status; a behavior by its name, tags, measurement tool, treatment area and phase.
+export function searchFields(program, { lessonName = '' } = {}) {
+  const name = program?.name || '';
+  const tags = toValueList(program?.tags);
+  if (program?.category === PROGRAM_CATEGORIES.BEHAVIOR) {
+    const phase = behaviorPhaseOf(program);
+    const tool = program.targets?.[0]?.type;
+    return [name, ...tags, TARGET_TYPE_LABELS[tool] || '', tool || '', ...toValueList(program.treatmentArea), phase, phase === 'OnHold' ? 'on hold' : ''];
+  }
+  return [name, ...tags, lessonName, program?.status || '', PROGRAM_STATUS_LABELS[program?.status] || ''];
+}
+
+// Every word typed must match somewhere, so "naming fluency" narrows rather than widens.
+// Matching is partial and ignores case.
+export function matchesQuery(program, query, context) {
+  const words = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const fields = searchFields(program, context).map(field => String(field).toLowerCase());
+  return words.every(word => fields.some(field => field.includes(word)));
+}
+
+// A skill program filters by its status, a behavior by its phase.
+export function matchesStatus(program, status) {
+  if (!status) return true;
+  return program?.category === PROGRAM_CATEGORIES.BEHAVIOR ? behaviorPhaseOf(program) === status : program?.status === status;
+}
+
+export function filterPrograms(programs = [], { query = '', status = '', lessonNames = new Map() } = {}) {
+  return programs.filter(program =>
+    matchesStatus(program, status) && matchesQuery(program, query, { lessonName: lessonNames.get(program.id) || '' }));
+}

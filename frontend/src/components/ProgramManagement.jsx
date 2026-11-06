@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  BEHAVIOR_PHASES, behaviorPhaseOf, countByCategory, partitionByArchive, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS,
+  BEHAVIOR_PHASES, behaviorPhaseOf, countByCategory, filterPrograms, partitionByArchive, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS,
   TARGET_TYPE_LABELS
 } from '../utils/programManagement';
 import ProgramFormModal from './Modals/ProgramFormModal';
@@ -12,7 +12,7 @@ import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
 import Popover from './ui/Popover';
 import {
-  Archive, ArrowCounterClockwise, Copy, Ellipsis, Layers, Notebook, Edit3 as PencilSimple, Plus, Target
+  Archive, ArrowCounterClockwise, Copy, Ellipsis, Layers, Notebook, Edit3 as PencilSimple, Plus, Target, X
 } from './ui/Icons';
 
 // The Programs workspace: where a plan is defined, as opposed to the analytics
@@ -199,7 +199,11 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
   // last one returns the listing to the working list rather than leaving it
   // showing nothing.
   const viewingArchived = showArchived && archived.length > 0;
-  const shown = viewingArchived ? archived : active;
+  const pool = viewingArchived ? archived : active;
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const shown = useMemo(() => filterPrograms(pool, { query, status: statusFilter, lessonNames }), [pool, query, statusFilter, lessonNames]);
+  const filtering = Boolean(query.trim() || statusFilter);
   const isBehavior = category === PROGRAM_CATEGORIES.BEHAVIOR;
   const [selected, setSelected] = useState(() => new Set());
   const selectable = canEdit && !isBehavior && !viewingArchived;
@@ -229,6 +233,23 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
       View-only access. {viewOnlyReason || 'Programs can be read but not changed.'}
     </p>}
 
+    <div className="programs-search" role="search" aria-label={isBehavior ? 'Search behaviors' : 'Search programs'}>
+      <label htmlFor={`programs-search-${category}`} className="sr-only">{isBehavior ? 'Search behaviors' : 'Search programs'}</label>
+      <input id={`programs-search-${category}`} type="text" value={query} autoComplete="off"
+        placeholder={isBehavior ? 'Search name, tag, tool, treatment area or phase' : 'Search name, tag, lesson or status'}
+        onChange={event => setQuery(event.target.value)} />
+      {query && <button type="button" className="icon-button" aria-label="Clear search" onClick={() => setQuery('')}><X size={16} /></button>}
+      <label htmlFor={`programs-filter-${category}`} className="sr-only">{isBehavior ? 'Filter by phase' : 'Filter by status'}</label>
+      <select id={`programs-filter-${category}`} value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>
+        <option value="">{isBehavior ? 'All phases' : 'All statuses'}</option>
+        {isBehavior
+          ? BEHAVIOR_PHASES.map(phase => <option key={phase} value={phase}>{phase === 'OnHold' ? 'On hold' : phase}</option>)
+          : PROGRAM_STATUSES.map(status => <option key={status} value={status}>{PROGRAM_STATUS_LABELS[status]}</option>)}
+      </select>
+      {filtering && <button type="button" className="button button--tertiary" onClick={() => { setQuery(''); setStatusFilter(''); }}>Reset</button>}
+      <p className="sr-only" role="status">{filtering ? `${shown.length} of ${pool.length} shown` : ''}</p>
+    </div>
+
     {!isBehavior && !viewingArchived && <section className="lessons-panel" aria-label="Lessons">
       <header className="abc-list-header">
         <h3>Lessons</h3>
@@ -248,7 +269,10 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
       <button type="button" className="button button--tertiary" onClick={() => setSelected(new Set())}>Clear selection</button>
     </div>}
 
-    {shown.length === 0
+    {shown.length === 0 && pool.length > 0
+      ? <EmptyState title="No results found." icon={Target}
+        description="Nothing matches that search and filter. Try fewer words, or reset the filters." action={{ label: 'Reset search', onClick: () => { setQuery(''); setStatusFilter(''); } }} />
+      : shown.length === 0
       ? <EmptyState title={viewingArchived ? 'No archived programs.' : 'No programs yet.'} icon={Target}
         description={viewingArchived
           ? 'Archived programs keep their history and their recorded data. None are archived for this client.'

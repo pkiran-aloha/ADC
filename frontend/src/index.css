@@ -2045,3 +2045,8 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 .status-pill--approved { background: var(--color-brand-100); color: var(--color-brand-900); }
 .program-definition__link { margin: 0.25rem 0 0; }
 .program-definition__link .button { max-width: 100%; white-space: normal; }
+
+/* ---- Program search ---------------------------------------------------------------- */
+.programs-search { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.programs-search input[type='text'] { flex: 1 1 14rem; min-width: 0; min-height: 2.5rem; padding: 0.3rem 0.7rem; border: 1px solid var(--line); border-radius: 0.5rem; background: #fff; font: inherit; font-size: 0.8125rem; }
+.programs-search select { min-height: 2.5rem; padding: 0.3rem 0.5rem; border: 1px solid var(--line); border-radius: 0.5rem; background: #fff; font: inherit; font-size: 0.8125rem; }
