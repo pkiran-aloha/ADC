@@ -17,7 +17,7 @@ The Welina Analytics Module is a **fictional** ABA analytics workspace: six work
 As of the last update:
 
 - `origin/main` is at `f6b22b8` ("Merge pull request from origin/docs/agent-handoff"), which carries the agent rules and the handoff document on top of the guided target-analysis redesign (PR #27), the resilient sharded Pages deployment (PR #26), and the target-analysis navigation and chart-workspace work (PR #21 to #25).
-- On `origin/main` the frontend suite is **151 node:test cases**. With the Program Management merge (6 November 2026) it is **247 node:test cases across 14 suites**, a server-render smoke matrix, and **172 Playwright + axe scenarios** (86 each on desktop and mobile; two shards in CI).
+- On `origin/main` the frontend suite is **151 node:test cases**. With the Program Management merge (6 November 2026) it is **249 node:test cases across 15 suites**, a server-render smoke matrix, and **174 Playwright + axe scenarios** (87 each on desktop and mobile; two shards in CI).
 - The GHE mirror was synced on 4 November 2026 to `c453ca8`. Its **content tree is byte-identical to `origin/main`**, so the organization repo carries the same code as the working repo. The two differ only in history: GHE keeps the old zip-route "Sync from ADC main" commit `7ef5bd1`, so `ghe/main` is not an ancestor of `origin/main` and a plain `git push ghe main` is rejected. Future syncs should use the "Simpler route" in `Claude outputs/SYNC_ADC_TO_GHE.md` or repeat the `-s ours` merge described there.
 
 ## Shipped
@@ -111,7 +111,7 @@ Things a later change must not get wrong: a behavior is a program with one targe
 
 ## Work started (not yet landed)
 
-UI audit pass (6 November 2026, from `/impeccable audit`, 15 of 20): side-stripe borders replaced with full borders and tints, the 11px text floor raised to 12px, the one `width` transition removed, and CSS `#fff` and translucent whites moved onto `--surface` and `--on-accent` tokens. Dark mode is the next pass (`feat/dark-mode`). The docs test and `docs:check` now ignore CRLF, which a Windows checkout adds to the generated module.
+UI audit pass (6 November 2026, from `/impeccable audit`, 15 of 20): side-stripe borders replaced with full borders and tints, the 11px text floor raised to 12px, the one `width` transition removed, and CSS `#fff` and translucent whites moved onto `--surface` and `--on-accent` tokens. Dark mode followed on `feat/dark-mode`: `theme-dark.css` overrides the colour tokens, a header button switches theme (stored under `welina_theme`, default is the system setting), and charts keep a light background because their series colours and exports are tuned for white. Axe runs in dark on three workflows. Still open from the audit: about 130 hex values remain in chart code and report styles, which are intentionally fixed. The docs test and `docs:check` now ignore CRLF, which a Windows checkout adds to the generated module.
 
 Nothing else is pending. The Program Management branch (`feat/program-management-spec`) was merged into `main` with `--no-ff` after the gate passed (247 of 247 node tests, oxlint with no warnings, docs check, smoke, build, 172 of 172 Playwright scenarios), and `main` was then synced to GHE with the `-s ours` route in `Claude outputs/SYNC_ADC_TO_GHE.md` on 6 November 2026.
 

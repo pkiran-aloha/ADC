@@ -125,7 +125,7 @@ ADC/
 │       └── Welina.Analytics.Api.csproj
 ├── data/clinicalSeed.json           Single shared fixture
 ├── scripts/generate_clinical_seed.py
-├── tests/                           14 Node test suites, 247 tests
+├── tests/                           15 Node test suites, 249 tests
 ├── docs/
 │   ├── wiki/Home.md                 Platform wiki (features, science, workflows)
 │   └── ...                          Legacy static snapshot (not deployed)
@@ -201,6 +201,7 @@ AnalyticsService method
 | `welina_lesson_notes` | Lesson notes: a dated run of a lesson, its status and signatures |
 | `welina_abc_configurations` | Each client's ABC vocabulary (treatment area, teaching instructions, four value lists) |
 | `welina_activity` | The Program Management activity log (capped at 500) |
+| `welina_theme` | The chosen colour theme, `light` or `dark`; absent means follow the system |
 | `welina_sessions` | Observations |
 | `welina_phase_lines` | Manual and automated phase lines |
 | `welina_phase_ranges` | Shaded phase ranges |
@@ -421,9 +422,10 @@ The revision is content-derived; a new fixture automatically reseeds returning d
 | `docsBuild.test.mjs` | 8 | The generated documentation: one page per wiki part, every heading indexed and owned by the page that holds it, the tech-stack page |
 | `programManagement.test.mjs` | 47 | Program Management rules: statuses and phases, mastery, target and behavior validation, lesson-note rules, search, learning-material limits, and that a new target reads as unmeasured |
 | `programStore.test.mjs` | 40 | The browser-local store: programs, targets, behaviors, lessons, lesson notes, the ABC vocabulary, learning materials and the activity log |
-| **Total** | **247** | |
+| `theme.test.mjs` | 2 | Theme resolution: an explicit choice wins, otherwise the system setting, anything else ignored |
+| **Total** | **249** | |
 
-**Observed locally:** 247 passed, 0 failed (`node --test`).
+**Observed locally:** 249 passed, 0 failed (`node --test`).
 
 ### 7.2 Render smoke test
 
@@ -454,7 +456,7 @@ The suite covers workflow navigation and hashes, state preservation, chart drill
 
 | Gate | Result |
 |---|---|
-| `npm test` | 247 / 247 pass |
+| `npm test` | 249 / 249 pass |
 | `npm run lint` | 0 errors, 0 warnings |
 | `npm run smoke` | All sections render; 3 portal dialogs skipped |
 | `npm run build` | Success; `dist/` 2.8 MB, main JS 111 kB gzip, seed 130 kB gzip |
@@ -474,7 +476,7 @@ The suite covers workflow navigation and hashes, state preservation, chart drill
 | 1 | `actions/checkout@v7` | root | — |
 | 2 | `actions/setup-node@v7`, Node 22, npm cache on `frontend/package-lock.json` | — | — |
 | 3 | `npm ci` | `frontend` | Lockfile and manifest disagree |
-| 4 | `npm test` | `frontend` | Any of the 247 tests fails |
+| 4 | `npm test` | `frontend` | Any of the 249 tests fails |
 | 5 | `npm run lint` | `frontend` | Any lint error |
 | 6 | `npm run smoke` | `frontend` | A panel fails to render |
 | 7 | `npm run build` | `frontend` | Bundle error |
@@ -536,7 +538,7 @@ This is also Playwright's `webServer`, so tests exercise the same subpath as pro
 cd frontend
 npm ci
 npm run dev            # Vite dev server on 0.0.0.0:5173
-npm test               # 247 Node tests
+npm test               # 249 Node tests
 npm run lint           # oxlint
 npm run smoke          # SSR render of every panel
 npm run build          # production bundle in dist/
@@ -719,7 +721,7 @@ The lockfile is the reproducible source of installed versions; `package.json` ra
 | [`docs/HANDOFF.md`](docs/HANDOFF.md) | Current state, planned work, and anything started but not landed |
 | [`data/clinicalSeed.json`](data/clinicalSeed.json) | The shared fictional fixture |
 | [`scripts/generate_clinical_seed.py`](scripts/generate_clinical_seed.py) | Deterministic fixture generator |
-| [`tests/`](tests) | 247 Node tests |
+| [`tests/`](tests) | 249 Node tests |
 | [`frontend/tests/ux.spec.js`](frontend/tests/ux.spec.js) | Playwright + axe end-to-end suite |
 | [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) | CI/CD pipeline |
 
