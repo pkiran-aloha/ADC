@@ -1,5 +1,6 @@
 import { CUSTOM_FIELD_DEFINITIONS, PROMPT_HIERARCHY_TEMPLATES } from '../data/mockData';
 import { MEASUREMENT_LABELS } from '../utils/formValidation';
+import { toValueList } from '../utils/programManagement';
 
 const startLabels = {
   LessonStart: 'Lesson start',
@@ -47,7 +48,7 @@ function TargetDefinitionContent({ target, showHeading = true }) {
 // hierarchy, mastery criteria and learning materials behind a top-of-page disclosure.
 // Extended program procedures and additional targets remain one click away inside each
 // program card so the rail stays scannable at eye level beside the chart.
-export default function ProgramDetails({ programs = [], activeTarget = null }) {
+export default function ProgramDetails({ programs = [], activeTarget = null, onOpenInPrograms }) {
   if (!programs.length) return null;
   const focusedTarget = activeTarget || programs[0]?.targets?.[0] || null;
 
@@ -69,8 +70,11 @@ export default function ProgramDetails({ programs = [], activeTarget = null }) {
               <h3>{program.name}</h3>
               <span className="status-label">{program.status}</span>
             </header>
+            {onOpenInPrograms && <p className="program-definition__link">
+              <button type="button" className="button button--tertiary" onClick={() => onOpenInPrograms(program)}>Open in Programs</button>
+            </p>}
             <div className="definition-copy">
-              <p><strong>Treatment area:</strong> {program.treatmentArea || program.domain || 'Not specified'}</p>
+              <p><strong>Treatment area:</strong> {toValueList(program.treatmentArea).join(', ') || program.domain || 'Not specified'}</p>
               <p><strong>Objective:</strong> {program.programObjective}</p>
               {focusedTarget && program.targets.some(target => target.id === focusedTarget.id) && promptById[focusedTarget.promptHierarchyId] && (
                 <p>

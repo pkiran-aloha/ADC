@@ -42,10 +42,13 @@ test('mastery reads the rule for an automatic target and the decision for a manu
   assert.equal(isMastered({ phase: 'Pending', masterySettings: 'Automatic' }), false);
   // A behavior still open is not mastered.
   assert.equal(isMastered({ phase: 'Open', masterySettings: 'Automatic' }), false);
-  // A manual target is mastered only when a clinician recorded the decision.
-  assert.equal(isMastered({ phase: 'Acquisition', masterySettings: 'Manual' }), false);
+  // A recorded clinician decision is authoritative either way.
   assert.equal(isMastered({ phase: 'Acquisition', masterySettings: 'Manual', manualMastery: { achieved: true } }), true);
   assert.equal(isMastered({ phase: 'Acquisition', masterySettings: 'Manual', manualMastery: { achieved: false } }), false);
+  assert.equal(isMastered({ phase: 'Completed', masterySettings: 'Manual', manualMastery: { achieved: false } }), false, 'an explicit no wins over the phase');
+  // With no recorded decision, which is every target that predates the field, the phase decides.
+  assert.equal(isMastered({ phase: 'Acquisition', masterySettings: 'Manual' }), false);
+  assert.equal(isMastered({ phase: 'Completed', masterySettings: 'Manual' }), true);
 });
 
 test('targets are ordered by phase, then alphabetically within a phase', () => {
@@ -381,4 +384,37 @@ test('an ABC observation recorded without an intensity is not averaged as zero',
   assert.equal(point.duration, 6, 'only the one measured duration');
   const none = intensityTrend([{ timestamp: '2026-10-05T09:00:00', behaviors: ['X'] }], ['X']).series[0].points[0];
   assert.equal(none.intensity, null, 'no measurement is null, never zero');
+});
+
+// ---- A new target in the analytics ----------------------------------------------------
+
+import buildTargetHealth from '../frontend/src/utils/targetHealth.js';
+
+test('a target with no data reads as unmeasured, never as a measured zero', () => {
+  const program = {
+    id: 'p-new', clientId: 'c', name: 'New', category: 'SkillAcquisition', status: 'Teaching',
+    targets: [{ id: 't-new', name: 'Brand new', type: 'Frequency', phase: 'Acquisition', masterySettings: 'Automatic',
+      phaseEnteredDate: '2026-10-14', phaseHistory: [] }]
+  };
+  const { items } = buildTargetHealth({ programs: [program], sessions: [], asOfDate: '2026-10-14' });
+  assert.equal(items.length, 1, 'the new target is in the health matrix');
+  const item = items[0];
+  assert.equal(item.trend, 'insufficient', 'no history is not a trend');
+  assert.equal(item.deltaPct, null);
+  assert.equal(item.level ?? null, null, 'no current level is not a level of zero');
+  assert.equal(item.lastMeasured ?? null, null);
+  assert.ok(!JSON.stringify(item).includes('NaN'));
+});
+
+test('the program mastered count never disagrees with the phase-based count on the fixture', async () => {
+  // The overview, the weekly map and the success feed read phases. A target that was moved to
+  // a mastered phase before decisions were recorded must count here too, or two screens would
+  // show two different numbers for the same client.
+  const { default: seed } = await import('../data/clinicalSeed.json', { with: { type: 'json' } });
+  const phaseBased = target => ['Maintenance', 'Generalization', 'Completed'].includes(target.phase);
+  for (const client of seed.clients) {
+    const targets = seed.programs.filter(program => program.clientId === client.id && program.category === 'SkillAcquisition')
+      .flatMap(program => program.targets);
+    assert.equal(targets.filter(isMastered).length, targets.filter(phaseBased).length, client.id);
+  }
 });

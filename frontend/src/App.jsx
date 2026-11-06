@@ -11,7 +11,7 @@ import Dialog from './components/ui/Dialog';
 import { AnalyticsSkeleton } from './components/ui/EmptyState';
 import { useFeedback } from './utils/useFeedback';
 import { readAccessLevel, writeAccessLevel, viewOnlyNotice } from './utils/permissions';
-import { behaviorPhaseOf, splitTargetNames } from './utils/programManagement';
+import { behaviorPhaseOf, isMastered, splitTargetNames } from './utils/programManagement';
 import PhaseChangePrompt from './components/Modals/PhaseChangePrompt';
 import { supervisorObservations } from './utils/observations';
 import { workflowFromHash } from './data/workflows';
@@ -87,6 +87,7 @@ export default function App() {
   const [resetOpen, setResetOpen] = useState(false);
   const [phasePrompt, setPhasePrompt] = useState(null);
   const [noteRecording, setNoteRecording] = useState(null);
+  const [programFocus, setProgramFocus] = useState(null);
   const [annotationEditor, setAnnotationEditor] = useState(null);
   // Drill-down requests from summary views (e.g., the progress heat map) re-open the
   // target analysis focused on a program, target and week.
@@ -126,11 +127,16 @@ export default function App() {
   }, [sessions, behaviorTargets]);
   const annotations = useMemo(() => ({ phaseLines: data.phaseLines, phaseRanges: data.phaseRanges, graphNotes: data.graphNotes }), [data.phaseLines, data.phaseRanges, data.graphNotes]);
   const currentClient = clients.find(client => client.id === selectedClientId);
-  const skillPrograms = programs.filter(program => program.category === 'SkillAcquisition');
+  // An archived program no longer drives today's work: it leaves the overview, the mastery
+  // counts and the recorder. Its history and recorded data stay in the target analysis,
+  // marked as archived, because archiving tidies the list and never erases the record.
+  const activePrograms = useMemo(() => programs.filter(program => !program.archivedAt), [programs]);
+  const analysisPrograms = useMemo(() => programs.map(program => (program.archivedAt ? { ...program, name: `${program.name} (archived)` } : program)), [programs]);
+  const skillPrograms = activePrograms.filter(program => program.category === 'SkillAcquisition');
   const clientSessions = useMemo(() => sessions.filter(session => session.clientId === selectedClientId), [sessions, selectedClientId]);
   // Program scope is a derived view of the existing categories; the window is the one shared
   // time range. "All time" starts at the client's earliest record rather than a magic number.
-  const scopedPrograms = useMemo(() => scopePrograms(programs, overviewScope.programScope), [programs, overviewScope.programScope]);
+  const scopedPrograms = useMemo(() => scopePrograms(activePrograms, overviewScope.programScope), [activePrograms, overviewScope.programScope]);
   const scopeWindow = useMemo(() => resolveScopeWindow({
     asOfDate: SEED_AS_OF_DATE, rangeId: overviewScope.rangeId, programs, sessions: clientSessions
   }), [overviewScope.rangeId, programs, clientSessions]);
@@ -148,7 +154,7 @@ export default function App() {
     : scopedSkillPrograms.filter(program => program.id === selectedMasteryProgId);
   const masteryData = cumulativeMasterySeries(masteryPrograms, { from: scopeWindow.start, to: scopeWindow.asOfDate });
   const skillTargets = skillPrograms.flatMap(program => program.targets);
-  const masteredCount = skillTargets.filter(target => ['Maintenance', 'Generalization', 'Completed'].includes(target.phase)).length;
+  const masteredCount = skillTargets.filter(isMastered).length;
   const canEdit = accessLevel === 'full';
   const viewOnlyReason = viewOnlyNotice(accessLevel);
   // Supervision and IOA observations belong to the appointment, not to the learner's chart.
@@ -395,10 +401,10 @@ export default function App() {
   }
   // The recorder opens loaded with only the targets the note planned.
   const noteRecordingPrograms = useMemo(() => noteRecording
-    ? noteRecording.programIds.map(id => programs.find(program => program.id === id)).filter(Boolean)
+    ? noteRecording.programIds.map(id => activePrograms.find(program => program.id === id)).filter(Boolean)
       .map(program => ({ ...program, targets: program.targets.filter(target => noteRecording.targetIds.includes(target.id)) }))
       .filter(program => program.targets.length)
-    : [], [noteRecording, programs]);
+    : [], [noteRecording, activePrograms]);
   function saveNoteSession({ points, phases, keepOpen }) {
     const created = apiService.recordIntoLessonNote(noteRecording.id, points);
     if (phases.length) apiService.updateTargetPhases(phases);
@@ -511,6 +517,11 @@ export default function App() {
       }
     });
   }
+  // From a chart back to the plan: the Programs workspace opens on that program.
+  function openInPrograms(program) {
+    setProgramFocus({ programId: program.id, nonce: Date.now() });
+    activateWorkflow('programs', { scrollToTop: false });
+  }
   function requestBehaviorPhaseChange(program, phase) {
     if (!program || phase === behaviorPhaseOf(program)) return;
     setPhasePrompt({
@@ -606,7 +617,7 @@ export default function App() {
                 </div>
                 <dl className="metrics-strip" aria-label={`${currentClient.name}'s demo data summary`}>
                   {[
-                    { id: 'programs', label: 'Programs', value: programs.length, note: `${skillPrograms.length} skill · ${programs.length - skillPrograms.length} behavior`, icon: Target },
+                    { id: 'programs', label: 'Programs', value: activePrograms.length, note: `${skillPrograms.length} skill · ${activePrograms.length - skillPrograms.length} behavior`, icon: Target },
                     { id: 'mastery', label: 'Targets mastered', value: `${masteredCount} / ${skillTargets.length}`, note: 'Across skill programs', icon: CheckCircle2 },
                     { id: 'sessions', label: 'Session observations', value: clientSessions.length, note: 'All measurement types', icon: ChartLineUp },
                     { id: 'abc', label: 'ABC observations', value: abcEntries.length, note: 'Antecedent to consequence', icon: Notebook }
@@ -663,7 +674,8 @@ export default function App() {
           {currentClient && <>
             {workflowVisible('target-analysis') && <WorkflowPanel id="target-analysis" active={activeSection === 'target-analysis'}>
               <Suspense fallback={<AnalyticsSkeleton />}>
-                <ClientSpecificSection key={`${selectedClientId}-${clientFocus?.nonce || 0}`} client={currentClient} programs={programs} sessions={sessions} annotations={annotations}
+                <ClientSpecificSection key={`${selectedClientId}-${clientFocus?.nonce || 0}`} client={currentClient} programs={analysisPrograms}
+                  onOpenInPrograms={openInPrograms} sessions={sessions} annotations={annotations}
                   serviceSessions={serviceSessions} abcEntries={abcEntries} abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
                   templates={PROMPT_HIERARCHY_TEMPLATES} standards={CLINICAL_STANDARDS} initialFocus={clientFocus}
                   onAddPhaseLineClick={target => openAnnotation('line', target)}
@@ -682,7 +694,8 @@ export default function App() {
             </WorkflowPanel>}
             {workflowVisible('programs') && <WorkflowPanel id="programs" active={activeSection === 'programs'}>
               <Suspense fallback={<AnalyticsSkeleton />}>
-                <ProgramManagement key={selectedClientId} client={currentClient} programs={programs}
+                <ProgramManagement key={`${selectedClientId}-${programFocus?.nonce || 0}`} client={currentClient} programs={programs}
+                  initialProgramId={programFocus?.programId || null} onOpenTarget={(program, target) => openTargetFocus({ program, target })}
                   lessons={apiService.getLessons(selectedClientId)} abcEntries={abcEntries}
                   abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
                   canEdit={canEdit} viewOnlyReason={viewOnlyReason}
@@ -759,7 +772,7 @@ export default function App() {
     {noteRecording && noteRecordingPrograms.length > 0 && <RecordSessionModal key={noteRecording.id} isOpen onClose={() => setNoteRecording(null)}
       programs={noteRecordingPrograms} selectedClientId={selectedClientId} sessions={clientSessions}
       serviceSessions={serviceSessions} onSaveSession={saveNoteSession} />}
-    {recordOpen && <RecordSessionModal isOpen onClose={() => setRecordOpen(false)} programs={programs} selectedClientId={selectedClientId} initialTargetId={recordTargetId}
+    {recordOpen && <RecordSessionModal isOpen onClose={() => setRecordOpen(false)} programs={activePrograms} selectedClientId={selectedClientId} initialTargetId={recordTargetId}
       sessions={clientSessions} serviceSessions={serviceSessions} onSaveSession={saveSession} />}
     <Suspense fallback={null}>
       <DataEntryModal key={entryTab || 'closed'} isOpen={entryTab !== null} initialTab={entryTab || 'entry'} onClose={() => setEntryTab(null)}

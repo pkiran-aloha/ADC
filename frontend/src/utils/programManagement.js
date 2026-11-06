@@ -55,9 +55,12 @@ export function isArchived(record) {
   return Boolean(record?.archivedAt);
 }
 
+// A clinician's recorded decision is authoritative: mastered when they said so, not
+// when they said otherwise. A target with no recorded decision, which includes every
+// target that predates the decision field, is mastered when it sits in a mastered phase.
 export function isMastered(target) {
   if (!target) return false;
-  if (target.masterySettings === 'Manual') return Boolean(target.manualMastery?.achieved);
+  if (target.manualMastery) return Boolean(target.manualMastery.achieved);
   return MASTERED_PHASES.includes(target.phase);
 }
 

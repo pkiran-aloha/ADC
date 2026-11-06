@@ -29,7 +29,7 @@ export default function ProgramManagement({
   client, programs = [], lessons = [], abcConfiguration = null, abcEntries = [],
   canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram,
   onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram, onAddTarget, onUpdateTarget, onDeleteTargets, onRequestStatus, onRequestPhase, onRequestBehaviorPhase, activity = [], asOf,
-  onUpdateAbcConfig, onAddAbcValue, onRenameAbcValue, onRemoveAbcValues, onImportAbcBehaviors, onSaveLesson,
+  onUpdateAbcConfig, onAddAbcValue, onRenameAbcValue, onRemoveAbcValues, onImportAbcBehaviors, onSaveLesson, onOpenTarget, initialProgramId = null,
   lessonNotes = [], observations = [], onCreateNote, onUpdateNote, onNoteStatus, onSignNote, onRecordNote, onRecordAbcNote
 }) {
   const [tab, setTab] = useState('skill');
@@ -38,7 +38,7 @@ export default function ProgramManagement({
   const [editing, setEditing] = useState(null);
   const [confirming, setConfirming] = useState(null);
   const [pendingTargets, setPendingTargets] = useState(null);
-  const [viewing, setViewing] = useState({ id: null, adding: false });
+  const [viewing, setViewing] = useState({ id: initialProgramId, adding: false });
   const [lessonDialog, setLessonDialog] = useState(null);
 
   const counts = useMemo(() => ({
@@ -113,7 +113,7 @@ export default function ProgramManagement({
         {viewingProgram ? <ProgramView key={viewingProgram.id + (viewing.adding ? '-add' : '')} program={viewingProgram} canEdit={canEdit}
           asOf={asOf} startAdding={viewing.adding} onBack={() => setViewing({ id: null, adding: false })}
           onAddTargets={onAddTarget} onUpdateTarget={onUpdateTarget} onDeleteTargets={onDeleteTargets} onRequestPhase={onRequestPhase} onRequestBehaviorPhase={onRequestBehaviorPhase}
-          activity={activity} onOpenAnalysis={onOpenProgram} /> : <>
+          activity={activity} onOpenAnalysis={onOpenProgram} onOpenTarget={onOpenTarget} /> : <>
         <div className="programs-tabs" role="tablist" aria-label="Program types">
           {TABS.map(entry => {
             const Icon = entry.icon;

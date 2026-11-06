@@ -55,6 +55,7 @@ const FUNCTION_OPTIONS = [
 
 export default function ClientSpecificSection({
   client,
+  onOpenInPrograms,
   programs = [],
   sessions = [],
   serviceSessions = [],
@@ -746,6 +747,7 @@ export default function ClientSpecificSection({
     {!canEdit && <p className="view-only-notice explorer-view-notice" role="status">{viewOnlyReason || 'View-only analytics access: graphs, tables and exports are available; changes are disabled.'}</p>}
 
     <TrendExplorer
+      onOpenInPrograms={onOpenInPrograms}
       catalog={explorerCatalog}
       dataCategory={dataCategory}
       onDataCategoryChange={changeDataCategory}

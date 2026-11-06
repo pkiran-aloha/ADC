@@ -2043,3 +2043,5 @@ button.heat-cell:hover { outline: 2px solid var(--color-amber-400); outline-offs
 .status-pill--draft { background: var(--color-slate-100); color: var(--color-slate-700); }
 .status-pill--unapproved { background: var(--color-amber-100); color: var(--color-amber-800); }
 .status-pill--approved { background: var(--color-brand-100); color: var(--color-brand-900); }
+.program-definition__link { margin: 0.25rem 0 0; }
+.program-definition__link .button { max-width: 100%; white-space: normal; }

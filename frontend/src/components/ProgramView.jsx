@@ -10,7 +10,7 @@ import { ArrowLeft, Edit3, Plus, Target, Trash2 } from './ui/Icons';
 // The program view: what the program is, how far along it is, and its targets as
 // cards. A program with no targets is documentation, so the empty state says so.
 export default function ProgramView({
-  program, canEdit = true, asOf, startAdding = false, activity = [], onBack, onAddTargets, onUpdateTarget, onDeleteTargets, onRequestPhase, onRequestBehaviorPhase, onOpenAnalysis
+  program, canEdit = true, asOf, startAdding = false, activity = [], onBack, onAddTargets, onUpdateTarget, onDeleteTargets, onRequestPhase, onRequestBehaviorPhase, onOpenAnalysis, onOpenTarget
 }) {
   const [tab, setTab] = useState('All');
   const [adding, setAdding] = useState(startAdding);
@@ -88,6 +88,7 @@ export default function ProgramView({
           </p>
           {target.discriminativeStimuli && <p><strong>Discriminative stimuli:</strong> {target.discriminativeStimuli}</p>}
           <p className="target-card-date">Since {target.phaseEnteredDate}</p>
+          {onOpenTarget && <button type="button" className="button button--tertiary" onClick={() => onOpenTarget(program, target)}>Open chart</button>}
           {canEdit && <label className="target-phase-control">Phase
             <select aria-label={`Phase of ${target.name}`} value={target.phase}
               onChange={event => onRequestPhase?.(program, target, event.target.value)}>

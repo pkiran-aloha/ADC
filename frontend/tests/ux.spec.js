@@ -2116,3 +2116,46 @@ test('a lesson note plans a lesson, captures data through the recorder, and lock
   expect(Number(await metric.textContent())).toBe(before + 2);
   await accessible(page);
 });
+
+test('Program Management changes reach the analytics, and the plan and the chart link both ways', async ({ page }) => {
+  const read = async selector => (await page.locator(selector).textContent()).trim();
+  const mastered = async () => Number((await read('.metric--mastery .metric-number')).split('/')[0]);
+  await open(page);
+  const programsAtStart = Number(await read('.metric--programs .metric-number'));
+  const masteredAtStart = await mastered();
+
+  // A status that carries its targets lowers the mastered count with no reload.
+  await activate(page, 'Programs');
+  const listing = page.locator('#programs');
+  await listing.getByLabel('Status of Expressive Labeling').selectOption('Pending');
+  await page.locator('dialog').filter({ hasText: 'Plot a phase change line?' }).getByRole('button', { name: 'No', exact: true }).click();
+  await activate(page, 'Progress overview');
+  const masteredAfterPending = await mastered();
+  expect(masteredAfterPending).toBeLessThan(masteredAtStart);
+
+  // Archiving leaves the overview counts...
+  await activate(page, 'Programs');
+  await listing.getByRole('button', { name: 'Actions for Greeting Familiar Adults', exact: true }).click();
+  await page.getByRole('button', { name: 'Archive' }).click();
+  await page.locator('dialog').getByRole('button', { name: 'Archive program' }).click();
+  await activate(page, 'Progress overview');
+  expect(Number(await read('.metric--programs .metric-number'))).toBe(programsAtStart - 1);
+  expect(await mastered()).toBeLessThan(masteredAfterPending);
+
+  // ...but the program, its history and its data are still there, and its chart opens.
+  await activate(page, 'Programs');
+  await listing.getByRole('button', { name: 'Show archived' }).click();
+  await listing.getByRole('button', { name: 'Greeting Familiar Adults', exact: true }).click();
+  const view = listing.locator('.program-view');
+  await expect(view.getByRole('heading', { name: 'Greeting Familiar Adults', level: 2 })).toBeVisible();
+  await view.getByRole('button', { name: 'Open chart' }).first().click();
+  const analysis = page.locator('#target-analysis');
+  await expect(analysis).toBeVisible();
+  await expect(analysis).toContainText('(archived)');
+  await expect(analysis.locator('svg.chart-svg').first()).toBeVisible();
+
+  // And the chart links back to the plan.
+  await analysis.getByRole('button', { name: 'Open in Programs' }).first().click();
+  await expect(page.locator('#programs .program-view').getByRole('heading', { name: 'Greeting Familiar Adults', level: 2 })).toBeVisible();
+  await accessible(page);
+});
