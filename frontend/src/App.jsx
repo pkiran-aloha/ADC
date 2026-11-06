@@ -12,6 +12,7 @@ import { AnalyticsSkeleton } from './components/ui/EmptyState';
 import { useFeedback } from './utils/useFeedback';
 import { readAccessLevel, writeAccessLevel, viewOnlyNotice } from './utils/permissions';
 import { splitTargetNames } from './utils/programManagement';
+import PhaseChangePrompt from './components/Modals/PhaseChangePrompt';
 import { supervisorObservations } from './utils/observations';
 import { workflowFromHash } from './data/workflows';
 import { User, Calendar, ChartLineUp, Target, Notebook, CheckCircle2, ArrowRight, ArrowCounterClockwise, AlertTriangle, ShieldCheck } from './components/ui/Icons';
@@ -84,6 +85,7 @@ export default function App() {
   const [recordOpen, setRecordOpen] = useState(false);
   const [recordTargetId, setRecordTargetId] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
+  const [phasePrompt, setPhasePrompt] = useState(null);
   const [annotationEditor, setAnnotationEditor] = useState(null);
   // Drill-down requests from summary views (e.g., the progress heat map) re-open the
   // target analysis focused on a program, target and week.
@@ -402,9 +404,31 @@ export default function App() {
     saved('Observation removed. The removal is documented in the change history.');
     return result;
   }
+  // Every status change asks the same question: plot a phase change line? Cancel changes
+  // nothing at all. The analysis panel and the listing both come through here.
   function changeProgramStatus(programId, status, options = {}) {
-    apiService.updateProgramStatus(programId, status, { ...options, asOf: SEED_AS_OF_DATE });
-    saved(`Program status updated to ${status}.`);
+    const program = data.programs.find(item => item.id === programId);
+    if (program) requestStatusChange(program, status, options.reason || '');
+  }
+  function requestStatusChange(program, status) {
+    if (!program || status === program.status) return;
+    setPhasePrompt({
+      subject: `program “${program.name}” to ${status}`, withReason: true,
+      apply: (plotLine, reason) => {
+        apiService.applyProgramStatus(program.id, status, { reason, asOf: SEED_AS_OF_DATE, plotLine });
+        saved(`Program status updated to ${status}${plotLine ? ' and a phase line was plotted' : ''}.`);
+      }
+    });
+  }
+  function requestPhaseChange(program, target, phase) {
+    if (!target || phase === target.phase) return;
+    setPhasePrompt({
+      subject: `target “${target.name}” to ${phase}`,
+      apply: plotLine => {
+        apiService.changeTargetPhase(target.id, phase, { plotLine, asOf: SEED_AS_OF_DATE });
+        saved(`Target “${target.name}” moved to ${phase}${plotLine ? ' and a phase line was plotted' : ''}.`);
+      }
+    });
   }
   function openRecorder(target = null) {
     setRecordTargetId(target?.id || '');
@@ -568,6 +592,7 @@ export default function App() {
                   onArchiveProgram={archiveProgram}
                   onUnarchiveProgram={unarchiveProgram}
                   onAddTarget={addTargets} onUpdateTarget={updateTarget} onDeleteTargets={deleteTargets}
+                  onRequestStatus={requestStatusChange} onRequestPhase={requestPhaseChange}
                   activity={data.activity || []} asOf={SEED_AS_OF_DATE} />
               </Suspense>
             </WorkflowPanel>}
@@ -614,6 +639,8 @@ export default function App() {
       <p className="field-hint">This affects only this browser. Export any records you want to keep before resetting.</p>
       <div className="form-actions"><button type="button" className="button button--secondary" onClick={() => setResetOpen(false)} data-autofocus>Keep my changes</button><button type="button" className="button button--danger" onClick={resetData}>Restore demo data</button></div>
     </Dialog>
+    <PhaseChangePrompt prompt={phasePrompt} onCancel={() => setPhasePrompt(null)}
+      onChoose={(plotLine, reason) => { phasePrompt?.apply(plotLine, reason); setPhasePrompt(null); }} />
     <PhaseLineModal key={`line-${annotationEditor?.initialData?.id || annotationEditor?.target.id || 'closed'}`}
       isOpen={annotationEditor?.kind === 'line'} onClose={() => setAnnotationEditor(null)} onSave={data => saveAnnotation('line', data)}
       target={annotationEditor?.target} initialData={annotationEditor?.initialData} scopeTargets={annotationEditor?.scopeTargets} />

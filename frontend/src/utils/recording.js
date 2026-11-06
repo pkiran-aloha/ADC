@@ -168,7 +168,7 @@ export function phaseChangeFor(row, target, session) {
   return {
     targetId: target.id,
     newPhase: row.phaseChange,
-    addPhaseLine: true,
+    addPhaseLine: row.plotPhaseLine !== false,
     phaseLineLabel: `${phaseLabel(row.phaseChange)} starts`,
     phaseDate: session.timestamp.slice(0, 10)
   };

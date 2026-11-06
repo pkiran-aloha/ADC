@@ -283,12 +283,17 @@ export default function RecordSessionModal({ isOpen, onClose, programs = [], sel
                 </div>
               </fieldset>}
               <div className="record-phase">
-                <Field id={`rec-${target.id}-phase`} label={<>Phase change<span className="sr-only"> · {target.name}</span></>} hint="Optional. Also adds a solid phase line on this date.">
+                <Field id={`rec-${target.id}-phase`} label={<>Phase change<span className="sr-only"> · {target.name}</span></>} hint="Optional. Choose whether to plot a phase line on this date.">
                   <select value={row.phaseChange} onChange={event => updateRow(target.id, { phaseChange: event.target.value })}>
                     <option value="">No phase change</option>
                     {PHASES.map(phase => <option key={phase} value={phase}>{phaseText(phase)}</option>)}
                   </select>
                 </Field>
+                {row.phaseChange && <label className="program-form-check">
+                  <input type="checkbox" checked={row.plotPhaseLine !== false}
+                    onChange={event => updateRow(target.id, { plotPhaseLine: event.target.checked })} />
+                  <span>Plot a phase line on this date<span className="sr-only"> · {target.name}</span></span>
+                </label>}
               </div>
             </div>}
           </li>;

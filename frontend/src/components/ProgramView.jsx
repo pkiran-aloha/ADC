@@ -3,14 +3,14 @@ import TargetFormModal from './Modals/TargetFormModal';
 import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
 import {
-  PHASE_LABELS, PROGRAM_STATUS_LABELS, programSummary, sortTargets, TARGET_TYPE_LABELS, targetTypeTabs
+  PHASE_LABELS, PROGRAM_STATUS_LABELS, programSummary, sortTargets, TARGET_PHASES, TARGET_TYPE_LABELS, targetTypeTabs
 } from '../utils/programManagement';
 import { ArrowLeft, Edit3, Plus, Target, Trash2 } from './ui/Icons';
 
 // The program view: what the program is, how far along it is, and its targets as
 // cards. A program with no targets is documentation, so the empty state says so.
 export default function ProgramView({
-  program, canEdit = true, asOf, startAdding = false, activity = [], onBack, onAddTargets, onUpdateTarget, onDeleteTargets, onOpenAnalysis
+  program, canEdit = true, asOf, startAdding = false, activity = [], onBack, onAddTargets, onUpdateTarget, onDeleteTargets, onRequestPhase, onOpenAnalysis
 }) {
   const [tab, setTab] = useState('All');
   const [adding, setAdding] = useState(startAdding);
@@ -71,6 +71,12 @@ export default function ProgramView({
           </p>
           {target.discriminativeStimuli && <p><strong>Discriminative stimuli:</strong> {target.discriminativeStimuli}</p>}
           <p className="target-card-date">Since {target.phaseEnteredDate}</p>
+          {canEdit && <label className="target-phase-control">Phase
+            <select aria-label={`Phase of ${target.name}`} value={target.phase}
+              onChange={event => onRequestPhase?.(program, target, event.target.value)}>
+              {TARGET_PHASES.filter(phase => program.category === 'BehaviorReduction' || phase !== 'Open' || target.phase === 'Open')
+                .map(phase => <option key={phase} value={phase}>{PHASE_LABELS[phase]}</option>)}
+            </select></label>}
           {canEdit && <div className="target-card-actions">
             <label className="program-form-check">
               <input type="checkbox" checked={selected.has(target.id)} onChange={() => toggle(target.id)} />

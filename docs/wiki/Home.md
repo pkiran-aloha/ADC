@@ -662,11 +662,11 @@ When the data show that a program should continue, pause, or move on:
 
 1. Open **Target analysis → Visual analysis → Progress and decisions**.
 2. Scroll to **Program status · <program name>**. It shows the current status and the date of the last change.
-3. Choose Teaching, Maintaining, Generalizing, Baselining, `OnHold`, Completed, or Discontinued from **Update status after reviewing this data**. The menu lists the stored status names in that fixed order, so **OnHold** appears without a space.
+3. Choose Teaching, Maintaining, Generalizing, Baselining, Pending, `OnHold`, Completed, or Discontinued from **Update status after reviewing this data**. The menu lists the stored status names, so **OnHold** appears without a space. The same control is on each row of **Programs**.
 4. Add an optional **Reason** (up to 120 characters).
-5. Choose **Update program status** and read the inline confirmation.
+5. Choose **Update program status**. A prompt asks *Do you wish to plot a phase change line on analytics?* **Yes** plots a labelled line on the change date on every target of the program, **No** changes the status without a line, and **Cancel** changes nothing at all.
 
-The change is written to the program's status history as a `{status, date, reason, staffName, note}` entry with the demo snapshot date (`asOf: SEED_AS_OF_DATE`), not the wall clock. This control sends only the reason, so `staffName` and `note` stay empty for status changes made here. The panel displays only the latest entry ("last changed …"); earlier entries remain in the stored program but have no list view. It does not rewrite target phases — only the recorder's **Phase change** field moves a target; a phase line is an annotation and leaves `phase` untouched.
+The change is written to the program's status history as a `{status, date, reason, staffName}` entry with the demo snapshot date (`asOf: SEED_AS_OF_DATE`), not the wall clock, and to the program's activity. Setting a program to **Pending**, **Completed**, **OnHold** or **Discontinued** moves all of its targets to that phase too; setting it to **Baselining**, **Teaching**, **Maintaining** or **Generalizing** leaves each target in its own phase. A single target's phase can also be changed from its card in the program view, with the same prompt, or from the recorder's **Phase change** field, which now has a **Plot a phase line on this date** checkbox instead of always plotting one.
 
 ---
 

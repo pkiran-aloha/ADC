@@ -131,16 +131,38 @@ test('a program status that carries its targets moves them, and an active one do
   assert.ok(statusHistory.some(entry => entry.status === 'Pending'));
 });
 
-test('a status change can plot a phase change line', () => {
+test('a status change can plot a phase change line on each of the program targets', () => {
   const program = apiService.createProgram({ clientId: CLIENT, name: 'Line demo' });
+  const a = apiService.addTarget(program.id, { name: 'A', type: 'Frequency' });
+  const b = apiService.addTarget(program.id, { name: 'B', type: 'Frequency' });
   const before = apiService.getSnapshot().phaseLines.length;
   apiService.applyProgramStatus(program.id, 'Maintaining', { asOf: SEED_AS_OF_DATE, plotLine: true });
-  const after = apiService.getSnapshot().phaseLines;
-  assert.equal(after.length, before + 1, 'a line is added');
-  const line = after.at(-1);
-  assert.equal(line.programId, program.id);
-  assert.equal(line.date, SEED_AS_OF_DATE);
-  assert.equal(line.source, 'Manual');
+  const lines = apiService.getSnapshot().phaseLines.slice(before);
+  // Charts read lines by target, so each target carries its own.
+  assert.deepEqual(lines.map(line => line.targetId).sort(), [a.id, b.id].sort());
+  assert.ok(lines.every(line => line.date === SEED_AS_OF_DATE && line.source === 'Manual'));
+  // Declining the line changes the status and plots nothing.
+  const mid = apiService.getSnapshot().phaseLines.length;
+  apiService.applyProgramStatus(program.id, 'Teaching', { asOf: SEED_AS_OF_DATE, plotLine: false });
+  assert.equal(apiService.getSnapshot().phaseLines.length, mid);
+  assert.equal(apiService.findProgram(program.id).status, 'Teaching');
+});
+
+test('a target phase change is dated, and plots a line only when asked', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Phase demo' });
+  const target = apiService.addTarget(program.id, { name: 'T', type: 'Frequency', phase: 'Baseline' });
+  const before = apiService.getSnapshot().phaseLines.length;
+  apiService.changeTargetPhase(target.id, 'Acquisition', { plotLine: false, asOf: SEED_AS_OF_DATE });
+  assert.equal(apiService.getSnapshot().phaseLines.length, before, 'no line when declined');
+  assert.equal(apiService.findTarget(target.id).phase, 'Acquisition');
+  apiService.changeTargetPhase(target.id, 'Maintenance', { plotLine: true, asOf: SEED_AS_OF_DATE });
+  assert.equal(apiService.getSnapshot().phaseLines.length, before + 1, 'a line when asked');
+  const history = apiService.findTarget(target.id).phaseHistory;
+  assert.ok(history.some(entry => entry.phase === 'Maintenance' && entry.date === SEED_AS_OF_DATE), 'the change is dated');
+  // Moving to the phase it is already in is not a change.
+  assert.equal(apiService.changeTargetPhase(target.id, 'Maintenance', { asOf: SEED_AS_OF_DATE }), null);
+  assert.equal(apiService.changeTargetPhase(target.id, 'Nonsense'), null);
+  assert.ok(apiService.getActivity(target.id).some(entry => entry.kind === 'target.phase'));
 });
 
 test('every program change leaves a trail', () => {

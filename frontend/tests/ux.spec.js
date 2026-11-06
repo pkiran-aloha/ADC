@@ -1849,3 +1849,40 @@ test('targets can be edited, deleted singly and in bulk, and the activity trail 
   await expect(cards).toHaveCount(start - 2);
   await accessible(page);
 });
+
+test('a status or phase change asks about the phase line, and Cancel changes nothing', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = page.locator('#programs');
+  const status = listing.getByLabel('Status of Fluent Naming');
+  const before = await status.inputValue();
+  const prompt = page.locator('dialog').filter({ hasText: 'Plot a phase change line?' });
+
+  // Cancel aborts the change entirely.
+  await status.selectOption('Pending');
+  await expect(prompt.getByText(/Do you wish to plot a phase change line on analytics \(program “Fluent Naming” to Pending\)/)).toBeVisible();
+  await prompt.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(prompt).toBeHidden();
+  await expect(status).toHaveValue(before);
+
+  // No changes the status without a line.
+  await status.selectOption('Pending');
+  await prompt.getByLabel('Reason').fill('Waiting for a caregiver');
+  await prompt.getByRole('button', { name: 'No', exact: true }).click();
+  await expect(prompt).toBeHidden();
+  await expect(status).toHaveValue('Pending');
+
+  // A pending program carries its targets with it.
+  await listing.getByRole('button', { name: 'Fluent Naming', exact: true }).click();
+  const view = listing.locator('.program-view');
+  const phases = view.locator('.target-phase-control select');
+  const count = await phases.count();
+  for (let i = 0; i < count; i += 1) await expect(phases.nth(i)).toHaveValue('Pending');
+
+  // A single target can move, and Yes plots a line.
+  await phases.first().selectOption('Acquisition');
+  await expect(prompt.getByText(/target “.+” to Acquisition/)).toBeVisible();
+  await prompt.getByRole('button', { name: 'Yes', exact: true }).click();
+  await expect(prompt).toBeHidden();
+  await expect(view.locator('.program-activity')).toContainText('to In acquisition');
+  await accessible(page);
+});

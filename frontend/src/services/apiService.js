@@ -15,7 +15,7 @@ import {
 } from '../data/mockData.js';
 import { applyObservationEdit, deletionAudit } from '../utils/observations.js';
 import {
-  CASCADING_STATUSES, PROGRAM_CATEGORIES, PROGRAM_STATUSES, toValueList
+  CASCADING_STATUSES, PHASE_LABELS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS, TARGET_PHASES, toValueList
 } from '../utils/programManagement.js';
 
 const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
@@ -649,17 +649,20 @@ class AnalyticsService {
         this.applyTargetPhase({ targetId: target.id, newPhase: status, phaseDate: date });
       });
     }
+    // Charts read phase lines by target, so a program-level change is plotted on each
+    // of the program's targets.
     if (plotLine) {
-      this.phaseLines.push({
-        id: `pcl-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
-        targetId: null,
-        programId: program.id,
-        date,
-        label: `${status} starts`,
-        style: 'Solid',
-        color: '#34634c',
-        isAutomated: false,
-        source: 'Manual'
+      (program.targets || []).forEach(target => {
+        this.phaseLines.push({
+          id: `pcl-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+          targetId: target.id,
+          date,
+          label: `${PROGRAM_STATUS_LABELS[status] || status} starts`,
+          style: 'Solid',
+          color: '#34634c',
+          isAutomated: false,
+          source: 'Manual'
+        });
       });
     }
     this.recordActivity('program.status', 'program', program.id, `Set program “${program.name}” to ${status}.`);
@@ -697,6 +700,21 @@ class AnalyticsService {
     this.recordActivity('target.created', 'target', created.id, `Added target “${created.name}” to “${program.name}”.`);
     this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
     return created;
+  }
+
+  // One phase change is one state change: the phase, its dated history entry, and the
+  // optional phase line the clinician chose to plot.
+  changeTargetPhase(targetId, newPhase, { plotLine = false, asOf = null } = {}) {
+    const target = this.findTarget(targetId);
+    if (!target || !TARGET_PHASES.includes(newPhase) || target.phase === newPhase) return null;
+    const date = asOf || SEED_AS_OF_DATE;
+    this.applyTargetPhase({
+      targetId, newPhase, addPhaseLine: plotLine, phaseDate: date,
+      phaseLineLabel: `${PHASE_LABELS[newPhase] || newPhase} starts`
+    });
+    this.recordActivity('target.phase', 'target', target.id, `Moved target “${target.name}” to ${PHASE_LABELS[newPhase] || newPhase}.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.PHASE_LINES, STORAGE_KEYS.ACTIVITY]);
+    return target;
   }
 
   // Editing keeps the measurement type fixed and the identity unchanged.
