@@ -313,3 +313,24 @@ export function targetTypeTabs(targets = []) {
   const present = TARGET_TYPES.filter(type => targets.some(target => target.type === type));
   return present.length ? ['All', ...present] : [];
 }
+
+// ---- Behaviors ------------------------------------------------------------------------
+
+// A behavior is counted one of three ways, chosen once and then locked.
+export const BEHAVIOR_TOOLS = ['Frequency', 'Duration', 'IntervalData'];
+
+export function validateBehavior(values = {}, { existing = [] } = {}) {
+  const errors = validateProgram(values, { category: PROGRAM_CATEGORIES.BEHAVIOR, existing });
+  if (!BEHAVIOR_TOOLS.includes(values.measurementTool)) errors.measurementTool = 'Choose how the behavior is measured.';
+  const config = validateTypeConfig({ type: values.measurementTool, intervalSettings: values.intervalSettings });
+  return { ...errors, ...config };
+}
+
+// A behavior's own phase. Behaviors created before this field existed carry only their
+// target's phase, so that stands in when it is a phase a behavior can hold; a target
+// still in baseline or acquisition reads as open, defined and not yet reduced.
+export function behaviorPhaseOf(program) {
+  if (program?.behaviorPhase) return program.behaviorPhase;
+  const targetPhase = program?.targets?.[0]?.phase;
+  return BEHAVIOR_PHASES.includes(targetPhase) ? targetPhase : 'Open';
+}

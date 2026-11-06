@@ -22,7 +22,7 @@ const COMPARISON_LABELS = { atLeast: 'At least', atMost: 'At most', below: 'Belo
 // The target form. The measurement type is chosen once: editing keeps it fixed so
 // data collected one way is never compared against data collected another.
 export default function TargetFormModal({ isOpen, onClose, onSave, program, target = null, initialType = 'TrialByTrial', asOf }) {
-  const { errors, formRef, validate } = useFormValidation();
+  const { formRef, validate } = useFormValidation();
   const isEdit = Boolean(target);
   const isBehavior = program?.category === 'BehaviorReduction';
   const [showErrors, setShowErrors] = useState(false);
@@ -42,8 +42,10 @@ export default function TargetFormModal({ isOpen, onClose, onSave, program, targ
 
   const set = (key, value) => setValues(current => ({ ...current, [key]: value }));
   const setIn = (key, patch) => setValues(current => ({ ...current, [key]: { ...current[key], ...patch } }));
-  const shown = key => (showErrors ? errors[key] : undefined);
   const hierarchyIds = PROMPT_HIERARCHY_TEMPLATES.map(item => item.id);
+  // After a first attempt the messages follow the values, so they never go stale.
+  const live = showErrors ? validateTarget(values, { promptHierarchyIds: hierarchyIds }) : {};
+  const shown = key => live[key];
 
   function submit(event) {
     event.preventDefault();
@@ -64,7 +66,7 @@ export default function TargetFormModal({ isOpen, onClose, onSave, program, targ
   return <Dialog isOpen={isOpen} onClose={onClose} title={isEdit ? 'Edit target' : 'Add target'}
     description={`A target is one measurable unit of “${program?.name || 'this program'}”.`}>
     <form ref={formRef} className="program-form" noValidate onSubmit={submit}>
-      <FormFeedback errors={showErrors ? errors : {}} />
+      <FormFeedback errors={live} />
 
       <Field id="target-type" label="Measurement tool" required error={shown('type')}
         hint={isEdit ? 'Fixed once the target exists, so collected data stays comparable.' : 'How data is recorded during sessions.'}>

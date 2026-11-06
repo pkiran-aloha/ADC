@@ -1886,3 +1886,53 @@ test('a status or phase change asks about the phase line, and Cancel changes not
   await expect(view.locator('.program-activity')).toContainText('to In acquisition');
   await accessible(page);
 });
+
+test('a behavior is defined with its operational definition and a locked measurement tool', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = page.locator('#programs');
+  await listing.getByRole('tab', { name: /Behavior reduction/ }).click();
+  // The behavior listing has its own columns.
+  if (test.info().project.name !== 'mobile') {
+    await expect(listing.getByRole('columnheader', { name: 'Measurement tool' })).toBeVisible();
+    await expect(listing.getByRole('columnheader', { name: 'Phase' })).toBeVisible();
+  }
+
+  await listing.getByRole('button', { name: 'New behavior' }).click();
+  const dialog = page.locator('dialog');
+  // A behavior cannot be saved without its operational definition.
+  await dialog.getByLabel('Program name').fill('Throwing objects');
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(dialog.getByText('Define exactly what qualifies as the behavior.')).toBeVisible();
+  await dialog.getByLabel('Operational definition').fill('Releasing an object so that it leaves the hand and travels at least one foot.');
+  // An interval behavior must say how its intervals run.
+  await dialog.getByLabel('Measurement tool').selectOption('IntervalData');
+  await dialog.getByLabel('Interval length').fill('');
+  await expect(dialog.getByText(/Enter the interval length as minutes and seconds/)).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Create', exact: true })).toBeDisabled();
+  await dialog.getByLabel('Interval length').fill('00:30');
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  const row = listing.getByRole('row').filter({ hasText: 'Throwing objects' });
+  await expect(row).toContainText('Interval data');
+  await expect(listing.getByLabel('Phase of Throwing objects')).toHaveValue('Open');
+  // The behavior question prompt is not asked for a behavior: it already says what comes next.
+  await page.locator('.programs-prompt').getByRole('button', { name: 'Maybe later' }).click();
+
+  // The tool is fixed once the behavior exists.
+  await listing.getByRole('button', { name: 'Actions for Throwing objects', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  await expect(page.locator('dialog').getByLabel('Measurement tool')).toBeDisabled();
+  await page.locator('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+
+  // The Behavior View shows the definition and moves the phase through the prompt.
+  await listing.getByRole('button', { name: 'Throwing objects', exact: true }).click();
+  const view = listing.locator('.program-view');
+  await expect(view.getByLabel('Behavior definition')).toContainText('travels at least one foot');
+  await expect(view.getByRole('button', { name: 'Add target' })).toHaveCount(0);
+  await view.getByLabel('Behavior phase').selectOption('Maintenance');
+  const prompt = page.locator('dialog').filter({ hasText: 'Plot a phase change line?' });
+  await expect(prompt).toContainText('behavior “Throwing objects” to Maintenance');
+  await prompt.getByRole('button', { name: 'No', exact: true }).click();
+  await expect(view.getByLabel('Behavior phase')).toHaveValue('Maintenance');
+  await accessible(page);
+});

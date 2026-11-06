@@ -313,3 +313,50 @@ test('every target in the fixture passes target validation, so none is refused o
   }
   assert.deepEqual(refused, []);
 });
+
+// ---- Behaviors and the analytics --------------------------------------------------------
+
+import { BEHAVIOR_TOOLS, validateBehavior } from '../frontend/src/utils/programManagement.js';
+import { masteryDate } from '../frontend/src/utils/programManagement.js';
+import { introducedOn, targetMilestones } from '../frontend/src/utils/targetAnalytics.js';
+import { PHASE_LABELS as HEALTH_LABELS, targetLifecycle } from '../frontend/src/utils/targetHealth.js';
+
+const validBehavior = {
+  clientId: 'c', name: 'Elopement', status: 'Teaching', behaviorPhase: 'Open',
+  operationalDefinition: 'Leaving the area without permission.', measurementTool: 'Frequency'
+};
+
+test('a behavior needs a measurement tool of frequency, duration or interval', () => {
+  assert.deepEqual(BEHAVIOR_TOOLS, ['Frequency', 'Duration', 'IntervalData']);
+  assert.equal(validateBehavior(validBehavior).measurementTool, undefined);
+  assert.ok(validateBehavior({ ...validBehavior, measurementTool: '' }).measurementTool);
+  assert.ok(validateBehavior({ ...validBehavior, measurementTool: 'Anecdotal' }).measurementTool);
+});
+
+test('an interval behavior must say how its intervals run', () => {
+  const errors = validateBehavior({ ...validBehavior, measurementTool: 'IntervalData' });
+  assert.ok(errors.intervalStartType && errors.intervalLength && errors.intervalCaptureType);
+  const ok = validateBehavior({ ...validBehavior, measurementTool: 'IntervalData',
+    intervalSettings: { startType: 'Manual', intervalLength: '00:30', captureType: 'Whole' } });
+  assert.equal(ok.intervalLength, undefined);
+});
+
+test('Open reads as defined but not yet reducing: never mastered, introduced when it opened', () => {
+  const open = { phase: 'Open', masterySettings: 'Automatic', phaseHistory: [{ phase: 'Open', date: '2026-09-01' }] };
+  assert.equal(isMastered(open), false);
+  assert.equal(masteryDate(open), null);
+  assert.equal(targetLifecycle(open), 'active', 'an open behavior is eligible for the attention flag');
+  assert.equal(HEALTH_LABELS.Open, 'Open');
+  assert.equal(introducedOn(open), '2026-09-01');
+  assert.equal(targetMilestones(open)[0].label, 'Behavior opened');
+});
+
+import { behaviorPhaseOf } from '../frontend/src/utils/programManagement.js';
+
+test('a behavior without a stored phase reads from its target, and open when the target is still being established', () => {
+  assert.equal(behaviorPhaseOf({ behaviorPhase: 'Completed', targets: [{ phase: 'Open' }] }), 'Completed', 'a stored phase wins');
+  assert.equal(behaviorPhaseOf({ targets: [{ phase: 'Maintenance' }] }), 'Maintenance');
+  assert.equal(behaviorPhaseOf({ targets: [{ phase: 'Acquisition' }] }), 'Open');
+  assert.equal(behaviorPhaseOf({ targets: [{ phase: 'Baseline' }] }), 'Open');
+  assert.equal(behaviorPhaseOf({ targets: [] }), 'Open');
+});

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
-  countByCategory, partitionByArchive, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS
+  BEHAVIOR_PHASES, behaviorPhaseOf, countByCategory, partitionByArchive, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS,
+  TARGET_TYPE_LABELS
 } from '../utils/programManagement';
 import ProgramFormModal from './Modals/ProgramFormModal';
 import ProgramView from './ProgramView';
@@ -23,7 +24,7 @@ const TABS = [
 export default function ProgramManagement({
   client, programs = [], lessons = [], abcConfiguration = null, abcEntries = [],
   canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram,
-  onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram, onAddTarget, onUpdateTarget, onDeleteTargets, onRequestStatus, onRequestPhase, activity = [], asOf
+  onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram, onAddTarget, onUpdateTarget, onDeleteTargets, onRequestStatus, onRequestPhase, onRequestBehaviorPhase, activity = [], asOf
 }) {
   const [tab, setTab] = useState('skill');
   const [formOpen, setFormOpen] = useState(false);
@@ -103,7 +104,7 @@ export default function ProgramManagement({
       : <>
         {viewingProgram ? <ProgramView key={viewingProgram.id + (viewing.adding ? '-add' : '')} program={viewingProgram} canEdit={canEdit}
           asOf={asOf} startAdding={viewing.adding} onBack={() => setViewing({ id: null, adding: false })}
-          onAddTargets={onAddTarget} onUpdateTarget={onUpdateTarget} onDeleteTargets={onDeleteTargets} onRequestPhase={onRequestPhase}
+          onAddTargets={onAddTarget} onUpdateTarget={onUpdateTarget} onDeleteTargets={onDeleteTargets} onRequestPhase={onRequestPhase} onRequestBehaviorPhase={onRequestBehaviorPhase}
           activity={activity} onOpenAnalysis={onOpenProgram} /> : <>
         <div className="programs-tabs" role="tablist" aria-label="Program types">
           {TABS.map(entry => {
@@ -127,7 +128,7 @@ export default function ProgramManagement({
             ? <AbcConfigurationPanel configuration={abcConfiguration} entries={abcEntries} />
             : <ProgramListing category={activeTab.category} programs={programs} lessonNames={lessonNames}
               canEdit={canEdit} viewOnlyReason={viewOnlyReason} onCreate={openCreate} onOpen={program => setViewing({ id: program.id, adding: false })}
-              onEdit={openEdit} onDuplicate={askDuplicate} onArchive={askArchive} onUnarchive={onUnarchive} onRequestStatus={onRequestStatus} />}
+              onEdit={openEdit} onDuplicate={askDuplicate} onArchive={askArchive} onUnarchive={onUnarchive} onRequestStatus={onRequestStatus} onRequestBehaviorPhase={onRequestBehaviorPhase} />}
         </div>
         </>}
 
@@ -166,7 +167,7 @@ export default function ProgramManagement({
 
 // The listing: what each program is, how many targets it holds, where it runs,
 // and what a clinician can do with it.
-function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReason, onCreate, onOpen, onEdit, onDuplicate, onArchive, onUnarchive, onRequestStatus }) {
+function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReason, onCreate, onOpen, onEdit, onDuplicate, onArchive, onUnarchive, onRequestStatus, onRequestBehaviorPhase }) {
   const [showArchived, setShowArchived] = useState(false);
   const scoped = useMemo(() => programs.filter(program => program.category === category), [programs, category]);
   const { active, archived } = useMemo(() => partitionByArchive(scoped), [scoped]);
@@ -175,6 +176,7 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
   // showing nothing.
   const viewingArchived = showArchived && archived.length > 0;
   const shown = viewingArchived ? archived : active;
+  const isBehavior = category === PROGRAM_CATEGORIES.BEHAVIOR;
 
   return <>
     <div className="programs-listing-header">
@@ -206,10 +208,16 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
         </caption>
         <thead>
           <tr>
-            <th scope="col">Program</th>
-            <th scope="col">Targets</th>
-            <th scope="col">Lesson</th>
-            <th scope="col">Status</th>
+            <th scope="col">{isBehavior ? 'Behavior' : 'Program'}</th>
+            {isBehavior ? <>
+              <th scope="col">Measurement tool</th>
+              <th scope="col">Treatment area</th>
+              <th scope="col">Phase</th>
+            </> : <>
+              <th scope="col">Targets</th>
+              <th scope="col">Lesson</th>
+              <th scope="col">Status</th>
+            </>}
             <th scope="col"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -219,15 +227,26 @@ function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReas
               <button type="button" className="programs-table-name" onClick={() => onOpen?.(program)}>{program.name}</button>
               {program.tags?.length > 0 && <span className="programs-table-tags">{program.tags.join(' · ')}</span>}
             </th>
-            <td>{program.targets?.length || 0}</td>
-            <td>{lessonNames.get(program.id) || <span className="programs-table-none">Not in a lesson</span>}</td>
-            <td>{canEdit && !viewingArchived
+            {isBehavior ? <>
+              <td>{TARGET_TYPE_LABELS[program.targets?.[0]?.type] || '–'}</td>
+              <td>{[].concat(program.treatmentArea || []).join(', ') || '–'}</td>
+              <td>{canEdit && !viewingArchived
+                ? <select className="status-select" aria-label={`Phase of ${program.name}`} value={behaviorPhaseOf(program)}
+                  onChange={event => onRequestBehaviorPhase?.(program, event.target.value)}>
+                  {BEHAVIOR_PHASES.map(phase => <option key={phase} value={phase}>{phase === 'OnHold' ? 'On hold' : phase}</option>)}
+                </select>
+                : <span className="status-pill">{behaviorPhaseOf(program)}</span>}</td>
+            </> : <>
+              <td>{program.targets?.length || 0}</td>
+              <td>{lessonNames.get(program.id) || <span className="programs-table-none">Not in a lesson</span>}</td>
+              <td>{canEdit && !viewingArchived
               ? <select className="status-select" aria-label={`Status of ${program.name}`} value={program.status}
                 onChange={event => onRequestStatus?.(program, event.target.value)}>
                 {PROGRAM_STATUSES.map(status => <option key={status} value={status}>{PROGRAM_STATUS_LABELS[status]}</option>)}
               </select>
               : <span className={`status-pill status-pill--${String(program.status || '').toLowerCase()}`}>
                 {PROGRAM_STATUS_LABELS[program.status] || program.status}</span>}</td>
+            </>}
             <td className="programs-table-actions">
               <button type="button" className="button button--tertiary" onClick={() => onOpen?.(program)}>Open</button>
               {canEdit && <ProgramRowActions program={program} showArchived={viewingArchived}

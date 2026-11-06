@@ -11,7 +11,7 @@ import Dialog from './components/ui/Dialog';
 import { AnalyticsSkeleton } from './components/ui/EmptyState';
 import { useFeedback } from './utils/useFeedback';
 import { readAccessLevel, writeAccessLevel, viewOnlyNotice } from './utils/permissions';
-import { splitTargetNames } from './utils/programManagement';
+import { behaviorPhaseOf, splitTargetNames } from './utils/programManagement';
 import PhaseChangePrompt from './components/Modals/PhaseChangePrompt';
 import { supervisorObservations } from './utils/observations';
 import { workflowFromHash } from './data/workflows';
@@ -268,7 +268,8 @@ export default function App() {
   // A program created in Program Management joins the client listing and the activity
   // trail. The listing refreshes from the same snapshot the analytics read.
   function createProgram(values) {
-    const created = apiService.createProgram({ ...values, clientId: selectedClientId, asOf: SEED_AS_OF_DATE });
+    const payload = { ...values, clientId: selectedClientId, asOf: SEED_AS_OF_DATE };
+    const created = values.measurementTool ? apiService.createBehavior(payload) : apiService.createProgram(payload);
     if (!created) { notify('The program could not be created.', 'error'); return null; }
     saved(apiService.storageError ? 'Created for this session only. Your browser couldn’t save changes.' : `Program “${created.name}” created.`);
     return created;
@@ -277,6 +278,9 @@ export default function App() {
   // collects change.
   function updateProgram(program, values) {
     const updated = apiService.updateProgram(program.id, values);
+    if (updated && program.category === 'BehaviorReduction' && program.targets?.[0]) {
+      apiService.updateTarget(program.targets[0].id, { name: values.name, intervalSettings: values.intervalSettings });
+    }
     if (!updated) { notify('The program could not be updated.', 'error'); return null; }
     saved(apiService.storageError ? 'Updated for this session only. Your browser couldn’t save changes.' : `Program “${updated.name}” updated.`);
     return updated;
@@ -417,6 +421,16 @@ export default function App() {
       apply: (plotLine, reason) => {
         apiService.applyProgramStatus(program.id, status, { reason, asOf: SEED_AS_OF_DATE, plotLine });
         saved(`Program status updated to ${status}${plotLine ? ' and a phase line was plotted' : ''}.`);
+      }
+    });
+  }
+  function requestBehaviorPhaseChange(program, phase) {
+    if (!program || phase === behaviorPhaseOf(program)) return;
+    setPhasePrompt({
+      subject: `behavior “${program.name}” to ${phase}`, withReason: true,
+      apply: (plotLine, reason) => {
+        apiService.changeBehaviorPhase(program.id, phase, { plotLine, reason, asOf: SEED_AS_OF_DATE });
+        saved(`Behavior “${program.name}” moved to ${phase}${plotLine ? ' and a phase line was plotted' : ''}.`);
       }
     });
   }
@@ -592,7 +606,7 @@ export default function App() {
                   onArchiveProgram={archiveProgram}
                   onUnarchiveProgram={unarchiveProgram}
                   onAddTarget={addTargets} onUpdateTarget={updateTarget} onDeleteTargets={deleteTargets}
-                  onRequestStatus={requestStatusChange} onRequestPhase={requestPhaseChange}
+                  onRequestStatus={requestStatusChange} onRequestPhase={requestPhaseChange} onRequestBehaviorPhase={requestBehaviorPhaseChange}
                   activity={data.activity || []} asOf={SEED_AS_OF_DATE} />
               </Suspense>
             </WorkflowPanel>}

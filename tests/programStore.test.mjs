@@ -241,3 +241,55 @@ test('deleting targets removes them from the program but not their recorded data
   assert.equal(apiService.getActivity().filter(entry => entry.kind === 'target.deleted').length >= 2, true);
   assert.deepEqual(apiService.deleteTargets(program.id, ['nope']), []);
 });
+
+// ---- Behaviors ------------------------------------------------------------------------
+
+const BEHAVIOR = { clientId: CLIENT, name: 'Elopement', status: 'Teaching', operationalDefinition: 'Leaving the instructional area without permission.' };
+
+test('a behavior is a program with a reduction purpose and exactly one target carrying the tool', () => {
+  const behavior = apiService.createBehavior({ ...BEHAVIOR, measurementTool: 'Duration' });
+  assert.equal(behavior.category, 'BehaviorReduction');
+  assert.equal(behavior.behaviorPhase, 'Open');
+  assert.equal(behavior.operationalDefinition, BEHAVIOR.operationalDefinition);
+  assert.equal(behavior.targets.length, 1);
+  assert.equal(behavior.targets[0].type, 'Duration');
+  assert.equal(behavior.targets[0].phase, 'Open', 'defined, not yet reducing');
+  assert.equal(apiService.createBehavior({ ...BEHAVIOR, name: 'No tool', measurementTool: 'TrialByTrial' }), null, 'only frequency, duration or interval');
+});
+
+test('an interval behavior carries its interval settings', () => {
+  const settings = { startType: 'Manual', intervalLength: '00:30', captureType: 'Partial', numberOfIntervals: 10 };
+  const behavior = apiService.createBehavior({ ...BEHAVIOR, name: 'Interval behavior', measurementTool: 'IntervalData', intervalSettings: settings });
+  assert.deepEqual(behavior.targets[0].intervalSettings, settings);
+});
+
+test('the measurement tool of a behavior cannot be changed after creation', () => {
+  const behavior = apiService.createBehavior({ ...BEHAVIOR, name: 'Locked tool', measurementTool: 'Frequency' });
+  apiService.updateTarget(behavior.targets[0].id, { type: 'Duration', name: 'Renamed' });
+  assert.equal(apiService.findTarget(behavior.targets[0].id).type, 'Frequency');
+});
+
+test('a behavior phase change is dated, can plot a line, and ignores programs and unknown phases', () => {
+  const behavior = apiService.createBehavior({ ...BEHAVIOR, name: 'Phase behavior', measurementTool: 'Frequency' });
+  const before = apiService.getSnapshot().phaseLines.length;
+  apiService.changeBehaviorPhase(behavior.id, 'Maintenance', { plotLine: false, asOf: SEED_AS_OF_DATE, reason: 'Reduced' });
+  assert.equal(apiService.findProgram(behavior.id).behaviorPhase, 'Maintenance');
+  assert.equal(apiService.getSnapshot().phaseLines.length, before, 'no line when declined');
+  apiService.changeBehaviorPhase(behavior.id, 'Generalization', { plotLine: true, asOf: SEED_AS_OF_DATE });
+  assert.equal(apiService.getSnapshot().phaseLines.length, before + 1);
+  assert.equal(apiService.findProgram(behavior.id).behaviorPhaseHistory.length, 2);
+  assert.equal(apiService.changeBehaviorPhase(behavior.id, 'Baseline'), null, 'Baseline is not a behavior phase');
+  assert.equal(apiService.changeBehaviorPhase(behavior.id, 'Generalization'), null, 'same phase is not a change');
+  const skill = apiService.createProgram({ clientId: CLIENT, name: 'A skill' });
+  assert.equal(apiService.changeBehaviorPhase(skill.id, 'Maintenance'), null, 'a skill program has no behavior phase');
+});
+
+test('a duplicated behavior begins again, open and unmeasured', () => {
+  const behavior = apiService.createBehavior({ ...BEHAVIOR, name: 'Dup behavior', measurementTool: 'Frequency' });
+  apiService.changeBehaviorPhase(behavior.id, 'Completed', { asOf: SEED_AS_OF_DATE });
+  const copy = apiService.duplicateProgram(behavior.id);
+  assert.equal(copy.behaviorPhase, 'Open');
+  assert.equal(copy.operationalDefinition, BEHAVIOR.operationalDefinition, 'the definition is copied');
+  assert.equal(copy.targets[0].type, 'Frequency');
+  assert.equal(apiService.findProgram(behavior.id).behaviorPhase, 'Completed');
+});

@@ -15,7 +15,7 @@ import {
 } from '../data/mockData.js';
 import { applyObservationEdit, deletionAudit } from '../utils/observations.js';
 import {
-  CASCADING_STATUSES, PHASE_LABELS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS, TARGET_PHASES, toValueList
+  BEHAVIOR_PHASES, BEHAVIOR_TOOLS, CASCADING_STATUSES, PHASE_LABELS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS, TARGET_PHASES, toValueList
 } from '../utils/programManagement.js';
 
 const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
@@ -564,6 +564,43 @@ class AnalyticsService {
     return program;
   }
 
+  // A behavior is a program with a reduction purpose and exactly one target, which
+  // carries the measurement tool. The tool is chosen here and never changed afterwards.
+  createBehavior({ measurementTool, intervalSettings, ...fields } = {}) {
+    if (!BEHAVIOR_TOOLS.includes(measurementTool)) return null;
+    const program = this.createProgram({ ...fields, category: PROGRAM_CATEGORIES.BEHAVIOR });
+    if (!program) return null;
+    this.addTarget(program.id, {
+      name: program.name, type: measurementTool, phase: 'Open',
+      discriminativeStimuli: '', masterySettings: 'Manual',
+      intervalSettings: measurementTool === 'IntervalData' ? intervalSettings : undefined,
+      phaseEnteredDate: fields.asOf || SEED_AS_OF_DATE
+    });
+    return program;
+  }
+
+  // The behavior's own lifecycle, separate from its target's measurement progress.
+  changeBehaviorPhase(programId, phase, { plotLine = false, asOf = null, reason = '' } = {}) {
+    const program = this.findProgram(programId);
+    if (!program || program.category !== PROGRAM_CATEGORIES.BEHAVIOR || !BEHAVIOR_PHASES.includes(phase)) return null;
+    if (program.behaviorPhase === phase) return null;
+    const date = asOf || SEED_AS_OF_DATE;
+    program.behaviorPhase = phase;
+    program.behaviorPhaseHistory = [...(program.behaviorPhaseHistory || []), { phase, date, reason }];
+    if (plotLine) {
+      (program.targets || []).forEach(target => {
+        this.phaseLines.push({
+          id: `pcl-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
+          targetId: target.id, date, label: `${phase} starts`, style: 'Solid', color: '#34634c',
+          isAutomated: false, source: 'Manual'
+        });
+      });
+    }
+    this.recordActivity('behavior.phase', 'program', program.id, `Moved behavior “${program.name}” to ${phase}.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.PHASE_LINES, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
   // Edit a program. The scope and the client's identity never change.
   updateProgram(programId, patch = {}) {
     const program = this.findProgram(programId);
@@ -617,6 +654,8 @@ class AnalyticsService {
       clientId: clientId || source.clientId,
       name: `${source.name} (copy)`,
       status: 'Pending',
+      behaviorPhase: source.category === PROGRAM_CATEGORIES.BEHAVIOR ? 'Open' : undefined,
+      behaviorPhaseHistory: undefined,
       archivedAt: null,
       archiveReason: undefined,
       targets: (source.targets || []).map((target, index) => ({

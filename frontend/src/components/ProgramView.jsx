@@ -3,20 +3,21 @@ import TargetFormModal from './Modals/TargetFormModal';
 import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
 import {
-  PHASE_LABELS, PROGRAM_STATUS_LABELS, programSummary, sortTargets, TARGET_PHASES, TARGET_TYPE_LABELS, targetTypeTabs
+  BEHAVIOR_PHASES, behaviorPhaseOf, PHASE_LABELS, PROGRAM_STATUS_LABELS, programSummary, sortTargets, TARGET_PHASES, TARGET_TYPE_LABELS, targetTypeTabs
 } from '../utils/programManagement';
 import { ArrowLeft, Edit3, Plus, Target, Trash2 } from './ui/Icons';
 
 // The program view: what the program is, how far along it is, and its targets as
 // cards. A program with no targets is documentation, so the empty state says so.
 export default function ProgramView({
-  program, canEdit = true, asOf, startAdding = false, activity = [], onBack, onAddTargets, onUpdateTarget, onDeleteTargets, onRequestPhase, onOpenAnalysis
+  program, canEdit = true, asOf, startAdding = false, activity = [], onBack, onAddTargets, onUpdateTarget, onDeleteTargets, onRequestPhase, onRequestBehaviorPhase, onOpenAnalysis
 }) {
   const [tab, setTab] = useState('All');
   const [adding, setAdding] = useState(startAdding);
   const [editing, setEditing] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
   const [confirming, setConfirming] = useState(null);
+  const isBehavior = program.category === 'BehaviorReduction';
   const summary = programSummary(program);
   const tabs = targetTypeTabs(program.targets);
   const activeTab = tabs.includes(tab) ? tab : 'All';
@@ -43,9 +44,25 @@ export default function ProgramView({
       </div>
       <div className="program-view-actions">
         {program.targets?.length > 0 && <button type="button" className="button button--secondary" onClick={() => onOpenAnalysis?.(program)}>Open in target analysis</button>}
-        {canEdit && <button type="button" className="button button--primary" onClick={() => setAdding(true)}><Plus size={16} />Add target</button>}
+        {canEdit && !isBehavior && <button type="button" className="button button--primary" onClick={() => setAdding(true)}><Plus size={16} />Add target</button>}
       </div>
     </header>
+
+    {isBehavior && <section className="behavior-detail" aria-label="Behavior definition">
+      <h3>Operational definition</h3>
+      <p>{program.operationalDefinition || 'No operational definition has been written for this behavior yet.'}</p>
+      <p className="behavior-detail-meta">
+        <span><strong>Measurement tool:</strong> {TARGET_TYPE_LABELS[program.targets?.[0]?.type] || 'Not set'}</span>
+        <label className="target-phase-control">Behavior phase
+          {canEdit
+            ? <select aria-label="Behavior phase" value={behaviorPhaseOf(program)} onChange={event => onRequestBehaviorPhase?.(program, event.target.value)}>
+              {BEHAVIOR_PHASES.map(phase => <option key={phase} value={phase}>{phase === 'OnHold' ? 'On hold' : phase}</option>)}
+            </select>
+            : <strong>{behaviorPhaseOf(program)}</strong>}
+        </label>
+      </p>
+      <p className="field-hint">Open means the behavior is defined but not yet being reduced. The phase of its target describes the measurement and is separate.</p>
+    </section>}
 
     <dl className="program-summary" aria-label="Program summary">
       <div><dt>Total targets</dt><dd>{summary.total}</dd></div>
@@ -78,12 +95,12 @@ export default function ProgramView({
                 .map(phase => <option key={phase} value={phase}>{PHASE_LABELS[phase]}</option>)}
             </select></label>}
           {canEdit && <div className="target-card-actions">
-            <label className="program-form-check">
+            {!isBehavior && <label className="program-form-check">
               <input type="checkbox" checked={selected.has(target.id)} onChange={() => toggle(target.id)} />
               <span className="sr-only">Select {target.name}</span>
-            </label>
+            </label>}
             <button type="button" className="icon-button" aria-label={`Edit ${target.name}`} onClick={() => setEditing(target)}><Edit3 size={17} /></button>
-            <button type="button" className="icon-button" aria-label={`Delete ${target.name}`} onClick={() => askDelete([target])}><Trash2 size={17} /></button>
+            {!isBehavior && <button type="button" className="icon-button" aria-label={`Delete ${target.name}`} onClick={() => askDelete([target])}><Trash2 size={17} /></button>}
           </div>}
         </li>)}
       </ul>}
