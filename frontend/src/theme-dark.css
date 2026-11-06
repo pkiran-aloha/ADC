@@ -1,0 +1,105 @@
+/* Dark theme. Generated token values are written by hand; charts stay on a light paper because
+ their series colours and ink are tuned for white. The light tokens are re-declared inside charts. */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-slate-50: #1a221c;
+  --color-slate-100: #222c24;
+  --color-slate-200: #2f3b31;
+  --color-slate-300: #435146;
+  --color-slate-400: #9aa895;
+  --color-slate-500: #a9b6a4;
+  --color-slate-600: #bcc7b8;
+  --color-slate-700: #d0d9cc;
+  --color-slate-800: #e2e8df;
+  --color-slate-900: #f0f3ed;
+  --color-brand-50: #16241c;
+  --color-brand-100: #1c3226;
+  --color-brand-200: #274a38;
+  --color-brand-300: #3a6a52;
+  --color-brand-400: #5f9a7b;
+  --color-brand-500: #6fae8d;
+  --color-brand-600: #86c4a2;
+  --color-brand-700: #9bd2b2;
+  --color-brand-800: #b4dfc8;
+  --color-brand-900: #cdeedb;
+  --color-red-50: #2a1a17;
+  --color-red-100: #3a211d;
+  --color-red-300: #7d4a40;
+  --color-red-500: #e08a7a;
+  --color-red-600: #e89a8b;
+  --color-red-700: #f0b0a4;
+  --color-amber-50: #2a2312;
+  --color-amber-100: #382e15;
+  --color-amber-200: #5a4821;
+  --color-amber-400: #d9a94f;
+  --color-amber-500: #e0b361;
+  --color-amber-600: #ebc477;
+  --color-amber-700: #f2d08f;
+  --color-amber-800: #f6dca8;
+  --color-amber-900: #f9e6c0;
+  --surface: #1a221c;
+  --canvas: #121814;
+  --on-accent: #0f1d15;
+  --accent: var(--color-brand-500);
+  --ink: var(--color-slate-900);
+  --muted: var(--color-slate-500);
+  --line: var(--color-slate-200);
+  --shadow-soft: 0 2px 4px rgb(0 0 0 / 30%), 0 12px 28px -20px rgb(0 0 0 / 60%);
+  --shadow-popover: 0 8px 36px -12px rgb(0 0 0 / 60%);
+}
+
+:root[data-theme="dark"] :is(.chart-svg, .aux-chart) {
+  color-scheme: light;
+  --color-slate-50: #f8f9f6;
+  --color-slate-100: #f0f2ed;
+  --color-slate-200: #e0e5dc;
+  --color-slate-300: #c9d1c4;
+  --color-slate-400: #687563;
+  --color-slate-500: #5d6a58;
+  --color-slate-600: #4f5e4c;
+  --color-slate-700: #3e4c3c;
+  --color-slate-800: #29372a;
+  --color-slate-900: #202c23;
+  --color-brand-50: #f0f6f2;
+  --color-brand-100: #e2eee5;
+  --color-brand-200: #c4dccb;
+  --color-brand-300: #9dbea8;
+  --color-brand-400: #71957f;
+  --color-brand-500: #4c7b61;
+  --color-brand-600: #34634c;
+  --color-brand-700: #294f3d;
+  --color-brand-800: #234333;
+  --color-brand-900: #1b3428;
+  --color-red-50: #fcf3f1;
+  --color-red-100: #f7e5e1;
+  --color-red-300: #d6a69a;
+  --color-red-500: #b76353;
+  --color-red-600: #a34436;
+  --color-red-700: #863c30;
+  --color-amber-50: #fcf8ef;
+  --color-amber-100: #f6edda;
+  --color-amber-200: #e9d5aa;
+  --color-amber-400: #b88d47;
+  --color-amber-500: #9e7638;
+  --color-amber-600: #855b24;
+  --color-amber-700: #704b20;
+  --color-amber-800: #62411e;
+  --color-amber-900: #51361e;
+  --surface: #fff;
+  --canvas: #f6f7f3;
+  --on-accent: #fff;
+  --ink: var(--color-slate-900);
+  --muted: var(--color-slate-500);
+  --line: var(--color-slate-200);
+  --accent: var(--color-brand-600);
+}
+
+:root[data-theme="dark"] .nav-item--overview, :root[data-theme="dark"] .workspace-tab--overview { --workflow-ink: #8fd0aa; --workflow-wash: #1c3226; }
+:root[data-theme="dark"] .nav-item--target-analysis, :root[data-theme="dark"] .workspace-tab--target-analysis { --workflow-ink: #8fcad5; --workflow-wash: #17303a; }
+:root[data-theme="dark"] .nav-item--abc-observations, :root[data-theme="dark"] .workspace-tab--abc-observations { --workflow-ink: #e0a893; --workflow-wash: #33211b; }
+:root[data-theme="dark"] .nav-item--service-quality, :root[data-theme="dark"] .workspace-tab--service-quality { --workflow-ink: #e0c27e; --workflow-wash: #302712; }
+:root[data-theme="dark"] .nav-item--reports, :root[data-theme="dark"] .workspace-tab--reports { --workflow-ink: #b9b6dc; --workflow-wash: #25233a; }
+:root[data-theme="dark"] .metric--mastery .metric-icon { color: #8fd0aa; }
+:root[data-theme="dark"] .metric--sessions .metric-icon { color: #8fcad5; }
+:root[data-theme="dark"] .metric--abc .metric-icon { color: #e0a893; }

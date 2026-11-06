@@ -2250,3 +2250,21 @@ test('learning materials can be attached as text, refuse what the browser cannot
   await expect(materials.getByRole('link', { name: 'break-card-steps.txt' })).toHaveCount(0);
   await accessible(page);
 });
+
+test('the theme follows the system, can be switched, persists and stays accessible in dark', async ({ page }) => {
+  // Reduced motion keeps the panel fade from skewing the contrast measurement.
+  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+  await page.goto('./');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  for (const tab of ['Progress overview', 'Programs', 'ABC observations']) {
+    await activate(page, tab);
+    await accessible(page);
+  }
+
+  // An explicit choice beats the system setting and survives a reload.
+  await page.getByRole('button', { name: 'Switch to the light theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.getByRole('button', { name: 'Switch to the dark theme' })).toBeVisible();
+});

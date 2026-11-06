@@ -287,7 +287,7 @@ Follow these steps in order. Each one produces something visible.
 
 | Region | What lives there |
 |---|---|
-| **Header** | Brand, current-client selector, **Add data**, **Import**, **Record observation**, **Access**, **Reset demo data** |
+| **Header** | Brand, current-client selector, **Add data**, **Import**, **Record observation**, **Access**, theme switch, **Reset demo data** |
 | **Workflow tabs** | The five workflows, with keyboard tab semantics and a snapshot chip (client · observations · targets · week · sources) |
 | **Sidebar** | Workspace navigation, data actions, access selector (mobile), reading tips, demo scope, reset, project link |
 | **Main workspace** | The active workflow. Each workflow is its own screen with a heading, controls, content, and footnotes |
@@ -302,6 +302,7 @@ On phones, the sidebar becomes a keyboard-accessible drawer and the workflow tab
 - **Dialogs:** native modal behavior, focus trap, Escape to close, focus restoration, and background scrolling locked.
 - **Tables:** horizontally scrollable regions are focusable and named, so keyboard users can reach every column.
 - **Motion:** reduced-motion preference is respected for scrolling and transitions.
+- **Theme:** the workspace follows your system light or dark setting. The sun or moon button in the header switches it, and the choice is remembered in this browser. Charts always draw on a light background so exported images and series colors match what you see.
 - **Targets:** interactive controls meet a 44px touch target; status is not conveyed by color alone.
 - **Nonvisual equivalents:** every chart has a data table or a narrative alternative; heat-map cells and chart points are buttons with descriptive labels.
 
@@ -2003,7 +2004,7 @@ The workspace aims to be usable without a mouse and with a screen reader, and it
 The CI pipeline runs, in order:
 
 1. `npm ci` — reproducible install from the lockfile.
-2. `npm test` — **247 Node tests** across fourteen suites: statistics and visual analysis, ABC analytics and predictive models, the fixture, recording and import, interaction/chart rules, reporting, the generated documentation, and Program Management (its rules and its browser-local store).
+2. `npm test` — **249 Node tests** across fifteen suites: statistics and visual analysis, ABC analytics and predictive models, the fixture, recording and import, interaction/chart rules, reporting, the generated documentation, and Program Management (its rules and its browser-local store).
 3. `npm run lint` — oxlint (0 errors; advisory warnings reported).
 4. `npm run smoke` — a production build and a headless smoke check.
 5. `npm run build` — the Vite production build.
@@ -2626,7 +2627,7 @@ These are the sources the implementation and this page draw on. Links are provid
 | **[docs/HANDOFF.md](../../docs/HANDOFF.md)** | Current state, planned work, and anything started but not landed |
 | **[data/clinicalSeed.json](../../data/clinicalSeed.json)** | The complete fictional fixture: clients, programs, targets, observations, ABC records, appointments, standards |
 | **[scripts/generate_clinical_seed.py](../../scripts/generate_clinical_seed.py)** | The deterministic generator that rebuilds the fixture |
-| **[tests/](../../tests)** | The 247 Node tests for statistics, visual analysis, ABC analytics, predictive models, recording rules, reporting, the generated documentation, and Program Management |
+| **[tests/](../../tests)** | The 249 Node tests for statistics, visual analysis, ABC analytics, predictive models, recording rules, reporting, the generated documentation, and Program Management |
 | **[frontend/tests/](../../frontend/tests)** | The Playwright end-to-end and accessibility tests |
 | **[.github/workflows/deploy.yml](../../.github/workflows/deploy.yml)** | The CI/CD pipeline that tests, builds, and deploys the demo |
 | **[Live demo](https://pkiran-aloha.github.io/ADC/)** | The deployed static application |

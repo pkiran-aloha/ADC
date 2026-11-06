@@ -9,7 +9,7 @@ export {
   SlidersHorizontal as Settings2, DownloadSimple as Download, Question as HelpCircle,
   CheckCircle as CheckCircle2, CaretDown as ChevronDown, WarningCircle as AlertCircle,
   Warning as AlertTriangle, FileCsv, FileCsv as FileSpreadsheet, FileSvg as FileCode,
-  Image, Table, Rows as LayoutList, FunnelSimple as Filter, Eye, EyeSlash as EyeOff,
+  Image, Sun, Moon, Table, Rows as LayoutList, FunnelSimple as Filter, Eye, EyeSlash as EyeOff,
   TrendUp as TrendingUp, Pulse as Activity, FileText, Stack as Layers, Plus,
   Trash as Trash2, PencilSimple as Edit3, UserCheck, CheckSquare, Square,
   FileZip as Archive, X, Note as StickyNote, BookmarkSimple as BookmarkPlus,

@@ -1,5 +1,6 @@
 import { User, Plus, RefreshCw, List, FileCsv, Upload, Eye } from './ui/Icons';
 import BrandMark from './ui/BrandMark';
+import ThemeToggle from './ui/ThemeToggle';
 import { ACCESS_LEVELS } from '../utils/permissions';
 
 export default function Header({
@@ -46,6 +47,7 @@ export default function Header({
             {ACCESS_LEVELS.map(level => <option key={level.id} value={level.id}>{level.label}</option>)}
           </select>
         </div>
+        <ThemeToggle />
         <button type="button" className="icon-button header-reset" onClick={onResetData} aria-label="Reset demo data" title="Reset demo data" disabled={!canEdit}>
           <RefreshCw size={20} />
         </button>
