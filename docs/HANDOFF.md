@@ -8,16 +8,16 @@
 | **Organization repo** | <https://alohaaba.ghe.com/aloha/aba-dc-web-app-analytics> (`ghe`), synced after bigger waves |
 | **Live demo** | <https://pkiran-aloha.github.io/ADC/> |
 | **Rules** | [`AGENTS.md`](../AGENTS.md) |
-| **Last updated** | 4 November 2026 |
+| **Last updated** | 6 November 2026 |
 
 ## Where the project is
 
-The Welina Analytics Module is a **fictional** ABA analytics workspace: five workflow screens (Progress overview, Target analysis, ABC observations, Service and data quality, Reports) over one deterministic shared clinical fixture, with a parallel ASP.NET Core 8 API that the frontend does not call.
+The Welina Analytics Module is a **fictional** ABA analytics workspace: six workflow screens (Progress overview, Target analysis, Programs, ABC observations, Service and data quality, Reports) over one deterministic shared clinical fixture, with a parallel ASP.NET Core 8 API that the frontend does not call.
 
 As of the last update:
 
 - `origin/main` is at `f6b22b8` ("Merge pull request from origin/docs/agent-handoff"), which carries the agent rules and the handoff document on top of the guided target-analysis redesign (PR #27), the resilient sharded Pages deployment (PR #26), and the target-analysis navigation and chart-workspace work (PR #21 to #25).
-- The frontend suite is **151 node:test cases** plus a server-render smoke matrix and a Playwright + axe suite (two shards in CI).
+- On `origin/main` the frontend suite is **151 node:test cases**. On branch `feat/program-management-spec` (not yet landed, see "Work started") it is **247 node:test cases across 14 suites**, a server-render smoke matrix, and **172 Playwright + axe scenarios** (86 each on desktop and mobile; two shards in CI).
 - The GHE mirror was synced on 4 November 2026 to `c453ca8`. Its **content tree is byte-identical to `origin/main`**, so the organization repo carries the same code as the working repo. The two differ only in history: GHE keeps the old zip-route "Sync from ADC main" commit `7ef5bd1`, so `ghe/main` is not an ancestor of `origin/main` and a plain `git push ghe main` is rejected. Future syncs should use the "Simpler route" in `Claude outputs/SYNC_ADC_TO_GHE.md` or repeat the `-s ours` merge described there.
 
 ## Shipped
@@ -50,18 +50,17 @@ The honest list. Each line is a real gap, not a placeholder.
 
 - **No manual screen-reader run.** Every Playwright scenario carries an axe WCAG A/AA scan, but no VoiceOver, NVDA or TalkBack pass has been done.
 - **No physical-device or non-Chromium check.** Automation is Chromium-only, and the responsive review was emulation at 1440x900 down to 320px.
-- **ABC data are read-only in the UI.** The fixture holds 826 records and there is no entry form, so an episode cannot be added or edited. The Program Management spec adds the ABC *configuration* screen (the A/B/C/L value lists) but deliberately does not add an ABC entry form; that remains an open decision.
+- **ABC entry is only a minimal form inside a lesson note** (on the branch). The ABC tab edits the vocabulary and a lesson note can record one observation, but there is no standalone entry form and no way to edit or delete an existing episode. Whether to build one is still an open decision.
 - **The .NET API is not exercised by the frontend.** Its controllers and services are a parallel implementation with no integration or contract tests, so the two can drift.
 - **The API is not built locally.** The SDK is absent in this workspace; it is verified by CI only.
 - **Observations are all Primary in the fixture.** IOA and supervision exist as session-level checks, not as separate chart rows.
-- **One lint advisory remains**: a `setState`-in-effect warning for per-client graph preferences. It is deliberate synchronization, but a future refactor could derive the value or key the component by client.
 - **Fixture scale is fixed** at five clients, 26 weeks and 3,676 observations. The UI is not stress-tested at production volumes.
 - **Print and PDF depend on the browser.** The report is print-ready HTML; server-side PDF generation is not implemented.
 - **No service worker or offline cache**, and no internationalization or time-zone configuration.
 
 ## Next, in order
 
-1. **Review and land the Program Management spec branch**, then start implementation at issue #2 (the documentation generator). See "Program Management" below.
+1. **Land the Program Management branch.** It is complete and green but not merged: merging to `main` publishes the demo to GitHub Pages, so it needs the maintainer's go-ahead and a review of the decisions listed under "Work started".
 2. **Manual accessibility pass**: a screen-reader run over the five workflows and the generated report, with the findings written into `UX_AUDIT.md`. This needs a human with a screen reader; automation cannot stand in for it.
 3. **Contract tests for the API** if the API is meant to stay a real implementation rather than a reference model.
 4. **Look at the audit backlog** in `UX_AUDIT.md` and `ANALYTICS_LANDING_FINDINGS.md` 8.4 for anything still open.
@@ -70,44 +69,49 @@ The GHE sync is done (4 November 2026), so it is no longer on this list. `UX_AUD
 
 ## Program Management
 
-A new module is specced and ready to be built. It is the authoring counterpart to the analytics: programs, targets and behaviors become editable, lessons group programs for delivery, lesson notes capture session data, and every change shows up in the analytics that already exist.
+The authoring counterpart to the analytics, **implemented on branch `feat/program-management-spec` and not yet merged into `main`**. A new **Programs** workspace defines programs, behaviors, targets, lessons, lesson notes and the ABC vocabulary; everything is saved in the browser, shows up in the analytics with no reload, and is described in `docs/wiki/Home.md` section 5.6.
 
 | Artifact | Where |
 |---|---|
 | The spec | `docs/specs/program-management.md` |
-| Published issue | [GHE issue #1](https://alohaaba.ghe.com/aloha/aba-dc-web-app-analytics/issues/1) (`ready-for-agent`) |
-| The tickets | GHE issues #2 to #15, one per slice, each labelled `ready-for-agent` and each naming the issues that gate it |
+| Published issue | [GHE issue #1](https://alohaaba.ghe.com/aloha/aba-dc-web-app-analytics/issues/1) |
+| The tickets | GHE issues #2 to #15, each commented with what was built and how it was verified |
 | The language | `GLOSSARY.md` |
 | The decisions | `docs/adr/0001` to `0005` |
+| The source document | `Program Management.docx` at the repository root (untracked; add it or keep it out of git deliberately) |
 
-The tickets, in dependency order:
+What each ticket became on the branch:
 
-| Issue | Ticket | Blocked by |
+| Issue | Ticket | Commit |
 |---|---|---|
-| #2 | Write the missing documentation generator | — |
-| #3 | The Programs workflow and the skill acquisition listing | #2 |
-| #4 | Create a skill acquisition program | #3 |
-| #5 | Edit, duplicate and archive a program | #4 |
-| #6 | Define a target | #4 |
-| #7 | Manage targets and complete the program view | #6 |
-| #8 | Phase and status changes with the phase change line prompt | #5, #7 |
-| #9 | Behavior reduction | #5 |
-| #10 | ABC configuration | #3 |
-| #11 | Lessons | #5 |
-| #12 | Lesson notes and the capture path | #9, #10, #11 |
-| #13 | Analytics integration | #8, #12 |
-| #14 | Search and filtering | #9 |
-| #15 | Learning materials | #4 |
+| #2 | Write the missing documentation generator | `6a29bdd` |
+| #3 | The Programs workflow and the skill acquisition listing | `be5ba8c` |
+| #4 | Create a skill acquisition program | `78eeef1` |
+| #5 | Edit, duplicate and archive a program | `164ed05` (the listing status control it required arrived in `5598ea7`) |
+| #6, #7 | Define a target; manage targets and complete the program view | `951e2e0` |
+| #8 | Phase and status changes with the phase change line prompt | `5598ea7` |
+| #9 | Behavior reduction | `5c6d54b` |
+| #10 | ABC configuration | `f096fbb` |
+| #11 | Lessons | `0e87293` |
+| #12 | Lesson notes and the capture path | `5caed91` |
+| #13 | Analytics integration | `f0a8be5` |
+| #14 | Search and filtering | `0eb272d` |
+| #15 | Learning materials | the last commit on the branch |
 
-The source document is `Program Management.docx` at the repository root (untracked; add it or keep it out of git deliberately). It describes the Welina platform's own Program Management module.
+Things a later change must not get wrong: a behavior is a program with one target and carries an operational definition; archiving removes a program from today's surfaces and keeps its history and data; everything persists in the browser and nothing transmits; a lesson note is not a service session; Cancel on the phase-line prompt changes nothing; and a blank is never a zero.
 
-Six things a build must not get wrong, all recorded in the ADRs: a behavior is a program with a reduction purpose and carries an operational definition; archiving removes a program from today's surfaces and keeps its history and its data; everything persists in the browser and nothing transmits; a lesson note is not a service session; the phase-change prompt's Cancel aborts the change; and a blank is never a zero.
+**Decisions made while building, for the maintainer to review:**
 
-**The one prerequisite nobody can skip:** `frontend/src/data/docs/wikiPages.js` says it is generated, but no generator exists in this repository. ADR 0005 says write it. Until that lands, a new wiki part has to be hand-patched into a file that says not to hand-edit it.
+- Lesson notes: Draft and Unapproved are both editable; only Approved is locked (the spec's wording said "only while Unapproved"). Signatures are a list, one per signer, rather than the single object ADR 0004 sketched, and record the demo date, not a wall-clock time.
+- Learning materials accept **text files only** (.txt, .md, .csv; 5 per program, 200 KB each, 1 MB total). The platform spec allows PDF, DOCX and MP4 up to 100 MB, which a browser-local demo cannot honestly hold, so those are refused with the reason.
+- A manual-mastery decision is authoritative where one is recorded; with none recorded, a mastered phase counts. The fixture records none.
+- Behaviors that predate the behavior-phase field read their phase from their target.
+
+**Known limits, none hidden:** the weekly map, success feed and health matrix read target phases, not the manual-decision field. There is no Organization or Public scope, no per-user audit (the activity log says what changed, not who), no drag-and-drop reordering, no task-analysis target type and no signature location capture. ABC entry is the minimal lesson-note form described above.
 
 ## Work started (not yet landed)
 
-- **Branch `feat/program-management-spec`** (pushed to `origin`): the Program Management spec, `GLOSSARY.md`, ADRs 0001 to 0005, and the ticket breakdown recorded above. Docs only, no code. Needs review and a merge into `main`.
+- **Branch `feat/program-management-spec`** (pushed to `origin`): the Program Management spec, glossary and ADRs, plus all fourteen implementation tickets above. **Done:** every ticket, with tests and the wiki, README and TECH_STACK updated. **Verified** by reading results directly on the final state of the code: 247 of 247 node tests, oxlint with no warnings, the server-render smoke, the production build, and 172 of 172 Playwright scenarios with Playwright's own exit code 0. **Next:** merge `origin/main` into the branch, re-run the gate, merge to `main` with `--no-ff` and push, which publishes the demo; then sync GHE with the `-s ours` route in `Claude outputs/SYNC_ADC_TO_GHE.md`. Not merged because publishing is an outward-facing step that needs the maintainer's say-so.
 
 When a pass is half-finished, record it here before ending the session: branch, what is done, what is next. Do not leave a pass unrecorded.
 

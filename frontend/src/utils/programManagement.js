@@ -407,3 +407,53 @@ export function filterPrograms(programs = [], { query = '', status = '', lessonN
   return programs.filter(program =>
     matchesStatus(program, status) && matchesQuery(program, query, { lessonName: lessonNames.get(program.id) || '' }));
 }
+
+// ---- Learning materials ---------------------------------------------------------------
+
+// Material is saved in this browser, so the limits are what a browser can honestly hold:
+// small text files. Documents and videos are refused with the reason, rather than appearing
+// to upload and then not being there.
+export const MATERIAL_LIMITS = {
+  maxFiles: 5,
+  maxFileBytes: 200 * 1024,
+  maxTotalBytes: 1024 * 1024,
+  extensions: ['.txt', '.md', '.csv']
+};
+
+export const MATERIAL_LIMITS_TEXT = 'Up to 5 files per program, text only (.txt, .md or .csv), 200 KB each and 1 MB in total. Files are saved in this browser; nothing is uploaded.';
+
+// A stored file downloads from its own content; a demo file from its path under the site.
+export function materialHref(material, base = '') {
+  if (typeof material?.content === 'string') return `data:text/plain;charset=utf-8,${encodeURIComponent(material.content)}`;
+  return `${base}${material?.path || ''}`;
+}
+
+const kilobytes = bytes => `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+export function materialBytes(material) {
+  return Number(material?.size) || 0;
+}
+
+export function validateMaterial(file = {}, existing = []) {
+  const name = String(file.name || '').trim();
+  if (!name) return { ok: false, reason: 'Choose a file.' };
+  const extension = name.includes('.') ? name.slice(name.lastIndexOf('.')).toLowerCase() : '';
+  if (!MATERIAL_LIMITS.extensions.includes(extension)) {
+    return { ok: false, reason: `“${name}” was not added. This demo keeps text files only (.txt, .md or .csv), because it saves material in your browser and cannot hold documents or videos.` };
+  }
+  if (existing.some(material => material.fileName === name)) {
+    return { ok: false, reason: `A file called “${name}” is already attached to this program.` };
+  }
+  if (existing.length >= MATERIAL_LIMITS.maxFiles) {
+    return { ok: false, reason: `A program can hold up to ${MATERIAL_LIMITS.maxFiles} files.` };
+  }
+  const size = Number(file.size) || 0;
+  if (size > MATERIAL_LIMITS.maxFileBytes) {
+    return { ok: false, reason: `“${name}” is ${kilobytes(size)}. Each file can be up to ${kilobytes(MATERIAL_LIMITS.maxFileBytes)}.` };
+  }
+  const total = existing.reduce((sum, material) => sum + materialBytes(material), 0) + size;
+  if (total > MATERIAL_LIMITS.maxTotalBytes) {
+    return { ok: false, reason: `Adding “${name}” would take this program past ${kilobytes(MATERIAL_LIMITS.maxTotalBytes)} of stored material.` };
+  }
+  return { ok: true };
+}

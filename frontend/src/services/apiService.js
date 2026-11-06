@@ -16,7 +16,7 @@ import {
 import { applyObservationEdit, deletionAudit } from '../utils/observations.js';
 import { isValidDate } from '../utils/formValidation.js';
 import {
-  BEHAVIOR_PHASES, BEHAVIOR_TOOLS, CASCADING_STATUSES, LESSON_NOTE_STATUSES, PHASE_LABELS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS, SIGNATURE_ROLES, TARGET_PHASES, isLessonNoteEditable, toValueList
+  BEHAVIOR_PHASES, BEHAVIOR_TOOLS, CASCADING_STATUSES, LESSON_NOTE_STATUSES, PHASE_LABELS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS, SIGNATURE_ROLES, TARGET_PHASES, isLessonNoteEditable, toValueList, validateMaterial
 } from '../utils/programManagement.js';
 
 const ABC_LIST_KEYS = ['antecedents', 'behaviors', 'consequences', 'locations'];
@@ -859,6 +859,32 @@ class AnalyticsService {
     removed.forEach(target => this.recordActivity('target.deleted', 'target', target.id, `Deleted target “${target.name}” from “${program.name}”.`));
     this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
     return removed;
+  }
+
+  // Learning material is text kept in this browser. The size is measured here from the
+  // content itself, so a caller cannot understate it, and a refused file says why.
+  addLearningMaterial(programId, { fileName, content } = {}) {
+    const program = this.findProgram(programId);
+    if (!program) return { ok: false, reason: 'That program no longer exists.' };
+    const text = typeof content === 'string' ? content : '';
+    const size = new TextEncoder().encode(text).length;
+    const check = validateMaterial({ name: fileName, size }, program.learningMaterials || []);
+    if (!check.ok) return check;
+    const material = { fileName: String(fileName).trim(), contentType: 'text/plain', content: text, size, addedOn: SEED_AS_OF_DATE };
+    program.learningMaterials = [...(program.learningMaterials || []), material];
+    this.recordActivity('program.material.added', 'program', program.id, `Attached “${material.fileName}” to “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return { ok: true, material };
+  }
+
+  removeLearningMaterial(programId, fileName) {
+    const program = this.findProgram(programId);
+    const had = (program?.learningMaterials || []).some(material => material.fileName === fileName);
+    if (!had) return false;
+    program.learningMaterials = program.learningMaterials.filter(material => material.fileName !== fileName);
+    this.recordActivity('program.material.removed', 'program', program.id, `Removed “${fileName}” from “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return true;
   }
 
   findTarget(targetId) {

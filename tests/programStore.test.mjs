@@ -466,3 +466,42 @@ test('lesson notes persist and are listed per client', () => {
   assert.equal(apiService.getLessonNotes('cli-emma').some(item => item.id === note.id), false);
   assert.ok(apiService.getActivity(note.id).some(entry => entry.kind === 'note.created'));
 });
+
+// ---- Learning materials ---------------------------------------------------------------
+
+test('a text file can be attached to a program and removed again', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Materials demo' });
+  const text = 'Show the card.\nWait five seconds.';
+  const added = apiService.addLearningMaterial(program.id, { fileName: 'prompts.txt', content: text });
+  assert.equal(added.ok, true);
+  assert.equal(added.material.size, new TextEncoder().encode(text).length, 'the size is measured from the content');
+  assert.equal(apiService.findProgram(program.id).learningMaterials.length, 1);
+  const stored = JSON.parse(localStorage.getItem('welina_programs')).find(item => item.id === program.id);
+  assert.ok(stored.learningMaterials[0].content.startsWith('Show the card'), 'saved in the browser');
+  assert.equal(apiService.removeLearningMaterial(program.id, 'prompts.txt'), true);
+  assert.deepEqual(apiService.findProgram(program.id).learningMaterials, []);
+  assert.equal(apiService.removeLearningMaterial(program.id, 'prompts.txt'), false);
+});
+
+test('a refused file is not stored and says why', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Materials refused' });
+  const pdf = apiService.addLearningMaterial(program.id, { fileName: 'plan.pdf', content: '%PDF' });
+  assert.equal(pdf.ok, false);
+  assert.match(pdf.reason, /text files only/);
+  const huge = apiService.addLearningMaterial(program.id, { fileName: 'huge.txt', content: 'x'.repeat(250 * 1024) });
+  assert.equal(huge.ok, false);
+  assert.match(huge.reason, /up to 200 KB/);
+  assert.deepEqual(apiService.findProgram(program.id).learningMaterials, []);
+  assert.equal(apiService.addLearningMaterial('nope', { fileName: 'a.txt', content: 'a' }).ok, false);
+});
+
+test('five files fit and a sixth is refused', () => {
+  const program = apiService.createProgram({ clientId: CLIENT, name: 'Materials count' });
+  for (let i = 0; i < 5; i += 1) {
+    assert.equal(apiService.addLearningMaterial(program.id, { fileName: `f${i}.txt`, content: 'y'.repeat(190 * 1024) }).ok, true, `file ${i}`);
+  }
+  const sixth = apiService.addLearningMaterial(program.id, { fileName: 'f5.txt', content: 'z' });
+  assert.equal(sixth.ok, false);
+  assert.match(sixth.reason, /up to 5 files/);
+  assert.equal(apiService.findProgram(program.id).learningMaterials.length, 5);
+});

@@ -86,6 +86,7 @@ There are three quick ways into this page.
 - [5.3 ABC observations](#53-abc-observations)
 - [5.4 Service and data quality](#54-service-and-data-quality)
 - [5.5 Reports](#55-reports)
+- [5.6 Programs](#56-programs)
 
 **Part 6: The science**
 - [6.1 ABA foundations](#61-aba-foundations)
@@ -1304,6 +1305,45 @@ Second-observer (IOA) and supervision observations remain with the session in th
 - Read the authorization template's arithmetic carefully: **Delivered** is a count of completed appointments in range, and the "approximately N direct hours per week" figure is a rough proxy (half an hour per appointment, not the sum of recorded minutes, and not divided by the number of weeks in the range). Replace it with a dosage figure from **Service & data quality** before submitting anything.
 - Remember that this is a fictional demo. Do not present its output as a real clinical record.
 
+## 5.6 Programs
+
+**Question:** What is planned, and how is it measured?
+
+Programs is the sixth workspace and the only one that **writes**: it is where the plan is defined, so the analytics can be read against it. It is scoped to the selected client, is unavailable until a client is chosen, and is read-only under **View-only analytics** access. Everything saved here stays in this browser and reaches the analytics at once, with no reload. **Reset demo data** restores the fixture.
+
+It has four tabs, each with a count: **Skill acquisition**, **Behavior reduction**, **ABC data recording** and **Lesson notes**.
+
+### Programs: skill acquisition
+
+The listing shows each program's name, target count, lesson, tags and status, alphabetically. Search matches name, tag, lesson and status as you type, partially and ignoring case, and every word must match, so two words narrow the list. A status filter combines with it; **Reset** clears both and a search with no match says **No results found**.
+
+- **Create** a program with a name (up to 100 characters), a status, treatment areas, tags, a baseline, an objective (up to 1,000 characters each), teaching instructions (required, up to 1,000) and the practice's custom fields. The form will not save an incomplete program, and marks the sections still missing. An exact duplicate name for the same client warns and lets you continue; the same name for another client does not warn. Afterwards you are asked whether to add targets.
+- **Edit, duplicate, archive.** A duplicate starts again: new identities, no phase history, status Pending. Archiving removes a program from today's surfaces (the overview, the mastery counts, the weekly map, the triage and the recorder) while its history and recorded data stay, and the target analysis marks it **(archived)**.
+- **Status** is chosen from eight values. Setting **Pending**, **Completed**, **On hold** or **Discontinued** moves all the program's targets to that phase; the four teaching statuses leave each target alone.
+- **Phase change line.** Every status or phase change asks whether to plot a phase change line: **Yes** plots a labelled line on the change date on each target, **No** changes the phase without one, and **Cancel** changes nothing.
+- **Lessons.** Select several programs and **Add to lesson** to put them into a new or existing lesson in one action. A lesson only holds its own client's programs.
+- **Learning materials.** A program can carry up to 5 text files (.txt, .md or .csv), 200 KB each and 1 MB in total, saved in this browser. Documents and videos are refused with the reason. Nothing is uploaded.
+
+### Programs: targets
+
+Opening a program shows its targets as cards, ordered by phase and then name, with a summary of total, mastered and completion, tabs for only the measurement types that exist, and **Open chart**. A target form asks for what its type needs: a prompt hierarchy for trial by trial, a start type, length and capture type for interval data, a timer for fluency/rate. Several names entered together each become a target. The measurement type is fixed once the target exists. Mastery is a stated rule or a clinician's dated decision; where a decision is recorded it is authoritative, and otherwise a mastered phase counts. Deleting a target, singly or in bulk, asks first and keeps any observation already recorded against it.
+
+### Programs: behavior reduction
+
+A behavior is a program with one target. It needs an **operational definition** (up to 5,000 characters) and a measurement tool (frequency, duration or interval) that is **locked once saved**. Its own phase (**Open**, Maintenance, Generalization, Completed, Pending, On hold, Discontinued) is separate from its target's measurement phase. **Open** means defined but not yet being reduced: the analytics never treat it as mastered. Behaviors that predate this field take their phase from their target.
+
+### Programs: ABC vocabulary
+
+The ABC tab edits the client's treatment area, teaching instructions and four lists (antecedent, behavior, consequence, location). Removing a value names it and says how many recorded observations use it; the observations keep the text they were recorded with. Behaviors defined under Behavior reduction can be imported into the behavior list.
+
+### Programs: lesson notes
+
+A lesson note is one dated run of a lesson. It starts as a **Draft** that plans the targets of the lesson's active programs. **Record data** opens the same recorder as everywhere else, loaded with only those targets, and an ABC observation can be recorded into the note too. A note can be signed by staff, a caregiver or an approver, each with a name and the demo date. It moves Draft, Unapproved, Approved. Draft and Unapproved notes can be edited and recorded into; an **Approved** note is a finished record, and its details, signatures and data are locked.
+
+### Programs: what it does not do
+
+There is no organisation or public library and no copying between clients, no per-user audit history (there is no logged-in user, so the activity log records what changed, not who), no drag-and-drop reordering, no task-analysis target type and no location capture on signatures. The weekly map, success feed and health matrix read target phases, not the manual-decision field. See `docs/specs/program-management.md` for the full list.
+
 # Part 6: The science
 
 Welina is not a black box. Every derived number is a documented, inspectable calculation on the recorded values. This part explains the concepts, the formulas, the thresholds, and — just as importantly — what the calculations cannot tell you.
@@ -1963,7 +2003,7 @@ The workspace aims to be usable without a mouse and with a screen reader, and it
 The CI pipeline runs, in order:
 
 1. `npm ci` — reproducible install from the lockfile.
-2. `npm test` — **151 Node tests** across eleven suites: statistics and visual analysis, ABC analytics and predictive models, the fixture, recording and import, interaction/chart rules, and reporting.
+2. `npm test` — **247 Node tests** across fourteen suites: statistics and visual analysis, ABC analytics and predictive models, the fixture, recording and import, interaction/chart rules, reporting, the generated documentation, and Program Management (its rules and its browser-local store).
 3. `npm run lint` — oxlint (0 errors; advisory warnings reported).
 4. `npm run smoke` — a production build and a headless smoke check.
 5. `npm run build` — the Vite production build.
@@ -2586,7 +2626,7 @@ These are the sources the implementation and this page draw on. Links are provid
 | **[docs/HANDOFF.md](../../docs/HANDOFF.md)** | Current state, planned work, and anything started but not landed |
 | **[data/clinicalSeed.json](../../data/clinicalSeed.json)** | The complete fictional fixture: clients, programs, targets, observations, ABC records, appointments, standards |
 | **[scripts/generate_clinical_seed.py](../../scripts/generate_clinical_seed.py)** | The deterministic generator that rebuilds the fixture |
-| **[tests/](../../tests)** | The 151 Node tests for statistics, visual analysis, ABC analytics, predictive models, recording rules, and reporting |
+| **[tests/](../../tests)** | The 247 Node tests for statistics, visual analysis, ABC analytics, predictive models, recording rules, reporting, the generated documentation, and Program Management |
 | **[frontend/tests/](../../frontend/tests)** | The Playwright end-to-end and accessibility tests |
 | **[.github/workflows/deploy.yml](../../.github/workflows/deploy.yml)** | The CI/CD pipeline that tests, builds, and deploys the demo |
 | **[Live demo](https://pkiran-aloha.github.io/ADC/)** | The deployed static application |

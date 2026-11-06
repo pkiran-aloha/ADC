@@ -468,3 +468,46 @@ test('filtering never reorders or mutates the list it was given', () => {
   assert.deepEqual(input.map(p => p.id), ['b', 'a']);
   assert.deepEqual(output.map(p => p.id), ['b', 'a']);
 });
+
+// ---- Learning materials ---------------------------------------------------------------
+
+import { MATERIAL_LIMITS, validateMaterial } from '../frontend/src/utils/programManagement.js';
+
+test('text files within the limits are accepted', () => {
+  assert.deepEqual(validateMaterial({ name: 'prompts.txt', size: 1200 }, []), { ok: true });
+  assert.deepEqual(validateMaterial({ name: 'Guide.MD', size: 10 }, []), { ok: true }, 'the extension is case-insensitive');
+  assert.deepEqual(validateMaterial({ name: 'data.csv', size: MATERIAL_LIMITS.maxFileBytes }, []), { ok: true }, 'the limit itself is allowed');
+});
+
+test('a document or video is refused with the reason, not silently dropped', () => {
+  for (const name of ['plan.pdf', 'plan.docx', 'deck.pptx', 'clip.mp4', 'clip.mov', 'noextension']) {
+    const result = validateMaterial({ name, size: 100 }, []);
+    assert.equal(result.ok, false, name);
+    assert.match(result.reason, /text files only/);
+    assert.ok(result.reason.includes(name), `the reason names ${name}`);
+  }
+});
+
+test('the size, count and total limits each say which limit was hit', () => {
+  assert.match(validateMaterial({ name: 'big.txt', size: MATERIAL_LIMITS.maxFileBytes + 1 }, []).reason, /up to 200 KB/);
+  const five = Array.from({ length: 5 }, (_, i) => ({ fileName: `f${i}.txt`, size: 10 }));
+  assert.match(validateMaterial({ name: 'six.txt', size: 10 }, five).reason, /up to 5 files/);
+  assert.match(validateMaterial({ name: 'f0.txt', size: 10 }, five.slice(0, 2)).reason, /already attached/);
+  assert.equal(validateMaterial({ name: '', size: 1 }, []).ok, false);
+});
+
+test('the total limit is reported when many large files add up', () => {
+  // Six files of 190 KB cannot all fit, but the count limit stops at five, so build the total
+  // from fewer, larger files by using a custom existing set that is already near the cap.
+  const nearCap = [{ fileName: 'a.txt', size: 200 * 1024 }, { fileName: 'b.txt', size: 200 * 1024 }, { fileName: 'c.txt', size: 200 * 1024 }, { fileName: 'd.txt', size: 200 * 1024 }];
+  const result = validateMaterial({ name: 'e.txt', size: 200 * 1024 }, nearCap);
+  assert.equal(result.ok, true, '5 x 200 KB is 1000 KB, which is under 1 MB');
+  const over = validateMaterial({ name: 'e.txt', size: 200 * 1024 }, [...nearCap.slice(0, 3), { fileName: 'big.txt', size: 300 * 1024 }]);
+  assert.match(over.reason, /past 1024 KB/);
+});
+
+test('static demo materials count toward the file limit but carry no size', () => {
+  const statics = Array.from({ length: 5 }, (_, i) => ({ fileName: `s${i}.txt`, path: `learning-materials/s${i}.txt` }));
+  assert.equal(validateMaterial({ name: 'new.txt', size: 5 }, statics).ok, false);
+  assert.equal(validateMaterial({ name: 'new.txt', size: 5 }, statics.slice(0, 4)).ok, true);
+});

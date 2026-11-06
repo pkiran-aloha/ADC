@@ -2212,3 +2212,41 @@ test('programs and behaviors can be searched and filtered, with a clear and a no
   await expect(behaviorRows).toHaveCount(behaviorPrograms.filter(program => behaviorPhaseOf(program) === 'Maintenance').length);
   await accessible(page);
 });
+
+test('learning materials can be attached as text, refuse what the browser cannot hold, and persist', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = page.locator('#programs');
+  await listing.getByRole('button', { name: 'Spontaneous Requests', exact: true }).click();
+  const materials = listing.getByRole('region', { name: 'Learning materials' });
+
+  // The limits and where the file goes are stated before a file is chosen.
+  await expect(materials).toContainText('Up to 5 files per program');
+  await expect(materials).toContainText('text only');
+  await expect(materials).toContainText('nothing is uploaded');
+  await expect(materials).toContainText('No learning materials are attached.');
+
+  // A text file is accepted and saved in the browser.
+  const input = materials.getByLabel('Attach a text file');
+  await input.setInputFiles({ name: 'break-card-steps.txt', mimeType: 'text/plain', buffer: Buffer.from('1. Show the break card.\n2. Wait.') });
+  await expect(materials.getByRole('link', { name: 'break-card-steps.txt' })).toBeVisible();
+  const href = await materials.getByRole('link', { name: 'break-card-steps.txt' }).getAttribute('href');
+  expect(decodeURIComponent(href)).toContain('1. Show the break card.');
+
+  // A document is refused with the reason, and nothing is added.
+  await input.setInputFiles({ name: 'plan.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') });
+  await expect(materials.getByRole('alert')).toContainText('text files only');
+  await expect(materials.getByRole('link', { name: 'plan.pdf' })).toHaveCount(0);
+
+  // A file over the size limit is refused and says the limit.
+  await input.setInputFiles({ name: 'huge.txt', mimeType: 'text/plain', buffer: Buffer.alloc(250 * 1024, 'a') });
+  await expect(materials.getByRole('alert')).toContainText('up to 200 KB');
+
+  // Material persists across a reload, and can be removed.
+  await page.reload();
+  await activate(page, 'Programs');
+  await listing.getByRole('button', { name: 'Spontaneous Requests', exact: true }).click();
+  await expect(materials.getByRole('link', { name: 'break-card-steps.txt' })).toBeVisible();
+  await materials.getByRole('button', { name: 'Remove break-card-steps.txt' }).click();
+  await expect(materials.getByRole('link', { name: 'break-card-steps.txt' })).toHaveCount(0);
+  await accessible(page);
+});

@@ -3,20 +3,21 @@ import TargetFormModal from './Modals/TargetFormModal';
 import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
 import {
-  BEHAVIOR_PHASES, behaviorPhaseOf, PHASE_LABELS, PROGRAM_STATUS_LABELS, programSummary, sortTargets, TARGET_PHASES, TARGET_TYPE_LABELS, targetTypeTabs
+  BEHAVIOR_PHASES, behaviorPhaseOf, MATERIAL_LIMITS_TEXT, materialHref, PHASE_LABELS, PROGRAM_STATUS_LABELS, programSummary, sortTargets, TARGET_PHASES, TARGET_TYPE_LABELS, targetTypeTabs
 } from '../utils/programManagement';
 import { ArrowLeft, Edit3, Plus, Target, Trash2 } from './ui/Icons';
 
 // The program view: what the program is, how far along it is, and its targets as
 // cards. A program with no targets is documentation, so the empty state says so.
 export default function ProgramView({
-  program, canEdit = true, asOf, startAdding = false, activity = [], onBack, onAddTargets, onUpdateTarget, onDeleteTargets, onRequestPhase, onRequestBehaviorPhase, onOpenAnalysis, onOpenTarget
+  program, canEdit = true, asOf, startAdding = false, activity = [], onBack, onAddTargets, onUpdateTarget, onDeleteTargets, onRequestPhase, onRequestBehaviorPhase, onOpenAnalysis, onOpenTarget, onAddMaterial, onRemoveMaterial
 }) {
   const [tab, setTab] = useState('All');
   const [adding, setAdding] = useState(startAdding);
   const [editing, setEditing] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
   const [confirming, setConfirming] = useState(null);
+  const [materialError, setMaterialError] = useState('');
   const isBehavior = program.category === 'BehaviorReduction';
   const summary = programSummary(program);
   const tabs = targetTypeTabs(program.targets);
@@ -111,6 +112,33 @@ export default function ProgramView({
       <button type="button" className="button button--danger" onClick={() => askDelete((program.targets || []).filter(target => selected.has(target.id)))}>Delete selected</button>
       <button type="button" className="button button--tertiary" onClick={() => setSelected(new Set())}>Clear selection</button>
     </div>}
+
+    <section aria-labelledby="program-materials-title" className="lessons-panel">
+      <h3 id="program-materials-title">Learning materials</h3>
+      <p className="field-hint">{MATERIAL_LIMITS_TEXT}</p>
+      {(program.learningMaterials || []).length === 0
+        ? <p className="program-form-note">No learning materials are attached.</p>
+        : <ul className="material-links">
+          {program.learningMaterials.map(material => <li key={material.path || material.fileName}>
+            <a href={materialHref(material, import.meta.env.BASE_URL)} download={material.fileName}>{material.fileName}</a>
+            {material.size ? <span className="program-form-note"> · {Math.max(1, Math.round(material.size / 1024))} KB</span> : null}
+            {canEdit && typeof material.content === 'string' && <button type="button" className="button button--tertiary"
+              aria-label={`Remove ${material.fileName}`} onClick={() => onRemoveMaterial?.(program, material.fileName)}>Remove</button>}
+          </li>)}
+        </ul>}
+      {canEdit && <div className="field">
+        <label htmlFor="program-material-input">Attach a text file</label>
+        <input id="program-material-input" type="file" accept=".txt,.md,.csv,text/plain"
+          onChange={async event => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (!file) return;
+            const result = await onAddMaterial?.(program, { fileName: file.name, content: await file.text() });
+            setMaterialError(result && !result.ok ? result.reason : '');
+          }} />
+        {materialError && <p className="field-error" role="alert">{materialError}</p>}
+      </div>}
+    </section>
 
     <section aria-labelledby="program-activity-title" className="program-activity">
       <h3 id="program-activity-title">Activity</h3>

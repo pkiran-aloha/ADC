@@ -517,6 +517,15 @@ export default function App() {
       }
     });
   }
+  // Learning material is saved in this browser, and the message says exactly that.
+  function addMaterial(program, file) {
+    const result = apiService.addLearningMaterial(program.id, file);
+    if (result.ok) saved(apiService.storageError ? 'Attached for this session only. Your browser couldn’t save changes.' : `“${result.material.fileName}” saved in this browser and attached to “${program.name}”.`);
+    return result;
+  }
+  function removeMaterial(program, fileName) {
+    if (apiService.removeLearningMaterial(program.id, fileName)) saved(`“${fileName}” removed from “${program.name}”.`);
+  }
   // From a chart back to the plan: the Programs workspace opens on that program.
   function openInPrograms(program) {
     setProgramFocus({ programId: program.id, nonce: Date.now() });
@@ -696,6 +705,7 @@ export default function App() {
               <Suspense fallback={<AnalyticsSkeleton />}>
                 <ProgramManagement key={`${selectedClientId}-${programFocus?.nonce || 0}`} client={currentClient} programs={programs}
                   initialProgramId={programFocus?.programId || null} onOpenTarget={(program, target) => openTargetFocus({ program, target })}
+                  onAddMaterial={addMaterial} onRemoveMaterial={removeMaterial}
                   lessons={apiService.getLessons(selectedClientId)} abcEntries={abcEntries}
                   abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
                   canEdit={canEdit} viewOnlyReason={viewOnlyReason}

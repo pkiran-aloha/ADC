@@ -29,7 +29,7 @@ export default function ProgramManagement({
   client, programs = [], lessons = [], abcConfiguration = null, abcEntries = [],
   canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram,
   onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram, onAddTarget, onUpdateTarget, onDeleteTargets, onRequestStatus, onRequestPhase, onRequestBehaviorPhase, activity = [], asOf,
-  onUpdateAbcConfig, onAddAbcValue, onRenameAbcValue, onRemoveAbcValues, onImportAbcBehaviors, onSaveLesson, onOpenTarget, initialProgramId = null,
+  onUpdateAbcConfig, onAddAbcValue, onRenameAbcValue, onRemoveAbcValues, onImportAbcBehaviors, onSaveLesson, onOpenTarget, onAddMaterial, onRemoveMaterial, initialProgramId = null,
   lessonNotes = [], observations = [], onCreateNote, onUpdateNote, onNoteStatus, onSignNote, onRecordNote, onRecordAbcNote
 }) {
   const [tab, setTab] = useState('skill');
@@ -113,7 +113,8 @@ export default function ProgramManagement({
         {viewingProgram ? <ProgramView key={viewingProgram.id + (viewing.adding ? '-add' : '')} program={viewingProgram} canEdit={canEdit}
           asOf={asOf} startAdding={viewing.adding} onBack={() => setViewing({ id: null, adding: false })}
           onAddTargets={onAddTarget} onUpdateTarget={onUpdateTarget} onDeleteTargets={onDeleteTargets} onRequestPhase={onRequestPhase} onRequestBehaviorPhase={onRequestBehaviorPhase}
-          activity={activity} onOpenAnalysis={onOpenProgram} onOpenTarget={onOpenTarget} /> : <>
+          activity={activity} onOpenAnalysis={onOpenProgram} onOpenTarget={onOpenTarget}
+          onAddMaterial={onAddMaterial} onRemoveMaterial={onRemoveMaterial} /> : <>
         <div className="programs-tabs" role="tablist" aria-label="Program types">
           {TABS.map(entry => {
             const Icon = entry.icon;

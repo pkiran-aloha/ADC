@@ -1,6 +1,6 @@
 import { CUSTOM_FIELD_DEFINITIONS, PROMPT_HIERARCHY_TEMPLATES } from '../data/mockData';
 import { MEASUREMENT_LABELS } from '../utils/formValidation';
-import { toValueList } from '../utils/programManagement';
+import { materialHref, toValueList } from '../utils/programManagement';
 
 const startLabels = {
   LessonStart: 'Lesson start',
@@ -86,8 +86,8 @@ export default function ProgramDetails({ programs = [], activeTarget = null, onO
                   <strong>Learning materials</strong>
                   <ul className="material-links">
                     {program.learningMaterials.map(material => (
-                      <li key={material.path}>
-                        <a href={`${import.meta.env.BASE_URL}${material.path}`} download={material.fileName}>
+                      <li key={material.path || material.fileName}>
+                        <a href={materialHref(material, import.meta.env.BASE_URL)} download={material.fileName}>
                           {material.fileName}<span className="sr-only"> · download learning material</span>
                         </a>
                       </li>
