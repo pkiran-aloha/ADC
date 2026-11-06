@@ -137,7 +137,8 @@ const generated = build();
 if (process.argv[2] === '--check') {
   let current = '';
   try {
-    current = readFileSync(OUTPUT_PATH, 'utf8');
+    // A Windows checkout may have converted the file to CRLF; compare content, not line endings.
+    current = readFileSync(OUTPUT_PATH, 'utf8').replace(/\r\n/g, '\n');
   } catch {
     console.error(`docs:check failed: ${OUTPUT_PATH} does not exist. Run npm run docs:build.`);
     process.exit(1);

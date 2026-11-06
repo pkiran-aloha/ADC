@@ -415,7 +415,7 @@ export function reportHtml(model, { charts = {}, printHint = true } = {}) {
   .report-chart { page-break-inside: avoid; margin-bottom: 18px; }
   .report-chart svg { width: 100%; height: auto; border: 1px solid #e6ebe8; }
   .report-empty { color: #6b7a72; font-size: 11.5px; }
-  .report-narrative p { background: #f7f9f8; border-left: 3px solid #71957f; padding: 8px 10px; margin: 6px 0; font-size: 12px; }
+  .report-narrative p { background: #f7f9f8; border: 1px solid #dfe5e0; border-radius: 4px; padding: 8px 10px; margin: 6px 0; font-size: 12px; }
   .print-hint { background: #eef4f0; padding: 10px 12px; border-radius: 4px; font-size: 12px; }
   footer.report-footer { margin-top: 28px; border-top: 1px solid #dfe5e0; padding-top: 10px; font-size: 10.5px; color: #6b7a72; }
   @media print {
