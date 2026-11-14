@@ -223,15 +223,21 @@ A new **Programs** workflow alongside the existing five, containing three tabs (
 
 - The **wiki generator is written** as a small script that parses the platform wiki and the tech-stack document and emits the generated documentation module. It is wired as a documentation build script and checked in CI so the generated file cannot drift from its sources. This closes a gap where the documentation module declares itself generated but no generator exists in the repository.
 
-### Out-of-scope items taken from the source document
+### Items first left out, and what became of them
 
-- Organization and Public scopes, including promotion between scopes and the field-wipeout rule that protects client-specific content.
-- Per-program audit history with user identity, permission gating and spreadsheet export.
-- The unified filter panel with status counts and multi-select.
-- Drag-and-drop target reordering and its reset control.
-- Real-time synchronisation of fluency/rate targets between web and mobile.
-- Task analysis as a new target type.
-- Geotagged signatures.
+The first build left these source-document items out. A second pass (6 November 2026, after the
+interface was judged too thin) built most of them. Each line says which.
+
+| Item | Status |
+|---|---|
+| Organization and public scopes, scope promotion, and the field-wipeout rule | **Built.** See ADR 0006. |
+| The unified filter panel with counts and multi-select | **Built.** Status, tags and lessons, with counts. |
+| Drag-and-drop target reordering and its reset control | **Built**, with arrow buttons as the keyboard route. |
+| Per-program history, with export | **Built** as a History tab with CSV export. It records what and when, not who, because there is no signed-in user. |
+| Bulk editing of targets | **Built:** phase, discriminative stimuli and target instructions together. |
+| Real-time synchronization of fluency/rate targets with a mobile app | Not built. There is no app and nothing transmits. |
+| Task analysis as a target type | Not built. It needs a recorder, an analytic and a report format of its own, and the source document scopes it to the mobile app. |
+| Geotagged signatures | Not built. A readable address needs an external lookup, and nothing here transmits. |
 
 ## Testing Decisions
 
@@ -249,16 +255,13 @@ A new **Programs** workflow alongside the existing five, containing three tabs (
 
 ## Out of Scope
 
-- Organization and Public scopes, scope promotion, and the client-to-organization field-wipeout rule.
-- Per-program audit history with user identity, permission gating, spreadsheet export, or tamper-proofing claims.
-- The unified filter panel with counts and multi-select.
-- Manual target reordering.
-- Cross-device real-time synchronisation of session targets.
-- Task analysis as a target type.
+- Task analysis as a target type, and anything that needs a mobile app: live sync of a session's
+  targets, and a target order shared with the app.
 - Geotagged or location-captured signatures.
+- A per-user audit identity, permission gating or tamper-proofing claims.
 - A combined single-chart program view overlaying every measurement type.
-- Bulk editing of targets beyond the phase cascade.
 - Any server-side persistence, authentication, or transmission of data.
+- A super-user editor for the public library. The demo ships a fixed, read-only set.
 - The .NET backend acquiring a write API or contract tests against the frontend.
 
 ## Further Notes

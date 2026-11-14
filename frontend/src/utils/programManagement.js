@@ -31,7 +31,7 @@ export const BEHAVIOR_PHASES = ['Open', 'Maintenance', 'Generalization', 'Comple
 export const PHASE_LABELS = {
   Baseline: 'Baseline', Open: 'Open', Pending: 'Pending', Acquisition: 'In acquisition',
   Maintenance: 'Maintenance', Generalization: 'Generalization', Completed: 'Completed',
-  OnHold: 'Paused', Discontinued: 'Discontinued'
+  OnHold: 'On hold', Discontinued: 'Discontinued'
 };
 
 // Mastered means the target has been learned to criterion. Paused, ended and
@@ -148,7 +148,7 @@ export function withinLimit(value, limit) {
 // A program form is complete when the required fields are filled and the
 // platform's limits are respected. The behavior form adds the operational
 // definition, because a behavior without one cannot be recorded consistently.
-export function validateProgram(values = {}, { category = PROGRAM_CATEGORIES.SKILL, existing = [] } = {}) {
+export function validateProgram(values = {}, { category = PROGRAM_CATEGORIES.SKILL, existing = [], scope = 'client' } = {}) {
   const errors = {};
   const name = String(values.name || '').trim();
   if (!name) errors.name = 'Give the program a name.';
@@ -164,7 +164,8 @@ export function validateProgram(values = {}, { category = PROGRAM_CATEGORIES.SKI
     }
     if (!values.behaviorPhase) errors.behaviorPhase = 'Choose a phase.';
     else if (!BEHAVIOR_PHASES.includes(values.behaviorPhase)) errors.behaviorPhase = 'Choose a phase from the list.';
-  } else {
+  } else if (scope !== 'organization') {
+    // The organization library holds no client-specific text, so instructions are optional there.
     if (!String(values.teachingInstructions || '').trim()) errors.teachingInstructions = 'Describe how the program is taught.';
   }
 
@@ -325,8 +326,11 @@ export function targetTypeTabs(targets = []) {
 // A behavior is counted one of three ways, chosen once and then locked.
 export const BEHAVIOR_TOOLS = ['Frequency', 'Duration', 'IntervalData'];
 
-export function validateBehavior(values = {}, { existing = [] } = {}) {
-  const errors = validateProgram(values, { category: PROGRAM_CATEGORIES.BEHAVIOR, existing });
+export function validateBehavior(values = {}, { existing = [], scope = 'client' } = {}) {
+  const errors = validateProgram(values, { category: PROGRAM_CATEGORIES.BEHAVIOR, existing, scope });
+  // The platform requires the treatment area and the objective before a behavior is saved.
+  if (!toValueList(values.treatmentArea).length) errors.treatmentArea = 'Add at least one treatment area.';
+  if (!String(values.programObjective || '').trim()) errors.programObjective = 'State the change you expect to see in this behavior.';
   if (!BEHAVIOR_TOOLS.includes(values.measurementTool)) errors.measurementTool = 'Choose how the behavior is measured.';
   const config = validateTypeConfig({ type: values.measurementTool, intervalSettings: values.intervalSettings });
   return { ...errors, ...config };
@@ -398,14 +402,51 @@ export function matchesQuery(program, query, context) {
 }
 
 // A skill program filters by its status, a behavior by its phase.
-export function matchesStatus(program, status) {
-  if (!status) return true;
-  return program?.category === PROGRAM_CATEGORIES.BEHAVIOR ? behaviorPhaseOf(program) === status : program?.status === status;
+export function statusOf(program) {
+  return program?.category === PROGRAM_CATEGORIES.BEHAVIOR ? behaviorPhaseOf(program) : program?.status;
 }
 
-export function filterPrograms(programs = [], { query = '', status = '', lessonNames = new Map() } = {}) {
-  return programs.filter(program =>
-    matchesStatus(program, status) && matchesQuery(program, query, { lessonName: lessonNames.get(program.id) || '' }));
+export function matchesStatus(program, status) {
+  if (!status) return true;
+  return statusOf(program) === status;
+}
+
+// Every lesson a program belongs to. A program can sit in more than one lesson.
+export function lessonsByProgram(lessons = []) {
+  const map = new Map();
+  lessons.forEach(lesson => (lesson.programIds || []).forEach(id => {
+    map.set(id, [...(map.get(id) || []), { id: lesson.id, name: lesson.name }]);
+  }));
+  return map;
+}
+
+// The unified filter: a program must satisfy every group that has a choice made, and within
+// a group any chosen value is enough. An empty group does not filter.
+export function filterPrograms(programs = [], {
+  query = '', status = '', statuses = [], tags = [], lessonIds = [], lessonNames = new Map(), memberships = new Map()
+} = {}) {
+  const wantedStatuses = status ? [...statuses, status] : statuses;
+  return programs.filter(program => {
+    if (wantedStatuses.length && !wantedStatuses.includes(statusOf(program))) return false;
+    if (tags.length && !tags.some(tag => toValueList(program.tags).includes(tag))) return false;
+    if (lessonIds.length && !(memberships.get(program.id) || []).some(lesson => lessonIds.includes(lesson.id))) return false;
+    const names = (memberships.get(program.id) || []).map(lesson => lesson.name).join(' ') || lessonNames.get(program.id) || '';
+    return matchesQuery(program, query, { lessonName: names });
+  });
+}
+
+// What the filter panel offers, with how many programs each choice would show.
+export function filterOptions(programs = [], { statusValues = PROGRAM_STATUSES, memberships = new Map(), lessons = [] } = {}) {
+  const tagCounts = new Map();
+  programs.forEach(program => toValueList(program.tags).forEach(tag => tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1)));
+  return {
+    statuses: statusValues.map(value => ({ value, count: programs.filter(program => statusOf(program) === value).length })),
+    tags: [...tagCounts.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([value, count]) => ({ value, count })),
+    lessons: lessons.map(lesson => ({
+      value: lesson.id, label: lesson.name,
+      count: programs.filter(program => (memberships.get(program.id) || []).some(entry => entry.id === lesson.id)).length
+    }))
+  };
 }
 
 // ---- Learning materials ---------------------------------------------------------------
@@ -456,4 +497,145 @@ export function validateMaterial(file = {}, existing = []) {
     return { ok: false, reason: `Adding “${name}” would take this program past ${kilobytes(MATERIAL_LIMITS.maxTotalBytes)} of stored material.` };
   }
   return { ok: true };
+}
+
+// ---- Scope: client, organization, public ----------------------------------------------
+
+export const SCOPES = ['client', 'organization', 'public'];
+export const SCOPE_LABELS = { client: 'Client', organization: 'Organization', public: 'Public' };
+
+// A program moved from a client into the organization library loses the text that was
+// written for that learner, so client-specific detail is never shared by accident.
+export const WIPED_FIELD_LABELS = ['Teaching instructions', 'Program objective', 'Baseline', 'Target instructions'];
+
+// A copy is a new program with its own identity. It starts again: no phase history, no
+// recorded decision about the learner, Pending status. What defines the work (the targets,
+// the measurement and the mastery rule) is kept. `makeId(prefix)` supplies identities.
+export function prepareCopy(source, { scope, clientId = null, wipe = false, asOf, makeId, name }) {
+  const copy = JSON.parse(JSON.stringify(source));
+  const cleared = [];
+  const clear = (object, key, label) => {
+    if (String(object[key] || '').trim() && !cleared.includes(label)) cleared.push(label);
+    if (key in object) object[key] = '';
+  };
+  copy.id = makeId(scope === 'organization' ? 'org' : 'prog');
+  copy.scope = scope;
+  copy.clientId = clientId;
+  if (name) copy.name = name;
+  copy.status = 'Pending';
+  copy.statusHistory = [{ status: 'Pending', date: asOf, reason: 'Program copied', staffName: '' }];
+  copy.archivedAt = null;
+  delete copy.archiveReason;
+  delete copy.behaviorPhaseHistory;
+  if (copy.category === PROGRAM_CATEGORIES.BEHAVIOR) copy.behaviorPhase = 'Open';
+  else delete copy.behaviorPhase;
+  const idMap = new Map();
+  copy.targets = (copy.targets || []).map(target => {
+    const id = makeId('tgt');
+    idMap.set(target.id, id);
+    const next = {
+      ...target, id, programId: copy.id,
+      phase: copy.category === PROGRAM_CATEGORIES.BEHAVIOR ? 'Open' : 'Pending',
+      phaseEnteredDate: asOf, phaseHistory: []
+    };
+    delete next.manualMastery;
+    if (wipe) clear(next, 'targetInstructions', 'Target instructions');
+    return next;
+  });
+  if (copy.targetOrder) copy.targetOrder = copy.targetOrder.map(id => idMap.get(id)).filter(Boolean);
+  if (wipe) {
+    clear(copy, 'teachingInstructions', 'Teaching instructions');
+    clear(copy, 'programObjective', 'Program objective');
+    clear(copy, 'baseline', 'Baseline');
+    copy.description = '';
+    cleared.sort((a, b) => WIPED_FIELD_LABELS.indexOf(a) - WIPED_FIELD_LABELS.indexOf(b));
+  }
+  return { copy, cleared };
+}
+
+// ---- Target order -----------------------------------------------------------------------
+
+// A clinician can order a program's targets by hand. Until they do, targets follow the
+// default: phase by phase, then alphabetical. A hand-set order survives phase changes, and a
+// target added later joins the end of it. Removed targets simply drop out.
+export function orderedTargets(program) {
+  const targets = program?.targets || [];
+  const order = program?.targetOrder;
+  if (!order?.length) return sortTargets(targets);
+  const byId = new Map(targets.map(target => [target.id, target]));
+  const placed = order.map(id => byId.get(id)).filter(Boolean);
+  const placedIds = new Set(placed.map(target => target.id));
+  return [...placed, ...sortTargets(targets.filter(target => !placedIds.has(target.id)))];
+}
+
+export function moveInOrder(ids = [], id, delta) {
+  const from = ids.indexOf(id);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= ids.length) return ids;
+  const next = [...ids];
+  next.splice(to, 0, next.splice(from, 1)[0]);
+  return next;
+}
+
+// ---- Describing a target ----------------------------------------------------------------
+
+export const MEASURE_UNITS = {
+  percentCorrect: 'percent correct', percentIntervals: 'percent of intervals', durationSeconds: 'seconds',
+  ratePerHour: 'per hour', correctPerMinute: 'correct per minute', count: 'per session', intervalCount: 'intervals with the behavior'
+};
+export const COMPARISON_WORDS = { atLeast: 'At least', atMost: 'At most', below: 'Below' };
+
+// The mastery rule in a sentence, so a card says what "mastered" means for this target.
+export function describeMastery(target) {
+  if (!target) return '';
+  if (target.masterySettings === 'Manual') {
+    const decision = target.manualMastery?.achieved ? ` Decided on ${target.manualMastery.decidedOn}.` : '';
+    return `Manual: a clinician decides.${decision}`;
+  }
+  const rule = target.masteryRule;
+  if (!rule) return target.masteryCriteria || 'Automatic';
+  const sessions = Number(rule.consecutiveSessions) || 1;
+  return `${COMPARISON_WORDS[rule.comparison] || rule.comparison} ${rule.threshold} ${MEASURE_UNITS[rule.measure] || rule.measure}, ${sessions} ${sessions === 1 ? 'session' : 'sessions in a row'}`;
+}
+
+// ---- History export ---------------------------------------------------------------------
+
+const csvCell = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+
+export function historyToCsv(entries = []) {
+  const rows = [['Date', 'Change', 'Kind'], ...entries.map(entry => [entry.at, entry.summary, entry.kind])];
+  return rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+}
+
+// ---- Labels for target configuration ----------------------------------------------------
+
+export const START_LABELS = {
+  Manual: 'Manual', LessonStart: 'Lesson start', LessonStartCountUp: 'Lesson start, count up',
+  ManualStartCountUp: 'Manual, count up', ManualStartCountDown: 'Manual, count down'
+};
+export const CAPTURE_LABELS = { Whole: 'Whole interval', Partial: 'Partial interval', MomentaryTimeSampling: 'Momentary time sampling' };
+export const MEASURE_LABELS = {
+  percentCorrect: 'Percent correct', percentIntervals: 'Percent of intervals', durationSeconds: 'Duration in seconds',
+  ratePerHour: 'Rate per hour', correctPerMinute: 'Correct per minute', count: 'Count', intervalCount: 'Intervals with occurrence'
+};
+export const COMPARISON_LABELS = { atLeast: 'At least', atMost: 'At most', below: 'Below' };
+
+// How the target is configured to be recorded, in one line for its card.
+export function describeConfiguration(target, hierarchies = []) {
+  if (!target) return '';
+  if (target.type === 'TrialByTrial') {
+    const hierarchy = hierarchies.find(item => item.id === target.promptHierarchyId);
+    return hierarchy ? `Prompt hierarchy: ${hierarchy.name} (${hierarchy.levels.join(' to ')})` : 'Prompt hierarchy not chosen';
+  }
+  if (target.type === 'IntervalData' && target.intervalSettings) {
+    const { startType, intervalLength, captureType, numberOfIntervals } = target.intervalSettings;
+    return `${START_LABELS[startType] || startType} start, ${intervalLength} intervals${numberOfIntervals ? `, ${numberOfIntervals} of them` : ''}, ${(CAPTURE_LABELS[captureType] || captureType || '').toLowerCase()}`;
+  }
+  if (target.type === 'FluencyRate' && target.fluencySettings) return `Timer: ${START_LABELS[target.fluencySettings.startType] || target.fluencySettings.startType}`;
+  return '';
+}
+
+// A status or phase as the interface words it.
+export function statusLabel(value, isBehavior) {
+  return isBehavior ? (value === 'OnHold' ? 'On hold' : value) : PROGRAM_STATUS_LABELS[value] || value;
 }

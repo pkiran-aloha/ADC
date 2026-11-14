@@ -1686,121 +1686,212 @@ test('Target analysis keeps refresh beside export while other workflow actions o
   await accessible(page);
 });
 
-test('a program can be defined in Program Management and joins the listing', async ({ page }, testInfo) => {
+// ---- Program Management --------------------------------------------------------------------
+
+const listingOf = page => page.locator('#programs');
+const confirmation = page => page.locator('dialog');
+const phasePrompt = page => page.locator('dialog').filter({ hasText: 'Plot a phase change line?' });
+const nextStep = (form, name) => form.getByRole('navigation', { name: 'Form sections' }).getByRole('button', { name: new RegExp(name) });
+
+async function newBehavior(page, { name, definition, tool = 'Frequency' }) {
+  const listing = listingOf(page);
+  await listing.getByRole('tab', { name: /Behavior reduction/ }).click();
+  await listing.getByRole('button', { name: 'Behavior', exact: true }).click();
+  const form = page.locator('form.pm-form');
+  await form.getByRole('textbox', { name: 'Treatment area (required)' }).fill('Safety');
+  await form.getByRole('textbox', { name: 'Treatment area (required)' }).press('Enter');
+  await form.getByLabel('Objective').fill('Reduce the behavior to near zero.');
+  await form.getByRole('button', { name: 'Next', exact: true }).click();
+  await form.getByLabel('Behavior name').fill(name);
+  await form.getByLabel('Measurement tool').selectOption(tool);
+  await form.getByLabel('Operational definition').fill(definition);
+  await form.getByRole('button', { name: 'Save behavior' }).click();
+  await expect(form).toBeHidden();
+}
+
+test('a program is defined on a full page that tracks what is missing, and joins the listing', async ({ page }, testInfo) => {
   await open(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
   await expect(listing.getByRole('heading', { name: 'Programs', level: 1 })).toBeVisible();
   await expect(listing.getByRole('tab', { name: /Skill acquisition/ })).toBeVisible();
   await expect(listing.getByRole('tab', { name: /Behavior reduction/ })).toBeVisible();
   await expect(listing.getByRole('tab', { name: /ABC data recording/ })).toBeVisible();
-
-  // The listing shows what a clinician scans for. Phones stack the rows, so the
-  // column headers only exist on the wide layout.
+  // The landing state is the client scope on the skill acquisition tab, with the lists sorted A to Z.
+  await expect(listing.getByRole('button', { name: /^Client/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(listing.getByRole('tab', { name: /Skill acquisition/ })).toHaveAttribute('aria-selected', 'true');
   if (testInfo.project.name !== 'mobile') {
-    await expect(listing.getByRole('columnheader', { name: 'Lesson' })).toBeVisible();
-    await expect(listing.getByRole('columnheader', { name: 'Status' })).toBeVisible();
+    for (const heading of ['Program', 'Targets', 'Lesson', 'Tags', 'Status']) await expect(listing.getByRole('columnheader', { name: heading })).toBeVisible();
   }
+  await accessible(page);
 
-  // The form refuses an incomplete program.
-  await listing.getByRole('button', { name: 'New program' }).click();
-  const dialog = page.locator('dialog');
-  await expect(dialog.getByLabel('Program name')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(dialog.getByText('Give the program a name.')).toBeVisible();
-  await expect(dialog.getByText('Describe how the program is taught.')).toBeVisible();
+  // The form is a page, and Save waits until every required field is complete.
+  await listing.getByRole('button', { name: 'Program', exact: true }).click();
+  const form = page.locator('form.pm-form');
+  await expect(form.getByRole('heading', { name: 'New program', level: 2 })).toBeVisible();
+  const save = form.getByRole('button', { name: 'Save program' });
+  await expect(save).toBeDisabled();
+  await expect(form.locator('.pm-form-status')).toContainText('Still needed: Program name, Teaching instructions.');
 
-  // A treatment area added with Enter becomes a removable value.
-  await dialog.getByRole('textbox', { name: 'Treatment area' }).fill('Communication');
-  await dialog.getByRole('textbox', { name: 'Treatment area' }).press('Enter');
-  await expect(dialog.getByRole('button', { name: 'Remove Communication' })).toBeVisible();
+  // Sections can be visited in any order. A section left with a required field missing is marked.
+  await nextStep(form, 'Instructions').click();
+  await expect(form.getByRole('heading', { name: 'Instructions', level: 3 })).toBeVisible();
+  await nextStep(form, 'Tags').click();
+  await expect(nextStep(form, 'Treatment information')).toContainText('a required field is missing');
+  await expect(nextStep(form, 'Instructions')).toContainText('a required field is missing');
+  await accessible(page);
 
-  // A complete program saves and joins the listing.
-  await dialog.getByLabel('Program name').fill('Requesting a Break');
-  await dialog.getByLabel('Teaching instructions').fill('Teach the learner to hand over a break card.');
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(dialog).toBeHidden();
-  await expect(listing.getByRole('button', { name: 'Requesting a Break', exact: true })).toBeVisible();
+  // Treatment area and tags are added with Enter, and each can be removed.
+  await nextStep(form, 'Treatment information').click();
+  await form.getByRole('textbox', { name: 'Treatment area' }).fill('Communication');
+  await form.getByRole('textbox', { name: 'Treatment area' }).press('Enter');
+  await expect(form.getByRole('button', { name: 'Remove Communication' })).toBeVisible();
+  // A name that is not typed fully is still kept when focus leaves the field.
+  await form.getByRole('textbox', { name: 'Treatment area' }).fill('Play');
+  await form.getByLabel('Program name').click();
+  await expect(form.getByRole('button', { name: 'Remove Play' })).toBeVisible();
+  await form.getByRole('button', { name: 'Remove Play' }).click();
+  await expect(form.getByRole('button', { name: 'Remove Play' })).toHaveCount(0);
 
-  // The platform offers the next step straight away.
-  const prompt = page.locator('.programs-prompt');
-  await expect(prompt.getByText('Do you want to add targets for this created program?')).toBeVisible();
+  await form.getByLabel('Program name').fill('Requesting a Break');
+  await expect(form.locator('.pm-count').first()).toHaveText('18 / 100');
+  await expect(save).toBeDisabled();
+  await nextStep(form, 'Instructions').click();
+  await form.getByLabel('Teaching instructions').fill('Teach the learner to hand over a break card.');
+  await expect(form.locator('.pm-form-status')).toContainText('All required fields are complete.');
+  await expect(save).toBeEnabled();
+
+  // Cancelling with changes asks first, and keeping the page keeps the work.
+  await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(confirmation(page).getByText('Are you sure you want to cancel these unsaved changes?')).toBeVisible();
+  await confirmation(page).getByRole('button', { name: 'Keep editing' }).click();
+  await expect(form.getByLabel('Teaching instructions')).toHaveValue('Teach the learner to hand over a break card.');
+
+  // Saving creates the program and offers the next step straight away.
+  await save.click();
+  await expect(form).toBeHidden();
+  await expect(page.getByText('Program created successfully.')).toBeVisible();
+  const prompt = confirmation(page).filter({ hasText: 'Do you want to add targets for this created program?' });
+  await expect(prompt).toBeVisible();
   await prompt.getByRole('button', { name: 'Maybe later' }).click();
-  await expect(prompt).toBeHidden();
+  await expect(listing.getByRole('button', { name: 'Requesting a Break', exact: true })).toBeVisible();
 
   // The new program is in the browser, so a reload keeps it.
   await page.reload();
   await activate(page, 'Programs');
-  await expect(page.locator('#programs').getByRole('button', { name: 'Requesting a Break', exact: true })).toBeVisible();
+  await expect(listingOf(page).getByRole('button', { name: 'Requesting a Break', exact: true })).toBeVisible();
+  await accessible(page);
+});
+
+test('choosing Yes after a new program opens its targets with the form ready', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = listingOf(page);
+  await listing.getByRole('button', { name: 'Program', exact: true }).click();
+  const form = page.locator('form.pm-form');
+  await form.getByLabel('Program name').fill('Waiting for a turn');
+  await nextStep(form, 'Instructions').click();
+  await form.getByLabel('Teaching instructions').fill('Use a visual timer.');
+  await form.getByRole('button', { name: 'Save program' }).click();
+  await confirmation(page).getByRole('button', { name: 'Yes, let’s add' }).click();
+  const view = listing.locator('.pm-view');
+  await expect(view.getByRole('heading', { name: 'Waiting for a turn', level: 2 })).toBeVisible();
+  await expect(page.locator('dialog').getByLabel('Target name or names')).toBeVisible();
+  await expect(view.getByLabel('Program summary')).toContainText('Total targets');
+  await page.locator('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(view.getByText('No targets yet.')).toBeVisible();
   await accessible(page);
 });
 
 test('the Program Management workspace is read-only under view-only access', async ({ page }) => {
   await page.addInitScript(() => window.localStorage.setItem('welina_access_level', 'view'));
   await open(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
   await expect(listing.getByText('View-only access.')).toBeVisible();
-  await expect(listing.getByRole('button', { name: 'New program' })).toHaveCount(0);
+  await expect(listing.getByRole('button', { name: 'Program', exact: true })).toHaveCount(0);
+  await expect(listing.getByLabel('Status of Fluent Naming')).toHaveCount(0);
+  await expect(listing.getByRole('checkbox')).toHaveCount(0);
+  await listing.getByRole('button', { name: 'Expressive Labeling', exact: true }).click();
+  const view = listing.locator('.pm-view');
+  await expect(view.getByRole('button', { name: 'Edit program' })).toHaveCount(0);
+  await expect(view.getByRole('button', { name: 'Add target' })).toHaveCount(0);
+  await expect(view.getByRole('button', { name: /^Delete / })).toHaveCount(0);
   await accessible(page);
 });
 
-test('a program can be edited, duplicated and archived', async ({ page }) => {
+test('a program can be edited, duplicated, archived and restored, each with its confirmation', async ({ page }) => {
   await open(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
   // The overflow trigger is named after its program, so each row is unambiguous.
   const actionsFor = name => listing.getByRole('button', { name: `Actions for ${name}`, exact: true });
 
-  // Editing opens the same form with everything already filled in.
+  // Editing opens the same page with everything already filled in.
   await actionsFor('Expressive Labeling').click();
-  await page.getByRole('button', { name: 'Edit' }).click();
-  const dialog = page.locator('dialog');
-  await expect(dialog.getByLabel('Program name')).toHaveValue('Expressive Labeling');
-  await dialog.getByLabel('Program name').fill('Expressive Labeling and Requesting');
-  await dialog.getByRole('button', { name: 'Save changes' }).click();
-  await expect(dialog).toBeHidden();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  const form = page.locator('form.pm-form');
+  await expect(form.getByLabel('Program name')).toHaveValue('Expressive Labeling');
+  await expect(form.getByRole('button', { name: 'Remove Communication' })).toBeVisible();
+  await expect(form.getByRole('button', { name: 'Save changes' })).toBeEnabled();
+  await form.getByLabel('Program name').fill('Expressive Labeling and Requesting');
+  await form.getByRole('button', { name: 'Save changes' }).click();
+  await expect(form).toBeHidden();
+  await expect(page.getByText('Program updated successfully.')).toBeVisible();
   await expect(listing.getByRole('button', { name: 'Expressive Labeling and Requesting', exact: true })).toBeVisible();
 
-  // Duplicating asks first, and the copy starts again in Pending.
+  // Duplicating asks first, and the copy starts again in Pending with its targets.
   await actionsFor('Expressive Labeling and Requesting').click();
-  await page.getByRole('button', { name: 'Duplicate' }).click();
-  await expect(page.locator('dialog').getByText('Duplicate “Expressive Labeling and Requesting”?')).toBeVisible();
-  await page.locator('dialog').getByRole('button', { name: 'Duplicate program' }).click();
-  await expect(listing.getByRole('button', { name: 'Expressive Labeling and Requesting (copy)', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Duplicate', exact: true }).click();
+  await expect(confirmation(page).getByText('Duplicate “Expressive Labeling and Requesting”?')).toBeVisible();
+  await confirmation(page).getByRole('button', { name: 'Duplicate program' }).click();
+  const copyRow = listing.getByRole('row').filter({ hasText: 'Expressive Labeling and Requesting (copy)' });
+  await expect(copyRow).toContainText('Pending');
+  await expect(copyRow.getByRole('cell').filter({ hasText: /^5$/ })).toHaveCount(1);
 
   // Archiving asks first, and the program leaves the working list.
   await actionsFor('Expressive Labeling and Requesting').click();
-  await page.getByRole('button', { name: 'Archive' }).click();
-  await expect(page.locator('dialog').getByText('Archive “Expressive Labeling and Requesting”?')).toBeVisible();
-  await page.locator('dialog').getByRole('button', { name: 'Archive program' }).click();
+  await page.getByRole('button', { name: 'Archive', exact: true }).click();
+  await expect(confirmation(page).getByText('Archive “Expressive Labeling and Requesting”?')).toBeVisible();
+  await confirmation(page).getByRole('button', { name: 'Archive program' }).click();
   await expect(listing.getByRole('button', { name: 'Expressive Labeling and Requesting', exact: true })).toHaveCount(0);
-  // It is still there, under the archived list.
-  await listing.getByRole('button', { name: 'Show archived' }).click();
+  // It is still there, under the archived list, which is a different view of the same programs.
+  await listing.getByRole('button', { name: 'Archived list' }).click();
+  await expect(listing.getByText('1 archived program')).toBeVisible();
   await expect(listing.getByRole('button', { name: 'Expressive Labeling and Requesting', exact: true })).toBeVisible();
-  // And it can come back. Restoring the last archived program returns the
-  // listing to the working list, so the program is where the clinician left it.
+  // Unarchiving asks first. Restoring the last archived program returns the listing to the working list.
   await actionsFor('Expressive Labeling and Requesting').click();
-  await page.getByRole('button', { name: 'Unarchive' }).click();
-  await expect(listing.getByRole('button', { name: 'Show archived' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Unarchive', exact: true }).click();
+  await expect(confirmation(page).getByText('Unarchive “Expressive Labeling and Requesting”?')).toBeVisible();
+  await confirmation(page).getByRole('button', { name: 'Unarchive program' }).click();
+  await expect(listing.getByRole('button', { name: 'Archived list' })).toHaveCount(0);
   await expect(listing.getByRole('button', { name: 'Expressive Labeling and Requesting', exact: true })).toBeVisible();
   await accessible(page);
 });
 
-test('a program view shows its targets and a target can be defined', async ({ page }) => {
+test('a program page shows its targets, details and history, and a target can be defined', async ({ page }) => {
   await open(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
   await listing.getByRole('button', { name: 'Expressive Labeling', exact: true }).click();
 
-  // The summary and the target cards, ordered by phase.
-  const view = listing.locator('.program-view');
+  // The header, the summary and the target cards, ordered by phase.
+  const view = listing.locator('.pm-view');
   await expect(view.getByRole('heading', { name: 'Expressive Labeling', level: 2 })).toBeVisible();
+  await expect(view.getByLabel('Treatment area')).toContainText('Communication');
+  await expect(view.getByLabel('Tags')).toContainText('Tacting');
   await expect(view.getByLabel('Program summary')).toContainText('Total targets');
   await expect(view.getByLabel('Program summary')).toContainText('Targets mastered');
-  await expect(view.locator('.target-card').first()).toBeVisible();
+  await expect(view.getByLabel('Program summary')).toContainText('Completion');
+  const cards = view.locator('.pm-card');
+  await expect(cards.first()).toContainText('Mastery');
+  await expect(cards.first()).toContainText('Discriminative stimuli');
+  await expect(cards.filter({ hasText: 'Label Everyday Actions' })).toContainText('At least 80 percent correct, 3 sessions in a row');
+  await expect(cards.filter({ hasText: 'Food Preference Observations' })).toContainText('Manual: a clinician decides.');
   // A type tab filters, and only types that exist are offered.
   await expect(view.getByRole('button', { name: 'Trial by trial', exact: true })).toBeVisible();
   await expect(view.getByRole('button', { name: 'Anecdotal', exact: true })).toBeVisible();
   await expect(view.getByRole('button', { name: 'Duration', exact: true })).toHaveCount(0);
+  await view.getByRole('button', { name: 'Anecdotal', exact: true }).click();
+  await expect(cards).toHaveCount(1);
+  await view.getByRole('button', { name: 'All', exact: true }).click();
 
-  // A trial by trial target needs its prompt hierarchy.
+  // A trial by trial target needs its prompt hierarchy, and several names become several targets.
   await view.getByRole('button', { name: 'Add target' }).click();
   const dialog = page.locator('dialog');
   await dialog.getByLabel('Target name or names').fill('Zebra, Giraffe');
@@ -1809,24 +1900,29 @@ test('a program view shows its targets and a target can be defined', async ({ pa
   await dialog.getByLabel('Prompt hierarchy').selectOption({ index: 1 });
   await dialog.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(dialog).toBeHidden();
-
-  // Each name became its own target.
-  const cards = view.locator('.target-card');
   await expect(cards.filter({ hasText: 'Zebra' })).toHaveCount(1);
   await expect(cards.filter({ hasText: 'Giraffe' })).toHaveCount(1);
+
+  // The details tab shows what was defined, and the history tab what has happened.
+  await view.getByRole('tab', { name: 'Program details' }).click();
+  await expect(view.locator('.pm-defs')).toContainText('Independently label familiar foods');
+  await expect(view.locator('.pm-defs')).toContainText('Choice of sticker or music');
+  await expect(view.getByRole('link', { name: 'food-labeling-prompts.txt' })).toBeVisible();
+  await view.getByRole('tab', { name: /History/ }).click();
+  await expect(view.locator('.pm-timeline')).toContainText('Added target “Zebra”');
   await accessible(page);
 });
 
-test('targets can be edited, deleted singly and in bulk, and the activity trail follows', async ({ page }) => {
+test('targets can be edited, deleted singly and in bulk, edited together, and the history follows', async ({ page }) => {
   await open(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
   await listing.getByRole('button', { name: 'Fluent Naming', exact: true }).click();
-  const view = listing.locator('.program-view');
-  const cards = view.locator('.target-card');
+  const view = listing.locator('.pm-view');
+  const cards = view.locator('.pm-card');
   const start = await cards.count();
 
   // Editing keeps the measurement tool fixed.
-  await view.getByRole('button', { name: /^Edit / }).first().click();
+  await cards.first().getByRole('button', { name: /^Edit / }).click();
   const dialog = page.locator('dialog');
   await expect(dialog.getByLabel('Measurement tool')).toBeDisabled();
   const original = await dialog.getByLabel('Target name').inputValue();
@@ -1834,116 +1930,293 @@ test('targets can be edited, deleted singly and in bulk, and the activity trail 
   await dialog.getByRole('button', { name: 'Save changes' }).click();
   await expect(dialog).toBeHidden();
   await expect(cards.filter({ hasText: `${original} revised` })).toHaveCount(1);
-  await expect(view.locator('.program-activity')).toContainText('Updated target');
+  await view.getByRole('tab', { name: /History/ }).click();
+  await expect(view.locator('.pm-timeline')).toContainText('Updated target');
+  await view.getByRole('tab', { name: /Targets/ }).click();
+
+  // Editing the phase from the edit form asks the same phase-line question, and Cancel changes nothing.
+  await cards.first().getByRole('button', { name: /^Edit / }).click();
+  await expect(dialog.getByLabel('Phase')).toBeVisible();
+  const phaseBefore = await dialog.getByLabel('Phase').inputValue();
+  await dialog.getByLabel('Phase').selectOption('Maintenance');
+  await dialog.getByRole('button', { name: 'Save changes' }).click();
+  await expect(phasePrompt(page)).toBeVisible();
+  await phasePrompt(page).getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(phasePrompt(page)).toBeHidden();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(cards.first().getByLabel(/^Phase of /)).toHaveValue(phaseBefore);
+
+  // Edit several together: only what is filled in changes, and the phase is one question for all.
+  await cards.nth(0).getByRole('checkbox').check({ force: true });
+  await cards.nth(1).getByRole('checkbox').check({ force: true });
+  const bar = view.getByRole('region', { name: 'Selected targets' });
+  await expect(bar).toContainText('2 selected');
+  await bar.getByRole('button', { name: 'Edit selected' }).click();
+  const bulk = page.locator('dialog').filter({ hasText: 'Edit 2 targets' });
+  await expect(bulk.getByRole('button', { name: 'Apply to 2' })).toBeDisabled();
+  await bulk.getByLabel('Phase').selectOption('Maintenance');
+  await bulk.getByLabel('Discriminative stimuli').fill('Show a card and wait five seconds.');
+  await bulk.getByRole('button', { name: 'Apply to 2' }).click();
+  await expect(phasePrompt(page)).toContainText('2 targets of “Fluent Naming” to Maintenance');
+  await phasePrompt(page).getByRole('button', { name: 'No', exact: true }).click();
+  // Both moved, and the cards re-sort by phase, so they are found by what was written on them.
+  const edited = cards.filter({ hasText: 'Show a card and wait five seconds.' });
+  await expect(edited).toHaveCount(2);
+  await expect(edited.nth(0).getByLabel(/^Phase of /)).toHaveValue('Maintenance');
+  await expect(edited.nth(1).getByLabel(/^Phase of /)).toHaveValue('Maintenance');
+  await expect(view.getByRole('region', { name: 'Selected targets' })).toHaveCount(0);
 
   // Deleting one asks first.
-  await view.getByRole('button', { name: /^Delete / }).first().click();
+  await cards.first().getByRole('button', { name: /^Delete / }).click();
   await expect(page.locator('dialog').getByText(/^Delete “/)).toBeVisible();
   await page.locator('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(cards).toHaveCount(start - 1);
 
-  // Bulk delete asks too, and clears the selection.
-  await cards.nth(0).getByRole('checkbox').check({ force: true });
-  await expect(view.getByRole('status').filter({ hasText: '1 selected' })).toBeVisible();
+  // Select all, then delete all: it asks, and the program is left with no targets.
+  await view.getByRole('checkbox', { name: 'Select all' }).check({ force: true });
+  await expect(view.getByRole('region', { name: 'Selected targets' })).toContainText(`${start - 1} selected`);
   await view.getByRole('button', { name: 'Delete selected' }).click();
+  await expect(page.locator('dialog').getByText(`Delete ${start - 1} targets?`)).toBeVisible();
   await page.locator('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
-  await expect(cards).toHaveCount(start - 2);
+  await expect(cards).toHaveCount(0);
+  await expect(view.getByText('No targets yet.')).toBeVisible();
+  await accessible(page);
+});
+
+test('targets can be put in a hand-set order that survives a reload, and reset to the default', async ({ page }, testInfo) => {
+  await open(page, 'Programs');
+  const listing = listingOf(page);
+  await listing.getByRole('button', { name: 'Expressive Labeling', exact: true }).click();
+  const view = listing.locator('.pm-view');
+  const names = async () => (await view.locator('.pm-card h3').allTextContents()).map(text => text.trim());
+  const original = await names();
+  expect(original.length).toBe(5);
+  await expect(view.getByRole('button', { name: 'Reset order' })).toHaveCount(0);
+
+  // The arrows give the same control as dragging, for a keyboard or a screen reader.
+  await view.getByRole('button', { name: `Move ${original[0]} later` }).click();
+  await expect(view.getByRole('button', { name: 'Reset order' })).toBeVisible();
+  const moved = await names();
+  expect(moved[0]).toBe(original[1]);
+  expect(moved[1]).toBe(original[0]);
+  await expect(view.getByText(`Moved ${original[0]} to position 2 of 5.`)).toBeAttached();
+  // The first target cannot move earlier and the last cannot move later.
+  await expect(view.getByRole('button', { name: `Move ${moved[0]} earlier` })).toBeDisabled();
+  await expect(view.getByRole('button', { name: `Move ${moved[4]} later` })).toBeDisabled();
+
+  // A phase change does not undo a hand-set order.
+  await view.getByLabel(`Phase of ${moved[0]}`).selectOption('Maintenance');
+  await phasePrompt(page).getByRole('button', { name: 'No', exact: true }).click();
+  expect(await names()).toEqual(moved);
+
+  // Dragging a card onto another places it there. A touch screen has no drag, and the arrows cover it.
+  if (testInfo.project.name !== 'mobile') {
+    await view.locator('.pm-card').nth(3).dragTo(view.locator('.pm-card').nth(0));
+    expect((await names())[0]).toBe(moved[3]);
+  }
+
+  // The order persists, and reset restores phase-wise, alphabetical order.
+  const custom = await names();
+  await page.reload();
+  await activate(page, 'Programs');
+  await listingOf(page).getByRole('button', { name: 'Expressive Labeling', exact: true }).click();
+  expect(await names()).toEqual(custom);
+  await view.getByRole('button', { name: 'Reset order' }).click();
+  await expect(view.getByRole('button', { name: 'Reset order' })).toHaveCount(0);
+  const reset = await names();
+  expect(reset).not.toEqual(custom);
   await accessible(page);
 });
 
 test('a status or phase change asks about the phase line, and Cancel changes nothing', async ({ page }) => {
   await open(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
   const status = listing.getByLabel('Status of Fluent Naming');
   const before = await status.inputValue();
-  const prompt = page.locator('dialog').filter({ hasText: 'Plot a phase change line?' });
 
   // Cancel aborts the change entirely.
   await status.selectOption('Pending');
-  await expect(prompt.getByText(/Do you wish to plot a phase change line on analytics \(program “Fluent Naming” to Pending\)/)).toBeVisible();
-  await prompt.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(prompt).toBeHidden();
+  await expect(phasePrompt(page).getByText(/Do you wish to plot a phase change line on analytics \(program “Fluent Naming” to Pending\)/)).toBeVisible();
+  await phasePrompt(page).getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(phasePrompt(page)).toBeHidden();
   await expect(status).toHaveValue(before);
 
   // No changes the status without a line.
   await status.selectOption('Pending');
-  await prompt.getByLabel('Reason').fill('Waiting for a caregiver');
-  await prompt.getByRole('button', { name: 'No', exact: true }).click();
-  await expect(prompt).toBeHidden();
+  await phasePrompt(page).getByLabel('Reason').fill('Waiting for a caregiver');
+  await phasePrompt(page).getByRole('button', { name: 'No', exact: true }).click();
+  await expect(phasePrompt(page)).toBeHidden();
   await expect(status).toHaveValue('Pending');
 
-  // A pending program carries its targets with it.
+  // A pending program carries its targets with it, and the page says so on each card.
   await listing.getByRole('button', { name: 'Fluent Naming', exact: true }).click();
-  const view = listing.locator('.program-view');
-  const phases = view.locator('.target-phase-control select');
+  const view = listing.locator('.pm-view');
+  const phases = view.locator('.pm-card-phase select');
   const count = await phases.count();
+  for (let i = 0; i < count; i += 1) await expect(phases.nth(i)).toHaveValue('Pending');
+
+  // The status can be changed from the program page too, and a teaching status leaves targets alone.
+  await view.getByLabel('Status of Fluent Naming').selectOption('Teaching');
+  await phasePrompt(page).getByRole('button', { name: 'No', exact: true }).click();
   for (let i = 0; i < count; i += 1) await expect(phases.nth(i)).toHaveValue('Pending');
 
   // A single target can move, and Yes plots a line.
   await phases.first().selectOption('Acquisition');
-  await expect(prompt.getByText(/target “.+” to Acquisition/)).toBeVisible();
-  await prompt.getByRole('button', { name: 'Yes', exact: true }).click();
-  await expect(prompt).toBeHidden();
-  await expect(view.locator('.program-activity')).toContainText('to In acquisition');
+  await expect(phasePrompt(page).getByText(/target “.+” to Acquisition/)).toBeVisible();
+  await phasePrompt(page).getByRole('button', { name: 'Yes', exact: true }).click();
+  await expect(phasePrompt(page)).toBeHidden();
+  await view.getByRole('tab', { name: /History/ }).click();
+  await expect(view.locator('.pm-timeline')).toContainText('to In acquisition');
+  await expect(view.locator('.pm-timeline')).toContainText('to Pending');
   await accessible(page);
 });
 
-test('a behavior is defined with its operational definition and a locked measurement tool', async ({ page }) => {
+test('a status changed in the edit form is one action: Cancel on the question saves nothing', async ({ page }) => {
   await open(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
+  await listing.getByRole('button', { name: 'Actions for Fluent Naming', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  const form = page.locator('form.pm-form');
+  await form.getByLabel('Program name').fill('Fluent Naming v2');
+  await form.getByLabel('Status').selectOption('Completed');
+  await expect(form.getByText('Saving will ask whether to plot a phase change line')).toBeVisible();
+  await form.getByRole('button', { name: 'Save changes' }).click();
+  await expect(phasePrompt(page)).toBeVisible();
+
+  // Cancel keeps the form open with the work in it, and nothing was saved.
+  await phasePrompt(page).getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(form).toBeVisible();
+  await expect(form.getByLabel('Program name')).toHaveValue('Fluent Naming v2');
+  await page.reload();
+  await activate(page, 'Programs');
+  await expect(listingOf(page).getByRole('button', { name: 'Fluent Naming', exact: true })).toBeVisible();
+  await expect(listingOf(page).getByRole('button', { name: 'Fluent Naming v2', exact: true })).toHaveCount(0);
+
+  // Answering saves the fields and the status together, and the status carries the targets.
+  await listingOf(page).getByRole('button', { name: 'Actions for Fluent Naming', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await form.getByLabel('Program name').fill('Fluent Naming v2');
+  await form.getByLabel('Status').selectOption('Completed');
+  await form.getByRole('button', { name: 'Save changes' }).click();
+  await phasePrompt(page).getByRole('button', { name: 'No', exact: true }).click();
+  await expect(form).toBeHidden();
+  const row = listingOf(page).getByRole('row').filter({ hasText: 'Fluent Naming v2' });
+  await expect(row.getByLabel('Status of Fluent Naming v2')).toHaveValue('Completed');
+  await listingOf(page).getByRole('button', { name: 'Fluent Naming v2', exact: true }).click();
+  const phases = listingOf(page).locator('.pm-card-phase select');
+  for (let i = 0; i < await phases.count(); i += 1) await expect(phases.nth(i)).toHaveValue('Completed');
+  await accessible(page);
+});
+
+test('a behavior is defined in two steps with its operational definition and a locked measurement tool', async ({ page }, testInfo) => {
+  await open(page, 'Programs');
+  const listing = listingOf(page);
   await listing.getByRole('tab', { name: /Behavior reduction/ }).click();
   // The behavior listing has its own columns.
-  if (test.info().project.name !== 'mobile') {
-    await expect(listing.getByRole('columnheader', { name: 'Measurement tool' })).toBeVisible();
-    await expect(listing.getByRole('columnheader', { name: 'Phase' })).toBeVisible();
+  if (testInfo.project.name !== 'mobile') {
+    for (const heading of ['Behavior', 'Measurement tool', 'Treatment area', 'Phase', 'Tags']) await expect(listing.getByRole('columnheader', { name: heading })).toBeVisible();
   }
 
-  await listing.getByRole('button', { name: 'New behavior' }).click();
-  const dialog = page.locator('dialog');
-  // A behavior cannot be saved without its operational definition.
-  await dialog.getByLabel('Program name').fill('Throwing objects');
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(dialog.getByText('Define exactly what qualifies as the behavior.')).toBeVisible();
-  await dialog.getByLabel('Operational definition').fill('Releasing an object so that it leaves the hand and travels at least one foot.');
+  await listing.getByRole('button', { name: 'Behavior', exact: true }).click();
+  const form = page.locator('form.pm-form');
+  await expect(form.getByRole('heading', { name: 'New behavior', level: 2 })).toBeVisible();
+  // Step one needs a treatment area and an objective.
+  await expect(form.getByRole('button', { name: 'Save behavior' })).toBeDisabled();
+  await expect(form.locator('.pm-form-status')).toContainText('Treatment area');
+  await form.getByRole('textbox', { name: 'Treatment area (required)' }).fill('Safety');
+  await form.getByRole('textbox', { name: 'Treatment area (required)' }).press('Enter');
+  await form.getByLabel('Objective').fill('Reduce throwing to near zero.');
+  await form.getByRole('button', { name: 'Next', exact: true }).click();
+
+  // Step two: a behavior cannot be saved without its operational definition.
+  await form.getByLabel('Behavior name').fill('Throwing objects');
+  await form.getByLabel('Operational definition').focus();
+  await form.getByLabel('Behavior name').focus();
+  await expect(form.getByText('Define exactly what qualifies as the behavior.')).toBeVisible();
+  await expect(form.getByRole('button', { name: 'Save behavior' })).toBeDisabled();
+  await form.getByLabel('Operational definition').fill('Releasing an object so that it leaves the hand and travels at least one foot.');
   // An interval behavior must say how its intervals run.
-  await dialog.getByLabel('Measurement tool').selectOption('IntervalData');
-  await dialog.getByLabel('Interval length').fill('');
-  await expect(dialog.getByText(/Enter the interval length as minutes and seconds/)).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Create', exact: true })).toBeDisabled();
-  await dialog.getByLabel('Interval length').fill('00:30');
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(dialog).toBeHidden();
+  await form.getByLabel('Measurement tool').selectOption('IntervalData');
+  await form.getByLabel('Interval length').fill('');
+  await form.getByLabel('Interval length').blur();
+  await expect(form.getByText(/Enter the interval length as minutes and seconds/)).toBeVisible();
+  await expect(form.getByRole('button', { name: 'Save behavior' })).toBeDisabled();
+  await form.getByLabel('Interval length').fill('00:30');
+  // Going back keeps what was typed.
+  await form.getByRole('button', { name: 'Previous' }).click();
+  await expect(form.getByLabel('Objective')).toHaveValue('Reduce throwing to near zero.');
+  await form.getByRole('button', { name: 'Next', exact: true }).click();
+  await form.getByRole('button', { name: 'Save behavior' }).click();
+  await expect(form).toBeHidden();
+  await expect(page.getByText('Behavior created successfully.')).toBeVisible();
   const row = listing.getByRole('row').filter({ hasText: 'Throwing objects' });
   await expect(row).toContainText('Interval data');
+  await expect(row).toContainText('Safety');
   await expect(listing.getByLabel('Phase of Throwing objects')).toHaveValue('Open');
-  // The behavior question prompt is not asked for a behavior: it already says what comes next.
-  await page.locator('.programs-prompt').getByRole('button', { name: 'Maybe later' }).click();
+  // No question about targets is asked for a behavior: it already has its one target.
+  await expect(confirmation(page)).toHaveCount(0);
 
-  // The tool is fixed once the behavior exists.
+  // The tool is fixed once the behavior exists, and Cancel on a clean form does not ask.
   await listing.getByRole('button', { name: 'Actions for Throwing objects', exact: true }).click();
-  await page.getByRole('button', { name: 'Edit' }).click();
-  await expect(page.locator('dialog').getByLabel('Measurement tool')).toBeDisabled();
-  await page.locator('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await nextStep(form, 'Behavior details').click();
+  await expect(form.getByLabel('Measurement tool')).toBeDisabled();
+  await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(form).toBeHidden();
 
-  // The Behavior View shows the definition and moves the phase through the prompt.
+  // The behavior page shows the definition and moves the phase through the prompt.
   await listing.getByRole('button', { name: 'Throwing objects', exact: true }).click();
-  const view = listing.locator('.program-view');
-  await expect(view.getByLabel('Behavior definition')).toContainText('travels at least one foot');
+  const view = listing.locator('.pm-view');
+  await expect(view.getByRole('heading', { name: 'Throwing objects', level: 2 })).toBeVisible();
+  await expect(view.getByLabel('Behavior phase')).toHaveValue('Open');
+  await expect(view).toContainText('travels at least one foot');
+  await expect(view).toContainText('Nothing has been recorded for this behavior yet. It shows as no data, never as zero.');
   await expect(view.getByRole('button', { name: 'Add target' })).toHaveCount(0);
   await view.getByLabel('Behavior phase').selectOption('Maintenance');
-  const prompt = page.locator('dialog').filter({ hasText: 'Plot a phase change line?' });
-  await expect(prompt).toContainText('behavior “Throwing objects” to Maintenance');
-  await prompt.getByRole('button', { name: 'No', exact: true }).click();
+  await expect(phasePrompt(page)).toContainText('behavior “Throwing objects” to Maintenance');
+  await phasePrompt(page).getByRole('button', { name: 'No', exact: true }).click();
   await expect(view.getByLabel('Behavior phase')).toHaveValue('Maintenance');
+  await accessible(page);
+});
+
+test('a behavior page shows its definition with its recent measurement, and links to the full chart', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = listingOf(page);
+  await listing.getByRole('tab', { name: /Behavior reduction/ }).click();
+  await listing.getByRole('button', { name: 'Vocal Disruption / Screaming', exact: true }).click();
+  const view = listing.locator('.pm-view');
+  await expect(view.getByRole('heading', { name: 'Vocal Disruption / Screaming', level: 2 })).toBeVisible();
+  await expect(view).toContainText('Count vocalizations above conversational volume that interrupt instruction.');
+  await expect(view.getByRole('heading', { name: 'Recent measurement' })).toBeVisible();
+  await expect(view.getByRole('img', { name: /Weekly average per session for the last eight weeks/ })).toBeVisible();
+  await expect(view).toContainText(/(Lower|Higher|Similar)[^.]*previous four weeks/);
+  await expect(view).toContainText('A week with no tracked session is left blank, not drawn as zero.');
+  await view.getByRole('tab', { name: 'Treatment details' }).click();
+  await expect(view.locator('.pm-defs')).toContainText('3.4 episodes per hour');
+  await view.getByRole('tab', { name: 'Definition and data' }).click();
+  await view.getByRole('button', { name: 'Open full chart' }).click();
+  await expect(page.locator('#target-analysis')).toBeVisible();
   await accessible(page);
 });
 
 test('the ABC vocabulary can be edited, warns before removing a used value, and imports behaviors', async ({ page }) => {
   await open(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
   await listing.getByRole('tab', { name: /ABC data recording/ }).click();
   const antecedents = listing.getByRole('region', { name: 'Antecedent values' });
   const behaviors = listing.getByRole('region', { name: 'Behavior values' });
+
+  // The treatment area is a set of tags, and a long set folds behind See all.
+  const area = listing.getByRole('textbox', { name: 'Treatment area' });
+  for (const value of ['Communication', 'Play', 'Safety', 'Social', 'Transitions']) {
+    await area.fill(value);
+    await area.press('Enter');
+  }
+  await expect(listing.getByRole('button', { name: /See all \(\d+\)/ })).toBeVisible();
+  await listing.getByRole('button', { name: /See all/ }).click();
+  await expect(listing.getByRole('button', { name: 'Show fewer' })).toBeVisible();
+  await listing.getByRole('button', { name: 'Save context' }).click();
+  await expect(page.getByText('ABC treatment area and teaching instructions saved.')).toBeVisible();
 
   // Add a value, and a duplicate is refused.
   await antecedents.getByLabel('Add antecedent value').fill('Fire drill bell');
@@ -1961,6 +2234,7 @@ test('the ABC vocabulary can be edited, warns before removing a used value, and 
   await activate(page, 'Programs');
   await listing.getByRole('tab', { name: /ABC data recording/ }).click();
   await expect(antecedents.getByText('Fire alarm', { exact: true })).toBeVisible();
+  await expect(listing.getByRole('button', { name: /See all/ })).toBeVisible();
 
   // Removing a value that observations use warns how many, and names it.
   const used = seed.abcEntries.find(entry => entry.clientId === client.id).antecedents[0];
@@ -1982,18 +2256,11 @@ test('the ABC vocabulary can be edited, warns before removing a used value, and 
 
   // Every behavior already defined is in this client's list, so a new one is the only
   // thing there is to import.
-  await listing.getByRole('tab', { name: /Behavior reduction/ }).click();
-  await listing.getByRole('button', { name: 'New behavior' }).click();
-  const dialog = page.locator('dialog');
-  await dialog.getByLabel('Program name').fill('Hair pulling');
-  await dialog.getByLabel('Operational definition').fill('Grasping hair and pulling until it moves the head.');
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(dialog).toBeHidden();
-  await page.locator('.programs-prompt').getByRole('button', { name: 'Maybe later' }).click();
-
+  await newBehavior(page, { name: 'Hair pulling', definition: 'Grasping hair and pulling until it moves the head.' });
   await listing.getByRole('tab', { name: /ABC data recording/ }).click();
   const before = await behaviors.locator('.abc-value').count();
   await behaviors.getByRole('button', { name: 'Import' }).click();
+  const dialog = page.locator('dialog');
   await expect(dialog.getByRole('checkbox')).toHaveCount(2);
   await expect(dialog.getByText('Vocal Disruption / Screaming')).toHaveCount(0);
   await dialog.getByRole('checkbox').nth(1).check();
@@ -2006,15 +2273,15 @@ test('the ABC vocabulary can be edited, warns before removing a used value, and 
 
 test('programs can be grouped into a lesson in one action, and lessons persist', async ({ page }) => {
   await open(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
   const pick = name => listing.getByLabel(`Select ${name}`).check({ force: true });
-  const lessons = listing.getByRole('region', { name: 'Lessons' });
+  const lessons = listing.locator('.pm-lessons');
   await expect(lessons).toContainText('No lessons yet');
 
   // Several programs, one action, a new lesson.
   await pick('Fluent Naming');
   await pick('Playing with Toys');
-  await expect(listing.getByRole('status').filter({ hasText: '2 selected' })).toBeVisible();
+  await expect(listing.getByRole('region', { name: 'Selected items' })).toContainText('2 selected');
   await listing.getByRole('button', { name: 'Add to lesson', exact: true }).click();
   const dialog = page.locator('dialog');
   await expect(dialog.getByLabel('Selected programs')).toContainText('Fluent Naming');
@@ -2037,17 +2304,17 @@ test('programs can be grouped into a lesson in one action, and lessons persist',
   // Lessons persist across a reload.
   await page.reload();
   await activate(page, 'Programs');
-  await expect(listing.getByRole('region', { name: 'Lessons' })).toContainText('Morning block');
+  await expect(listingOf(page).locator('.pm-lessons')).toContainText('Morning block');
   await accessible(page);
 });
 
-test('a lesson note plans a lesson, captures data through the recorder, and locks once approved', async ({ page }) => {
+test('a lesson note plans a lesson, takes behaviors and chosen targets, captures data, and locks once approved', async ({ page }) => {
   await open(page);
   const metric = page.locator('.metric--sessions .metric-number');
   const before = Number(await metric.textContent());
 
   await activate(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
   await listing.getByLabel('Select Spontaneous Requests').check({ force: true });
   await listing.getByRole('button', { name: 'Add to lesson', exact: true }).click();
   await page.locator('dialog').getByLabel('Lesson name').fill('Requests block');
@@ -2064,28 +2331,62 @@ test('a lesson note plans a lesson, captures data through the recorder, and lock
   await dialog.getByLabel('Title').fill('Requests run');
   await dialog.getByRole('button', { name: 'Create lesson note' }).click();
   await expect(dialog).toBeHidden();
-  const note = listing.locator('.program-view');
+  const note = listing.locator('.pm-view');
+  const planned = note.locator('[aria-labelledby="note-plan-title"]');
   await expect(note.getByRole('heading', { name: 'Requests run', level: 2 })).toBeVisible();
   await expect(note).toContainText('Draft');
-  await expect(note.locator('.lessons-panel').first()).toContainText('Spontaneous Requests');
+  await expect(planned).toContainText('Spontaneous Requests');
+  await expect(planned).not.toContainText('Vocal Disruption');
 
-  // The recorder opens loaded with exactly the planned targets, and saves into the note.
+  // A behavior and one chosen target can be added to the note, and nothing is planned twice.
+  await note.getByRole('button', { name: 'Add programs and behaviors' }).click();
+  const picker = page.locator('dialog').filter({ hasText: 'Add programs and behaviors' });
+  await expect(picker.getByRole('checkbox', { name: 'Spontaneous Requests' })).toBeDisabled();
+  await picker.getByRole('checkbox', { name: /Vocal Disruption \/ Screaming.*planned/ }).check();
+  await picker.getByRole('button', { name: 'Add 1 target' }).click();
+  await expect(picker).toBeHidden();
+  await expect(planned).toContainText('Vocal Disruption / Screaming');
+  await expect(planned).toContainText('Behavior');
+
+  // The recorder opens loaded with exactly the planned targets, one program at a time, and saves into the note.
   await note.getByRole('button', { name: 'Record data' }).click();
   const recorder = page.locator('dialog').filter({ hasText: /Record/ });
-  const spinners = recorder.getByRole('spinbutton');
-  const count = await spinners.count();
-  for (let i = 0; i < count; i += 1) await spinners.nth(i).fill('3');
+  const program = recorder.getByRole('combobox', { name: 'Program' });
+  await expect(program.locator('option')).toHaveText(['All programs', 'Spontaneous Requests · 2 targets', 'Vocal Disruption / Screaming · 1 targets']);
+  const fillAll = async () => {
+    const spinners = recorder.getByRole('spinbutton');
+    for (let i = 0; i < await spinners.count(); i += 1) if ((await spinners.nth(i).inputValue()) === '') await spinners.nth(i).fill('3');
+  };
+  await fillAll();
   await recorder.getByRole('button', { name: /^Save 2 observations$/ }).click();
   await expect(note).toContainText('2 observations and 0 ABC observations');
+  await note.getByRole('button', { name: 'Record data' }).click();
+  await recorder.getByRole('combobox', { name: 'Program' }).selectOption({ label: 'Vocal Disruption / Screaming · 1 targets' });
+  await fillAll();
+  await recorder.getByRole('button', { name: /^Save 1 observation$/ }).click();
+  await expect(note).toContainText('3 observations and 0 ABC observations');
 
-  // An ABC observation needs at least one part.
+  // An ABC observation needs at least one part, and records the time the clinician chose.
   await note.getByRole('button', { name: 'Record ABC observation' }).click();
   const abc = page.locator('dialog').filter({ hasText: 'Record an ABC observation' });
   await abc.getByRole('button', { name: 'Save observation' }).click();
   await expect(abc.getByText('Choose at least one antecedent, behavior, consequence or location.')).toBeVisible();
   await abc.getByRole('checkbox').first().check();
+  await abc.getByLabel('Time').fill('10:45');
   await abc.getByRole('button', { name: 'Save observation' }).click();
-  await expect(note).toContainText('2 observations and 1 ABC observation');
+  await expect(note).toContainText('3 observations and 1 ABC observation');
+  const abcTable = note.getByRole('table', { name: 'ABC observations in this lesson note' });
+  await expect(abcTable).toContainText('Entry 1');
+  await expect(abcTable).toContainText('10:45');
+
+  // An entry can be removed while the note can change, with a confirmation.
+  await abcTable.getByRole('button', { name: 'Remove entry 1' }).click();
+  await page.locator('dialog').getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(note).toContainText('3 observations and 0 ABC observations');
+  await note.getByRole('button', { name: 'Record ABC observation' }).click();
+  await abc.getByRole('checkbox').first().check();
+  await abc.getByRole('button', { name: 'Save observation' }).click();
+  await expect(note).toContainText('3 observations and 1 ABC observation');
 
   // A signature carries a name and a role.
   await note.getByRole('button', { name: 'Sign', exact: true }).click();
@@ -2103,18 +2404,19 @@ test('a lesson note plans a lesson, captures data through the recorder, and lock
   await note.getByRole('button', { name: 'Approve', exact: true }).click();
   await page.locator('dialog').getByRole('button', { name: 'Approve lesson note' }).click();
   await expect(note.getByRole('status').filter({ hasText: 'This lesson note is approved' })).toBeVisible();
-  await expect(note.getByRole('button', { name: 'Record data' })).toHaveCount(0);
+  for (const name of ['Record data', 'Add programs and behaviors']) await expect(note.getByRole('button', { name })).toHaveCount(0);
   await expect(note.getByRole('button', { name: 'Sign', exact: true })).toHaveCount(0);
+  await expect(note.getByRole('button', { name: /^Remove entry/ })).toHaveCount(0);
 
   // It persists, and the recorded data reached the analytics.
   await page.reload();
   await activate(page, 'Programs');
-  await listing.getByRole('tab', { name: /Lesson notes/ }).click();
-  const row = listing.getByRole('row').filter({ hasText: 'Requests run' });
+  await listingOf(page).getByRole('tab', { name: /Lesson notes/ }).click();
+  const row = listingOf(page).getByRole('row').filter({ hasText: 'Requests run' });
   await expect(row).toContainText('Approved');
-  await expect(row).toContainText('3');
+  await expect(row).toContainText('4');
   await activate(page, 'Progress overview');
-  expect(Number(await metric.textContent())).toBe(before + 2);
+  expect(Number(await metric.textContent())).toBe(before + 3);
   await accessible(page);
 });
 
@@ -2127,9 +2429,9 @@ test('Program Management changes reach the analytics, and the plan and the chart
 
   // A status that carries its targets lowers the mastered count with no reload.
   await activate(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
   await listing.getByLabel('Status of Expressive Labeling').selectOption('Pending');
-  await page.locator('dialog').filter({ hasText: 'Plot a phase change line?' }).getByRole('button', { name: 'No', exact: true }).click();
+  await phasePrompt(page).getByRole('button', { name: 'No', exact: true }).click();
   await activate(page, 'Progress overview');
   const masteredAfterPending = await mastered();
   expect(masteredAfterPending).toBeLessThan(masteredAtStart);
@@ -2137,17 +2439,17 @@ test('Program Management changes reach the analytics, and the plan and the chart
   // Archiving leaves the overview counts...
   await activate(page, 'Programs');
   await listing.getByRole('button', { name: 'Actions for Greeting Familiar Adults', exact: true }).click();
-  await page.getByRole('button', { name: 'Archive' }).click();
-  await page.locator('dialog').getByRole('button', { name: 'Archive program' }).click();
+  await page.getByRole('button', { name: 'Archive', exact: true }).click();
+  await confirmation(page).getByRole('button', { name: 'Archive program' }).click();
   await activate(page, 'Progress overview');
   expect(Number(await read('.metric--programs .metric-number'))).toBe(programsAtStart - 1);
   expect(await mastered()).toBeLessThan(masteredAfterPending);
 
   // ...but the program, its history and its data are still there, and its chart opens.
   await activate(page, 'Programs');
-  await listing.getByRole('button', { name: 'Show archived' }).click();
+  await listing.getByRole('button', { name: 'Archived list' }).click();
   await listing.getByRole('button', { name: 'Greeting Familiar Adults', exact: true }).click();
-  const view = listing.locator('.program-view');
+  const view = listing.locator('.pm-view');
   await expect(view.getByRole('heading', { name: 'Greeting Familiar Adults', level: 2 })).toBeVisible();
   await view.getByRole('button', { name: 'Open chart' }).first().click();
   const analysis = page.locator('#target-analysis');
@@ -2157,13 +2459,13 @@ test('Program Management changes reach the analytics, and the plan and the chart
 
   // And the chart links back to the plan.
   await analysis.getByRole('button', { name: 'Open in Programs' }).first().click();
-  await expect(page.locator('#programs .program-view').getByRole('heading', { name: 'Greeting Familiar Adults', level: 2 })).toBeVisible();
+  await expect(page.locator('#programs .pm-view').getByRole('heading', { name: 'Greeting Familiar Adults', level: 2 })).toBeVisible();
   await accessible(page);
 });
 
 test('programs and behaviors can be searched and filtered, with a clear and a no-results state', async ({ page }) => {
   await open(page, 'Programs');
-  const listing = page.locator('#programs');
+  const listing = listingOf(page);
   const rows = listing.locator('tbody tr');
   const search = listing.getByRole('textbox', { name: 'Search programs' });
   await expect(rows).toHaveCount(6);
@@ -2183,18 +2485,41 @@ test('programs and behaviors can be searched and filtered, with a clear and a no
   // A search that matches nothing says so, and Reset recovers.
   await search.fill('zzzz');
   await expect(listing.getByText('No results found.')).toBeVisible();
-  await listing.getByRole('button', { name: 'Reset search' }).click();
+  await listing.getByRole('button', { name: 'Reset search and filters' }).click();
   await expect(rows).toHaveCount(6);
 
-  // Status and a search term combine.
-  const status = listing.getByLabel('Filter by status');
-  await status.selectOption('Teaching');
+  // One panel holds the filters, and each choice shows how many programs it would leave.
+  await listing.getByRole('button', { name: /^Filter/ }).click();
+  const panel = page.locator('dialog').filter({ hasText: 'Combine filters to narrow the list' });
+  await expect(panel.getByRole('checkbox', { name: /^Teaching\s*2$/ })).toBeVisible();
+  await expect(panel.getByRole('checkbox', { name: /^Completed\s*1$/ })).toBeVisible();
+  await expect(panel.getByRole('checkbox', { name: /^Discontinued\s*0$/ })).toBeVisible();
+  await expect(panel.getByRole('group', { name: 'Lessons' })).toBeVisible();
+  await accessible(page);
+  await panel.getByRole('checkbox', { name: /^Teaching/ }).check();
+  // Nothing changes until Show results.
+  await expect(rows).toHaveCount(6);
+  await panel.getByRole('button', { name: 'Show results' }).click();
   await expect(rows).toHaveCount(2);
-  await search.fill('spont');
+  await expect(listing.getByRole('list', { name: 'Applied filters' })).toContainText('Teaching');
+  await expect(listing.getByRole('button', { name: /^Filter/ })).toContainText('1');
+
+  // Status, a tag and a search term combine.
+  await listing.getByRole('button', { name: /^Filter/ }).click();
+  await panel.getByRole('checkbox', { name: /^Mand/ }).check();
+  await panel.getByRole('button', { name: 'Show results' }).click();
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText('Spontaneous Requests');
+  await search.fill('naming');
+  await expect(listing.getByText('No results found.')).toBeVisible();
+  await search.fill('');
+
+  // An applied filter is removed on its own, and Reset clears them all.
+  await listing.getByRole('button', { name: 'Remove filter Mand' }).click();
+  await expect(rows).toHaveCount(2);
   await listing.getByRole('button', { name: 'Reset', exact: true }).click();
   await expect(rows).toHaveCount(6);
+  await expect(listing.getByRole('list', { name: 'Applied filters' })).toHaveCount(0);
 
   // Behaviors search their own fields: measurement tool, treatment area and phase.
   await listing.getByRole('tab', { name: /Behavior reduction/ }).click();
@@ -2205,50 +2530,258 @@ test('programs and behaviors can be searched and filtered, with a clear and a no
   await expect(behaviorRows).toHaveCount(1);
   await expect(behaviorRows.first()).toContainText('Elopement');
   await behaviorSearch.fill('');
-  await listing.getByLabel('Filter by phase').selectOption('Open');
-  // The phase filter matches exactly the behaviors whose derived phase is Open.
-  await expect(behaviorRows).toHaveCount(behaviorPrograms.filter(program => behaviorPhaseOf(program) === 'Open').length);
-  await listing.getByLabel('Filter by phase').selectOption('Maintenance');
-  await expect(behaviorRows).toHaveCount(behaviorPrograms.filter(program => behaviorPhaseOf(program) === 'Maintenance').length);
+  // Behaviors filter by phase, and the phase filter matches exactly the derived phase.
+  for (const phase of ['Open', 'Maintenance']) {
+    await listing.getByRole('button', { name: /^Filter/ }).click();
+    await expect(panel.getByRole('group', { name: 'Phase' })).toBeVisible();
+    await expect(panel.getByRole('group', { name: 'Lessons' })).toHaveCount(0);
+    await panel.getByRole('checkbox', { name: new RegExp(`^${phase}\\s`) }).check();
+    await panel.getByRole('button', { name: 'Show results' }).click();
+    await expect(behaviorRows).toHaveCount(behaviorPrograms.filter(program => behaviorPhaseOf(program) === phase).length);
+    await listing.getByRole('button', { name: 'Reset', exact: true }).click();
+  }
   await accessible(page);
 });
 
-test('learning materials can be attached as text, refuse what the browser cannot hold, and persist', async ({ page }) => {
+test('learning materials are attached on the program form, refuse what the browser cannot hold, and persist', async ({ page }) => {
   await open(page, 'Programs');
-  const listing = page.locator('#programs');
-  await listing.getByRole('button', { name: 'Spontaneous Requests', exact: true }).click();
-  const materials = listing.getByRole('region', { name: 'Learning materials' });
+  const listing = listingOf(page);
+  await listing.getByRole('button', { name: 'Actions for Spontaneous Requests', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  const form = page.locator('form.pm-form');
+  await nextStep(form, 'Learning materials').click();
 
   // The limits and where the file goes are stated before a file is chosen.
-  await expect(materials).toContainText('Up to 5 files per program');
-  await expect(materials).toContainText('text only');
-  await expect(materials).toContainText('nothing is uploaded');
-  await expect(materials).toContainText('No learning materials are attached.');
+  await expect(form).toContainText('Up to 5 files per program');
+  await expect(form).toContainText('text only');
+  await expect(form).toContainText('nothing is uploaded');
+  await expect(form).toContainText('No files attached yet.');
 
-  // A text file is accepted and saved in the browser.
-  const input = materials.getByLabel('Attach a text file');
+  // A text file is accepted.
+  const input = form.locator('#pm-material');
   await input.setInputFiles({ name: 'break-card-steps.txt', mimeType: 'text/plain', buffer: Buffer.from('1. Show the break card.\n2. Wait.') });
-  await expect(materials.getByRole('link', { name: 'break-card-steps.txt' })).toBeVisible();
-  const href = await materials.getByRole('link', { name: 'break-card-steps.txt' }).getAttribute('href');
-  expect(decodeURIComponent(href)).toContain('1. Show the break card.');
+  await expect(form.getByRole('list', { name: 'Attached files' })).toContainText('break-card-steps.txt');
 
   // A document is refused with the reason, and nothing is added.
   await input.setInputFiles({ name: 'plan.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') });
-  await expect(materials.getByRole('alert')).toContainText('text files only');
-  await expect(materials.getByRole('link', { name: 'plan.pdf' })).toHaveCount(0);
+  await expect(form.getByRole('alert')).toContainText('text files only');
+  await expect(form.getByRole('list', { name: 'Attached files' })).not.toContainText('plan.pdf');
 
   // A file over the size limit is refused and says the limit.
   await input.setInputFiles({ name: 'huge.txt', mimeType: 'text/plain', buffer: Buffer.alloc(250 * 1024, 'a') });
-  await expect(materials.getByRole('alert')).toContainText('up to 200 KB');
+  await expect(form.getByRole('alert')).toContainText('up to 200 KB');
 
-  // Material persists across a reload, and can be removed.
+  // The file is saved with the program, shows on its details tab, and persists across a reload.
+  await form.getByRole('button', { name: 'Save changes' }).click();
+  await expect(form).toBeHidden();
   await page.reload();
   await activate(page, 'Programs');
-  await listing.getByRole('button', { name: 'Spontaneous Requests', exact: true }).click();
-  await expect(materials.getByRole('link', { name: 'break-card-steps.txt' })).toBeVisible();
-  await materials.getByRole('button', { name: 'Remove break-card-steps.txt' }).click();
-  await expect(materials.getByRole('link', { name: 'break-card-steps.txt' })).toHaveCount(0);
+  await listingOf(page).getByRole('button', { name: 'Spontaneous Requests', exact: true }).click();
+  const view = listingOf(page).locator('.pm-view');
+  await view.getByRole('tab', { name: 'Program details' }).click();
+  const link = view.getByRole('link', { name: 'break-card-steps.txt' });
+  await expect(link).toBeVisible();
+  expect(decodeURIComponent(await link.getAttribute('href'))).toContain('1. Show the break card.');
+
+  // It can be removed again from the form.
+  await view.getByRole('button', { name: 'Edit program' }).click();
+  await nextStep(form, 'Learning materials').click();
+  await form.getByRole('button', { name: 'Remove break-card-steps.txt' }).click();
+  await form.getByRole('button', { name: 'Save changes' }).click();
+  await expect(form).toBeHidden();
+  await listingOf(page).getByRole('button', { name: 'Spontaneous Requests', exact: true }).click();
+  await listingOf(page).locator('.pm-view').getByRole('tab', { name: 'Program details' }).click();
+  await expect(listingOf(page).locator('.pm-view').getByRole('link', { name: 'break-card-steps.txt' })).toHaveCount(0);
   await accessible(page);
+});
+
+test('programs move between the client, organization and public scopes, and client text is cleared on the way out', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = listingOf(page);
+  const scope = name => listing.getByRole('group', { name: 'Scope' }).getByRole('button', { name: new RegExp(`^${name}`) });
+  const rows = listing.locator('tbody tr');
+
+  // The organization library starts empty, and the client-only tabs are unavailable there.
+  await scope('Organization').click();
+  await expect(scope('Organization')).toHaveAttribute('aria-pressed', 'true');
+  await expect(listing.getByText('No programs yet.')).toBeVisible();
+  await expect(listing.getByRole('tab', { name: /ABC data recording/ })).toBeDisabled();
+  await expect(listing.getByRole('tab', { name: /Lesson notes/ })).toBeDisabled();
+  await scope('Client').click();
+
+  // Add to organization warns about what will be cleared, and Cancel copies nothing.
+  await listing.getByLabel('Select Expressive Labeling').check({ force: true });
+  await listing.getByRole('button', { name: 'Add to organization', exact: true }).click();
+  const warning = page.locator('dialog').filter({ hasText: 'Add to the organization library?' });
+  for (const field of ['Teaching instructions', 'Program objective', 'Baseline', 'Target instructions']) await expect(warning).toContainText(field);
+  await expect(warning).toContainText('The original is not changed');
+  await warning.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(scope('Organization')).toContainText('0');
+
+  // Confirming copies it, clears the text, and leaves the original alone.
+  await listing.getByRole('button', { name: 'Add to organization', exact: true }).click();
+  await warning.getByRole('button', { name: 'Clear and add' }).click();
+  await expect(page.getByText(/added to the organization library\. Client-specific text was cleared/)).toBeVisible();
+  await expect(scope('Organization')).toContainText('1');
+  await expect(listing.getByRole('region', { name: 'Selected items' })).toHaveCount(0);
+  await listing.getByRole('button', { name: 'Expressive Labeling', exact: true }).click();
+  await listingOf(page).locator('.pm-view').getByRole('tab', { name: 'Program details' }).click();
+  await expect(listingOf(page).locator('.pm-defs')).toContainText('Independently label familiar foods');
+  await listingOf(page).locator('.pm-view').getByRole('button', { name: /^Programs$/ }).click();
+
+  // The copy is in the library with the learner's text gone, and its history says what was cleared.
+  await scope('Organization').click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('Pending');
+  await expect(rows.first().getByRole('cell').filter({ hasText: /^5$/ })).toHaveCount(1);
+  await rows.first().getByRole('button', { name: 'Expressive Labeling', exact: true }).click();
+  const view = listing.locator('.pm-view');
+  await expect(view.getByText('organization library program')).toBeVisible();
+  await expect(view.getByLabel(/^Phase of /)).toHaveCount(0);
+  await expect(view.getByRole('button', { name: 'Open chart' })).toHaveCount(0);
+  await expect(view.getByRole('button', { name: 'Open in target analysis' })).toHaveCount(0);
+  await view.getByRole('tab', { name: 'Program details' }).click();
+  await expect(view.locator('.pm-defs').getByText('Cleared in the library')).toHaveCount(3);
+  await view.getByRole('tab', { name: /History/ }).click();
+  await expect(view.locator('.pm-timeline')).toContainText('Cleared Teaching instructions, Program objective, Baseline from');
+  await accessible(page);
+
+  // A library program can be edited without client text, and a status change needs no chart question.
+  await view.getByRole('button', { name: 'Edit program' }).click();
+  const form = page.locator('form.pm-form');
+  await expect(form.getByText('Organization', { exact: true })).toBeVisible();
+  await form.getByLabel('Program name').fill('Expressive Labeling (library)');
+  await form.getByLabel('Status').selectOption('Teaching');
+  await form.getByRole('button', { name: 'Save changes' }).click();
+  await expect(form).toBeHidden();
+  await expect(phasePrompt(page)).toHaveCount(0);
+  await expect(rows.first()).toContainText('Expressive Labeling (library)');
+  await expect(rows.first().getByLabel('Status of Expressive Labeling (library)')).toHaveValue('Teaching');
+
+  // Add to client: choose clients, and each gets its own copy, starting in Pending.
+  await listing.getByLabel('Select Expressive Labeling (library)').check({ force: true });
+  await listing.getByRole('button', { name: 'Add to client', exact: true }).click();
+  const chooser = page.locator('dialog').filter({ hasText: 'Each client you choose gets its own copy' });
+  await expect(chooser.getByRole('button', { name: 'Add to client', exact: true })).toBeDisabled();
+  await chooser.getByRole('checkbox', { name: /Emma/ }).check();
+  await chooser.getByRole('checkbox', { name: /Noah/ }).check();
+  await chooser.getByRole('button', { name: 'Add 2 copies to 2 clients' }).click();
+  await expect(page.getByText('2 copies added to 2 clients. Each starts in Pending.')).toBeVisible();
+
+  // The copy is in the other client's own list, with its text still empty, and it persists.
+  await page.reload();
+  await activate(page, 'Programs');
+  await page.getByLabel('Current client').selectOption(seed.clients.find(item => item.name.startsWith('Emma')).id);
+  const emma = listingOf(page).getByRole('row').filter({ hasText: 'Expressive Labeling (library)' });
+  await expect(emma).toContainText('Pending');
+  await accessible(page);
+});
+
+test('the public library is read only, and its programs can be added to a client or the organization', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = listingOf(page);
+  const scope = name => listing.getByRole('group', { name: 'Scope' }).getByRole('button', { name: new RegExp(`^${name}`) });
+  const rows = listing.locator('tbody tr');
+  await scope('Public').click();
+  await expect(rows).toHaveCount(5);
+  await expect(listing.getByRole('button', { name: 'Program', exact: true })).toHaveCount(0);
+  await expect(listing.getByLabel(/^Status of /)).toHaveCount(0);
+  await expect(listing.getByRole('tab', { name: /ABC data recording/ })).toBeDisabled();
+  await accessible(page);
+
+  // A public program opens read only.
+  await listing.getByRole('button', { name: 'Washing Hands (Task Steps)', exact: true }).click();
+  const view = listing.locator('.pm-view');
+  await expect(view.getByText('public library program')).toBeVisible();
+  await expect(view.getByRole('button', { name: 'Edit program' })).toHaveCount(0);
+  await expect(view.getByRole('button', { name: 'Add target' })).toHaveCount(0);
+  await expect(view.locator('.pm-card')).toHaveCount(3);
+  await expect(view.getByRole('checkbox')).toHaveCount(0);
+  await view.getByRole('button', { name: /^Programs$/ }).click();
+
+  // Two buttons appear once something is selected: Add to client and Add to organization.
+  await listing.getByLabel('Select Washing Hands (Task Steps)').check({ force: true });
+  const bar = listing.getByRole('region', { name: 'Selected items' });
+  await expect(bar.getByRole('button', { name: 'Add to client' })).toBeVisible();
+  await expect(bar.getByRole('button', { name: 'Add to organization' })).toBeVisible();
+  await bar.getByRole('button', { name: 'Add to organization' }).click();
+  // Public text is not client text, so nothing is cleared and no warning is shown.
+  await expect(page.getByText('“Washing Hands (Task Steps)” was added to the organization library.')).toBeVisible();
+  await expect(scope('Organization')).toContainText('1');
+
+  // A public behavior reaches the client list with its definition, starting open.
+  await listing.getByRole('tab', { name: /Behavior reduction/ }).click();
+  await listing.getByLabel('Select Aggression Toward Others').check({ force: true });
+  await listing.getByRole('region', { name: 'Selected items' }).getByRole('button', { name: 'Add to client' }).click();
+  await page.locator('dialog').getByRole('checkbox', { name: /Liam/ }).check();
+  await page.locator('dialog').getByRole('button', { name: 'Add 1 copy to 1 client' }).click();
+  await scope('Client').click();
+  await listing.getByRole('tab', { name: /Behavior reduction/ }).click();
+  await expect(listing.getByLabel('Phase of Aggression Toward Others')).toHaveValue('Open');
+  await listing.getByRole('button', { name: 'Aggression Toward Others', exact: true }).click();
+  await expect(listing.locator('.pm-view')).toContainText('Any forceful contact');
+  await accessible(page);
+});
+
+test('a program page and the Program Management screens keep their layout on a narrow screen', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = listingOf(page);
+  const fits = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+  await fits();
+  await listing.getByRole('button', { name: 'Program', exact: true }).click();
+  await fits();
+  await listing.getByRole('button', { name: /^Programs$/ }).click();
+  await listing.getByRole('button', { name: 'Expressive Labeling', exact: true }).click();
+  await fits();
+  await listing.locator('.pm-view').getByRole('tab', { name: 'Program details' }).click();
+  await fits();
+  await listing.locator('.pm-view').getByRole('button', { name: /^Programs$/ }).click();
+  await listing.getByRole('button', { name: /^Filter/ }).click();
+  await fits();
+});
+
+test('a library program is created without client-specific text, takes targets without phases, and never reaches a client', async ({ page }) => {
+  await open(page, 'Programs');
+  const listing = listingOf(page);
+  const scope = name => listing.getByRole('group', { name: 'Scope' }).getByRole('button', { name: new RegExp(`^${name}`) });
+  await scope('Organization').click();
+  await listing.getByRole('button', { name: 'Program', exact: true }).click();
+  const form = page.locator('form.pm-form');
+  await expect(form.getByText('This program will belong to the organization library.')).toBeVisible();
+  // Teaching instructions are the text cleared on the way into the library, so they are optional here.
+  await form.getByLabel('Program name').fill('Shared greeting program');
+  await expect(form.getByRole('button', { name: 'Save program' })).toBeEnabled();
+  await nextStep(form, 'Instructions').click();
+  await expect(form).toContainText('Optional here.');
+  await form.getByRole('button', { name: 'Save program' }).click();
+  await expect(page.getByText('Program created successfully.')).toBeVisible();
+  await confirmation(page).getByRole('button', { name: 'Yes, let’s add' }).click();
+
+  // A library target has no phase to choose and no chart to plot on.
+  const view = listing.locator('.pm-view');
+  // Yes opens the program with the target form already open.
+  const dialog = page.locator('dialog');
+  await expect(dialog.getByLabel('Target name or names')).toBeVisible();
+  await expect(dialog.getByLabel('Phase')).toHaveCount(0);
+  await dialog.getByLabel('Measurement tool').selectOption('Frequency');
+  await dialog.getByLabel('Target name or names').fill('Says hello');
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  const card = view.locator('.pm-card').filter({ hasText: 'Says hello' });
+  await expect(card).toBeVisible();
+  await expect(card.getByLabel(/^Phase of /)).toHaveCount(0);
+  await expect(view.getByLabel('Program summary')).toContainText('Measurement types');
+  await accessible(page);
+
+  // It is in the library, and the client's own list and counts are unchanged.
+  await view.getByRole('button', { name: /^Programs$/ }).click();
+  await expect(listing.locator('tbody tr')).toHaveCount(1);
+  await expect(listing.getByRole('row').filter({ hasText: 'Shared greeting program' })).toContainText('Pending');
+  await scope('Client').click();
+  await expect(listing.getByRole('button', { name: 'Shared greeting program', exact: true })).toHaveCount(0);
+  await expect(listing.locator('tbody tr')).toHaveCount(6);
+  await activate(page, 'Progress overview');
+  await expect(page.locator('.metric--programs .metric-number')).toHaveText(String(programs.filter(program => program.category === 'SkillAcquisition' || program.category === 'BehaviorReduction').length));
 });
 
 test('the theme follows the system, can be switched, persists and stays accessible in dark', async ({ page }) => {
@@ -2260,6 +2793,13 @@ test('the theme follows the system, can be switched, persists and stays accessib
     await activate(page, tab);
     await accessible(page);
   }
+  // The program page and the edit form are checked in dark as well.
+  await activate(page, 'Programs');
+  await page.locator('#programs').getByRole('button', { name: 'Expressive Labeling', exact: true }).click();
+  await accessible(page);
+  await page.locator('#programs').getByRole('button', { name: 'Edit program' }).click();
+  await accessible(page);
+  await page.locator('#programs form.pm-form').getByRole('button', { name: 'Cancel', exact: true }).click();
 
   // An explicit choice beats the system setting and survives a reload.
   await page.getByRole('button', { name: 'Switch to the light theme' }).click();

@@ -9,9 +9,12 @@ import seed from '../../data/clinicalSeed.json' with { type: 'json' };
 import { CLINICAL_STANDARDS, PROMPT_HIERARCHY_TEMPLATES, SEED_AS_OF_DATE } from '../src/data/mockData.js';
 import ClientSpecificSection from '../src/components/ClientSpecificSection.jsx';
 import ProgramManagement from '../src/components/ProgramManagement.jsx';
-import ProgramFormModal from '../src/components/Modals/ProgramFormModal.jsx';
+import ProgramFormPage from '../src/components/programs/ProgramFormPage.jsx';
+import ProgramListing from '../src/components/programs/ProgramListing.jsx';
+import BehaviorView from '../src/components/programs/BehaviorView.jsx';
+import { PUBLIC_PROGRAMS } from '../src/data/publicLibrary.js';
 import TargetFormModal from '../src/components/Modals/TargetFormModal.jsx';
-import ProgramView from '../src/components/ProgramView.jsx';
+import ProgramView from '../src/components/programs/ProgramView.jsx';
 import AbcDataSection from '../src/components/AbcDataSection.jsx';
 import ServiceQualitySection from '../src/components/ServiceQualitySection.jsx';
 import ReportsSection from '../src/components/ReportsSection.jsx';
@@ -74,11 +77,7 @@ const portalCases = [
   }, ['phase line']],
   ['TargetFormModal', TargetFormModal, {
     isOpen: true, onClose: noop, onSave: noop, program: programs[0], asOf: SEED_AS_OF_DATE
-  }, ['Measurement tool', 'Prompt hierarchy', 'Mastery']],
-  ['ProgramFormModal', ProgramFormModal, {
-    isOpen: true, onClose: noop, onSave: noop, client, category: 'SkillAcquisition',
-    existing: programs
-  }, ['Program name', 'Teaching instructions', 'Treatment information']]
+  }, ['Measurement tool', 'Prompt hierarchy', 'Mastery']]
 ];
 
 const cases = [
@@ -115,12 +114,46 @@ const cases = [
     abcConfiguration: seed.abcConfigurations[0],
     canEdit: false, viewOnlyReason: 'View-only analytics access.', onCreateProgram: noop, onOpenProgram: noop
   }, ['View-only access']],
+  ['ProgramManagement (organization and public libraries)', ProgramManagement, {
+    client, clients: seed.clients, programs, orgPrograms: [], publicPrograms: PUBLIC_PROGRAMS, lessons: [], abcEntries,
+    abcConfiguration: seed.abcConfigurations[0], canEdit: true, onCreateProgram: noop, onOpenProgram: noop
+  }, ['Scope', 'Client', 'Organization', 'Public', 'Filter']],
+  ['ProgramListing (organization library)', ProgramListing, {
+    scope: 'organization', category: 'SkillAcquisition', programs: PUBLIC_PROGRAMS.map(program => ({ ...program, scope: 'organization' })),
+    canEdit: true, searchLabel: 'Search programs'
+  }, ['Targets', 'Tags', 'Status', 'organization library']],
+  ['ProgramListing (public library, read only)', ProgramListing, {
+    scope: 'public', category: 'BehaviorReduction', programs: PUBLIC_PROGRAMS, canEdit: true, searchLabel: 'Search behaviors'
+  }, ['Aggression Toward Others', 'Measurement tool', 'Phase', 'Treatment area']],
+  ['ProgramFormPage (new program)', ProgramFormPage, {
+    category: 'SkillAcquisition', scope: 'client', client, existing: programs, asOf: SEED_AS_OF_DATE, onSave: noop, onCancel: noop
+  }, ['New program', 'Treatment information', 'Learning materials', 'Custom data fields', 'Still needed: Program name, Teaching instructions.']],
+  ['ProgramFormPage (edit program)', ProgramFormPage, {
+    category: 'SkillAcquisition', scope: 'client', client, program: programs[0], existing: programs, asOf: SEED_AS_OF_DATE,
+    onSave: noop, onCancel: noop, onOpenTargets: noop
+  }, ['Edit program', 'Go to targets', 'All required fields are complete.']],
+  ['ProgramFormPage (new behavior)', ProgramFormPage, {
+    category: 'BehaviorReduction', scope: 'client', client, existing: programs, asOf: SEED_AS_OF_DATE, onSave: noop, onCancel: noop
+  }, ['New behavior', 'Treatment area (required)', 'Objective', 'Still needed']],
+  ['ProgramFormPage (organization library program)', ProgramFormPage, {
+    category: 'SkillAcquisition', scope: 'organization', existing: [], asOf: SEED_AS_OF_DATE, onSave: noop, onCancel: noop
+  }, ['Organization', 'the organization library', 'Still needed: Program name.']],
   ['ProgramView', ProgramView, {
     program: programs[0], canEdit: true, asOf: SEED_AS_OF_DATE, onBack: noop, onAddTargets: noop, onOpenAnalysis: noop
-  }, ['Total targets', 'Targets mastered', 'Completion', 'Discriminative stimuli:']],
+  }, ['Total targets', 'Targets mastered', 'Completion', 'Discriminative stimuli', 'Mastery', 'Edit program', 'History']],
   ['ProgramView (no targets)', ProgramView, {
     program: { ...programs[0], targets: [] }, canEdit: true, asOf: SEED_AS_OF_DATE, onBack: noop, onAddTargets: noop
   }, ['No targets yet.', 'documentation']],
+  ['ProgramView (public library program)', ProgramView, {
+    program: PUBLIC_PROGRAMS[0], scope: 'public', canEdit: true, asOf: SEED_AS_OF_DATE, onBack: noop
+  }, ['public library program', 'read only', 'Add to client', 'Add to organization', 'Measurement types']],
+  ['BehaviorView', BehaviorView, {
+    program: behaviorPrograms[0], canEdit: true, asOf: SEED_AS_OF_DATE, observations: sessions.filter(row => row.clientId === client.id),
+    onBack: noop, onEdit: noop, onRequestPhase: noop, onOpenTarget: noop
+  }, ['Operational definition', 'Recent measurement', 'Edit behavior', 'Open full chart', 'decision support']],
+  ['BehaviorView (nothing recorded)', BehaviorView, {
+    program: behaviorPrograms[0], canEdit: true, asOf: SEED_AS_OF_DATE, observations: [], onBack: noop
+  }, ['never as zero']],
   ['ServiceQualitySection', ServiceQualitySection, {
     client, serviceSessions, sessions: sessions.filter(row => row.clientId === client.id),
     standards: CLINICAL_STANDARDS, asOfDate: SEED_AS_OF_DATE

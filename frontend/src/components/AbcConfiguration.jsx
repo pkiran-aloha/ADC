@@ -3,6 +3,7 @@ import Dialog from './ui/Dialog';
 import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
 import { Field } from './ui/Field';
+import TagInput from './ui/TagInput';
 import { ABC_LISTS, toValueList, usageCount } from '../utils/programManagement';
 import { Edit3, Notebook, Plus, Trash2 } from './ui/Icons';
 
@@ -13,9 +14,9 @@ export default function AbcConfiguration({
   configuration, entries = [], behaviorNames = [], canEdit = true,
   onUpdateConfig, onAddValue, onRenameValue, onRemoveValues, onImportBehaviors
 }) {
-  const storedArea = toValueList(configuration?.treatmentArea).join(', ');
+  const storedArea = toValueList(String(configuration?.treatmentArea || '').split(',').map(part => part.trim())).join(', ');
   const storedInstructions = configuration?.teachingInstructions || '';
-  const [area, setArea] = useState(storedArea);
+  const [areas, setAreas] = useState(() => storedArea.split(', ').filter(Boolean));
   const [instructions, setInstructions] = useState(storedInstructions);
   const [confirming, setConfirming] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -23,25 +24,26 @@ export default function AbcConfiguration({
   if (!configuration) return <EmptyState title="No ABC configuration." icon={Notebook}
     description="This client has no ABC vocabulary configured." />;
 
+  const area = areas.join(', ');
   const dirty = area !== storedArea || instructions !== storedInstructions;
 
   return <>
-    <div className="programs-listing-header">
-      <p className="programs-listing-count">{entries.length} recorded ABC observations</p>
+    <div className="pm-listing-head">
+      <p className="pm-count"><strong>{entries.length}</strong> recorded ABC observations</p>
     </div>
 
-    <section className="abc-context" aria-label="ABC recording context">
-      <Field id="abc-area" label="Treatment area" hint="The domain these observations belong to.">
-        <input type="text" value={area} disabled={!canEdit} onChange={event => setArea(event.target.value)} />
-      </Field>
-      <Field id="abc-instructions" label="Teaching instructions" hint="How the team should record an observation.">
+    <section className="pm-panel pm-abc-context" aria-label="ABC recording context">
+      <TagInput id="abc-area" label="Treatment area" hint="The domains these observations belong to. Press Enter to add each one."
+        values={areas} onChange={setAreas} disabled={!canEdit} collapseAfter={5} />
+      <Field id="abc-instructions" label="Teaching instructions" hint="How the team should record an observation. You can change this at any time.">
         <textarea rows={3} value={instructions} disabled={!canEdit} onChange={event => setInstructions(event.target.value)} />
       </Field>
       {canEdit && <button type="button" className="button button--secondary" disabled={!dirty}
         onClick={() => onUpdateConfig?.({ treatmentArea: area, teachingInstructions: instructions })}>Save context</button>}
     </section>
 
-    <div className="programs-abc-lists">
+    <p className="pm-note pm-abc-key">Antecedent is what happened just before. Behavior is the observable action. Consequence is what followed. Location is where it happened.</p>
+    <div className="pm-abc-grid">
       {ABC_LISTS.map(list => <AbcList key={list.key} list={list} values={configuration[list.key] || []}
         entries={entries} canEdit={canEdit} onAdd={onAddValue} onRename={onRenameValue}
         onAskRemove={(values, uses) => setConfirming({ listKey: list.key, values, uses })}
@@ -74,12 +76,12 @@ function AbcList({ list, values, entries, canEdit, onAdd, onRename, onAskRemove,
     if (onAdd?.(list.key, draft) !== null) setDraft('');
   }
 
-  return <section className="programs-abc-list" aria-label={`${list.label} values`}>
-    <header className="abc-list-header">
-      <h3>{list.label}</h3>
+  return <section className="pm-panel pm-abc-list" aria-label={`${list.label} values`}>
+    <header className="pm-panel-head">
+      <h3>{list.label} <span className="pm-tab-count">{values.length}</span></h3>
       {canEdit && onImport && <button type="button" className="button button--tertiary" onClick={onImport}>Import</button>}
     </header>
-    {values.length === 0 && <p className="program-form-note">No values yet.</p>}
+    {values.length === 0 && <p className="pm-empty-line">No values yet. Add the first one below.</p>}
     <ul className="abc-values">
       {values.map(value => <li key={value}>
         {canEdit && <label className="program-form-check">
