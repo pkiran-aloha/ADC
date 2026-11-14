@@ -47,16 +47,27 @@ defined but not yet reduced; maintenance; generalization; completed; plus the
 paused and ended states. It is distinct from the phase of the behavior's target,
 which describes the measurement rather than the behavior.
 
-**Scope** — Where a program lives and who may use it. Client scope is a single
-client's working plan. Organization scope is a shared internal library. Public
-scope is a broadly shared library. Only client scope exists today.
+**Scope** — Where a program lives and who may use it. **Client** scope is a single
+client's working plan. **Organization** scope is the practice's shared library, with no
+learner data. **Public** scope is a read-only set of starter programs. A program is copied
+between scopes, never shared, so each copy can change on its own.
+
+**Library** — The organization or public scope. A library program has no learner, so it has no
+phases, charts or analytics, and it never appears in a client's analytics.
+
+**Wipeout** — The clearing of text written for one learner when a program is copied out of a
+client into the organization library: teaching instructions, program objective, baseline and
+target instructions. It is announced first, never changes the original, and is written to the
+copy's history.
 
 **Archived** — A program or behavior that is no longer active but is not
 deleted. Archiving tidies the working list. It never removes the record or the
 data collected against it.
 
-**Duplicate** — A copy of a program, its fields and its targets, with new
-identities, no observations and no history. A duplicate begins again.
+**Duplicate** — A copy of a program, its fields and its targets, with new identities, no
+observations and no history. A duplicate begins again: status Pending, targets Pending. What
+defines the work (the measurement and the mastery rule) is kept; a decision about one learner
+is not.
 
 ## The delivery
 

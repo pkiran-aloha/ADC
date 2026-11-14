@@ -27,7 +27,7 @@ const ENDED_PHASES = ['Discontinued'];
 export const PHASE_LABELS = {
   Baseline: 'Baseline', Open: 'Open', Pending: 'Pending', Introduced: 'Introduced', Acquisition: 'In acquisition',
   Maintenance: 'Maintenance', Generalization: 'Generalization', Completed: 'Completed',
-  OnHold: 'Paused', Discontinued: 'Discontinued'
+  OnHold: 'On hold', Discontinued: 'Discontinued'
 };
 
 // Natural unit per measurement tool for the weekly rollup (mirrors the progress map).

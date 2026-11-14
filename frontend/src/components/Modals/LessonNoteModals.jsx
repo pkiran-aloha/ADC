@@ -71,7 +71,7 @@ export function SignatureDialog({ isOpen, onClose, onSave }) {
 
 // An ABC observation: pick from the client's vocabulary. At least one part is needed.
 export function AbcEntryDialog({ isOpen, onClose, onSave, configuration }) {
-  const [values, setValues] = useState({ antecedents: [], behaviors: [], consequences: [], location: '', notes: '' });
+  const [values, setValues] = useState({ antecedents: [], behaviors: [], consequences: [], location: '', notes: '', time: '09:00' });
   const [attempted, setAttempted] = useState(false);
   const errors = attempted ? validateAbcEntry(values) : {};
   const toggle = (key, value) => setValues(current => ({
@@ -100,6 +100,9 @@ export function AbcEntryDialog({ isOpen, onClose, onSave, configuration }) {
           {(configuration?.locations || []).map(value => <option key={value} value={value}>{value}</option>)}
         </select>
       </Field>
+      <Field id="abc-time" label="Time" hint="Starts at the usual session time. Change it to when this happened.">
+        <input type="time" value={values.time} onChange={event => setValues(current => ({ ...current, time: event.target.value }))} />
+      </Field>
       <Field id="abc-notes" label="Notes">
         <textarea rows={3} value={values.notes} onChange={event => setValues(current => ({ ...current, notes: event.target.value }))} />
       </Field>
@@ -108,5 +111,59 @@ export function AbcEntryDialog({ isOpen, onClose, onSave, configuration }) {
         <button type="submit" className="button button--primary">Save observation</button>
       </div>
     </form>
+  </Dialog>;
+}
+
+// Add skill programs or behaviors to a lesson note, and choose which of their targets to run.
+// Targets already planned are shown ticked and cannot be added twice.
+export function AddToNoteDialog({ isOpen, onClose, onSave, programs = [], planned = [] }) {
+  const [picked, setPicked] = useState(() => new Set());
+  const taken = new Set(planned);
+  const groups = [
+    ['Skill acquisition', programs.filter(program => program.category === 'SkillAcquisition' && !program.archivedAt)],
+    ['Behavior reduction', programs.filter(program => program.category === 'BehaviorReduction' && !program.archivedAt)]
+  ];
+  const toggle = ids => setPicked(current => {
+    const next = new Set(current);
+    const all = ids.every(id => next.has(id));
+    ids.forEach(id => (all ? next.delete(id) : next.add(id)));
+    return next;
+  });
+  return <Dialog isOpen={isOpen} onClose={onClose} title="Add programs and behaviors"
+    description="Choose the targets to run in this lesson note. A target already in the note is ticked and stays.">
+    <div className="pm-filter">
+      {groups.map(([title, items]) => <fieldset key={title} className="pm-filter-group">
+        <legend>{title}</legend>
+        {items.length === 0 ? <p className="pm-note">None are defined for this client.</p> : <ul>
+          {items.map(program => {
+            const open = (program.targets || []).filter(target => !taken.has(target.id));
+            const openIds = open.map(target => target.id);
+            return <li key={program.id} className="pm-note-program">
+              <label className="pm-check">
+                <input type="checkbox" disabled={openIds.length === 0} checked={openIds.length > 0 && openIds.every(id => picked.has(id))}
+                  onChange={() => toggle(openIds)} />
+                <span className="pm-check-label"><strong>{program.name}</strong></span>
+                <span className="pm-check-count">{(program.targets || []).length - open.length} of {(program.targets || []).length} planned</span>
+              </label>
+              <ul className="pm-note-targets">
+                {(program.targets || []).map(target => <li key={target.id}>
+                  <label className="pm-check">
+                    <input type="checkbox" disabled={taken.has(target.id)} checked={taken.has(target.id) || picked.has(target.id)}
+                      onChange={() => toggle([target.id])} />
+                    <span className="pm-check-label">{target.name}</span>
+                  </label>
+                </li>)}
+              </ul>
+            </li>;
+          })}
+        </ul>}
+      </fieldset>)}
+      <div className="dialog-actions">
+        <button type="button" className="button button--secondary" onClick={onClose}>Cancel</button>
+        <button type="button" className="button button--primary" disabled={picked.size === 0} onClick={() => onSave?.([...picked])}>
+          {picked.size === 0 ? 'Add' : `Add ${picked.size} ${picked.size === 1 ? 'target' : 'targets'}`}
+        </button>
+      </div>
+    </div>
   </Dialog>;
 }

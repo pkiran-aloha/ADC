@@ -1,99 +1,133 @@
 import { useMemo, useState } from 'react';
 import {
-  BEHAVIOR_PHASES, behaviorPhaseOf, countByCategory, filterPrograms, partitionByArchive, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS,
-  TARGET_TYPE_LABELS
+  PROGRAM_CATEGORIES, SCOPE_LABELS, SCOPES, behaviorPhaseOf, countByCategory
 } from '../utils/programManagement';
-import ProgramFormModal from './Modals/ProgramFormModal';
-import ProgramView from './ProgramView';
+import ProgramFormPage from './programs/ProgramFormPage';
+import ProgramListing from './programs/ProgramListing';
+import ProgramView from './programs/ProgramView';
+import BehaviorView from './programs/BehaviorView';
+import { AddToClientDialog, WipeoutDialog } from './programs/LibraryDialogs';
 import LessonDialog from './Modals/LessonDialog';
+import Dialog from './ui/Dialog';
 import AbcConfiguration from './AbcConfiguration';
 import LessonNotes from './LessonNotes';
 import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
-import Popover from './ui/Popover';
-import {
-  Archive, ArrowCounterClockwise, Copy, Ellipsis, Layers, Notebook, Edit3 as PencilSimple, Plus, Target, X
-} from './ui/Icons';
+import { Layers, Notebook, Target } from './ui/Icons';
 
-// The Programs workspace: where a plan is defined, as opposed to the analytics
-// that read it. Three tabs over one client scope, sharing the client the
-// workspace is already scoped to.
+// The Programs workspace: where a plan is defined, as opposed to the analytics that read it.
+// Programs live in one of three scopes. Client is one learner's own plan. Organization is the
+// practice's shared library. Public is a read-only set of starter programs. ABC recording and
+// lesson notes are always about one client, so they exist in the client scope only.
 const TABS = [
   { id: 'skill', label: 'Skill acquisition', category: PROGRAM_CATEGORIES.SKILL, icon: Target },
   { id: 'behavior', label: 'Behavior reduction', category: PROGRAM_CATEGORIES.BEHAVIOR, icon: Layers },
-  { id: 'abc', label: 'ABC data recording', category: null, icon: Notebook },
-  { id: 'notes', label: 'Lesson notes', category: null, icon: Notebook }
+  { id: 'abc', label: 'ABC data recording', category: null, icon: Notebook, clientOnly: true },
+  { id: 'notes', label: 'Lesson notes', category: null, icon: Notebook, clientOnly: true }
 ];
 
+const SCOPE_BLURB = {
+  client: client => `The plan for ${client?.name || 'this client'}. Changes here show up in the analytics straight away.`,
+  organization: () => 'Your practice’s shared library. Programs here hold no learner-specific text and can be added to any client.',
+  public: () => 'Starter programs for every practice, read only. Add one to a client or to your organization library to use it.'
+};
+
 export default function ProgramManagement({
-  client, programs = [], lessons = [], abcConfiguration = null, abcEntries = [],
+  client, clients = [], programs = [], orgPrograms = [], publicPrograms = [], lessons = [], abcConfiguration = null, abcEntries = [],
   canEdit = true, viewOnlyReason = '', onCreateProgram, onOpenProgram,
-  onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram, onAddTarget, onUpdateTarget, onDeleteTargets, onRequestStatus, onRequestPhase, onRequestBehaviorPhase, activity = [], asOf,
-  onUpdateAbcConfig, onAddAbcValue, onRenameAbcValue, onRemoveAbcValues, onImportAbcBehaviors, onSaveLesson, onOpenTarget, onAddMaterial, onRemoveMaterial, initialProgramId = null,
-  lessonNotes = [], observations = [], onCreateNote, onUpdateNote, onNoteStatus, onSignNote, onRecordNote, onRecordAbcNote
+  onUpdateProgram, onDuplicateProgram, onArchiveProgram, onUnarchiveProgram, onAddTarget, onUpdateTarget, onDeleteTargets,
+  onRequestStatus, onRequestPhase, onRequestBehaviorPhase, activity = [], asOf,
+  onUpdateAbcConfig, onAddAbcValue, onRenameAbcValue, onRemoveAbcValues, onImportAbcBehaviors, onSaveLesson, onOpenTarget,
+  onCopyToOrganization, onCopyToClients, onReorderTargets, onResetTargetOrder, onBulkEditTargets, initialProgramId = null,
+  lessonNotes = [], observations = [], onCreateNote, onUpdateNote, onNoteStatus, onSignNote, onRecordNote, onRecordAbcNote, onAddNoteTargets, onRemoveNoteAbc
 }) {
+  const [scope, setScope] = useState('client');
   const [tab, setTab] = useState('skill');
-  const [formOpen, setFormOpen] = useState(false);
-  const [formCategory, setFormCategory] = useState(PROGRAM_CATEGORIES.SKILL);
-  const [editing, setEditing] = useState(null);
+  const [screen, setScreen] = useState(() => (initialProgramId ? { mode: 'view', id: initialProgramId, adding: false } : { mode: 'list' }));
   const [confirming, setConfirming] = useState(null);
   const [pendingTargets, setPendingTargets] = useState(null);
-  const [viewing, setViewing] = useState({ id: initialProgramId, adding: false });
   const [lessonDialog, setLessonDialog] = useState(null);
+  const [wipe, setWipe] = useState(null);
+  const [clientDialog, setClientDialog] = useState(null);
 
+  const scoped = scope === 'client' ? programs : scope === 'organization' ? orgPrograms : publicPrograms;
+  const isClient = scope === 'client';
   const counts = useMemo(() => ({
-    skill: countByCategory(programs, PROGRAM_CATEGORIES.SKILL),
-    behavior: countByCategory(programs, PROGRAM_CATEGORIES.BEHAVIOR),
+    skill: countByCategory(scoped, PROGRAM_CATEGORIES.SKILL),
+    behavior: countByCategory(scoped, PROGRAM_CATEGORIES.BEHAVIOR),
     notes: lessonNotes.length,
     abc: (abcConfiguration?.antecedents?.length || 0) + (abcConfiguration?.behaviors?.length || 0)
       + (abcConfiguration?.consequences?.length || 0) + (abcConfiguration?.locations?.length || 0)
-  }), [programs, abcConfiguration, lessonNotes.length]);
-
-  const lessonNames = useMemo(() => {
-    const names = new Map();
-    lessons.forEach(lesson => (lesson.programIds || []).forEach(id => {
-      if (!names.has(id)) names.set(id, lesson.name);
-    }));
-    return names;
-  }, [lessons]);
+  }), [scoped, abcConfiguration, lessonNotes.length]);
+  const scopeCounts = useMemo(() => Object.fromEntries(SCOPES.map(id => {
+    const pool = id === 'client' ? programs : id === 'organization' ? orgPrograms : publicPrograms;
+    return [id, pool.filter(program => !program.archivedAt).length];
+  })), [programs, orgPrograms, publicPrograms]);
 
   const activeTab = TABS.find(entry => entry.id === tab) || TABS[0];
-  const viewingProgram = programs.find(program => program.id === viewing.id) || null;
+  const viewing = screen.mode === 'view' || screen.mode === 'form' ? [...programs, ...orgPrograms, ...publicPrograms].find(program => program.id === (screen.id || screen.programId)) : null;
+  const toList = () => setScreen({ mode: 'list' });
 
-  function openCreate(category) {
-    setFormCategory(category);
-    setEditing(null);
-    setFormOpen(true);
+  function changeScope(next) {
+    setScope(next);
+    setScreen({ mode: 'list' });
+    if (TABS.find(entry => entry.id === tab)?.clientOnly && next !== 'client') setTab('skill');
   }
 
-  // Editing opens the same form with everything already filled in, so the
-  // clinician modifies a program rather than recreating it.
-  function openEdit(program) {
-    setFormCategory(program.category);
-    setEditing(program);
-    setFormOpen(true);
-  }
+  const noun = program => (program?.category === PROGRAM_CATEGORIES.BEHAVIOR ? 'behavior' : 'program');
 
   function askDuplicate(program) {
     setConfirming({
       title: `Duplicate “${program.name}”?`,
-      description: 'The copy carries the program’s fields and its targets, with new identities and no history. It can be changed without affecting the original.',
-      confirmLabel: 'Duplicate program',
+      description: 'The copy carries the fields and the targets, with new identities and no history. It starts in Pending and can be changed without affecting the original.',
+      confirmLabel: `Duplicate ${noun(program)}`,
       onConfirm: () => onDuplicateProgram?.(program)
     });
   }
-
   function askArchive(program) {
     setConfirming({
       title: `Archive “${program.name}”?`,
-      description: 'The program leaves the working list. Its history and the data recorded against it are kept, and it can be restored later.',
-      confirmLabel: 'Archive program',
+      description: 'It leaves the working list and the active analytics. Its history and the data recorded against it are kept, and it can be restored from the archived list.',
+      confirmLabel: `Archive ${noun(program)}`,
       onConfirm: () => onArchiveProgram?.(program)
     });
   }
+  function askUnarchive(program) {
+    setConfirming({
+      title: `Unarchive “${program.name}”?`,
+      description: 'It returns to the working list and is available again for use.',
+      confirmLabel: `Unarchive ${noun(program)}`,
+      onConfirm: () => onUnarchiveProgram?.(program)
+    });
+  }
 
-  function onUnarchive(program) {
-    onUnarchiveProgram?.(program);
+  // Add to organization. Leaving a client clears client-specific text, so that is confirmed first.
+  function askCopyToOrganization(selected, done) {
+    if (scope === 'client') setWipe({ programs: selected, done });
+    else { onCopyToOrganization?.(selected); done?.(); }
+  }
+  function askCopyToClients(selected, done) {
+    setClientDialog({ programs: selected, done });
+  }
+
+  function save(values) {
+    const editing = screen.programId ? viewing : null;
+    if (!editing) {
+      const created = onCreateProgram?.(values, scope);
+      // A program with no targets is documentation, not a program. The platform offers the
+      // next step straight away.
+      if (created && created.category !== PROGRAM_CATEGORIES.BEHAVIOR) setPendingTargets(created);
+      toList();
+      return;
+    }
+    // A status or phase changed in the form goes through the same dated change and phase-line
+    // question as everywhere else. Cancelling that question keeps the form open and saves nothing.
+    const rest = () => { onUpdateProgram?.(editing, values); toList(); };
+    if (editing.category === PROGRAM_CATEGORIES.BEHAVIOR) {
+      if (values.behaviorPhase !== behaviorPhaseOf(editing)) onRequestBehaviorPhase?.(editing, values.behaviorPhase, { commit: rest });
+      else rest();
+    } else if (values.status !== editing.status) onRequestStatus?.(editing, values.status, { commit: rest });
+    else rest();
   }
 
   return <section id="programs" aria-labelledby="programs-title" tabIndex={-1}>
@@ -102,261 +136,118 @@ export default function ProgramManagement({
         <p className="eyebrow">Planning</p>
         <h1 id="programs-title">Programs</h1>
         <p className="page-description">
-          Define what is taught and how it is measured. Every change here stays in this browser and shows up in the analytics.
+          Define what is taught and how it is measured. Every change here stays in this browser.
         </p>
       </div>
     </div>
 
-    {!client ? <EmptyState title="Choose a client." icon={Target}
-      description="A client's programs belong to that client, so pick one before you open this workspace." />
+    {screen.mode === 'form'
+      ? <ProgramFormPage key={screen.programId || `new-${screen.category}-${scope}`} category={viewing?.category || screen.category} scope={scope} client={client}
+        program={screen.programId ? viewing : null} asOf={asOf}
+        existing={scoped.filter(program => program.id !== screen.programId)}
+        onSave={save} onCancel={() => (screen.programId && screen.from === 'view' ? setScreen({ mode: 'view', id: screen.programId, adding: false }) : toList())}
+        onOpenTargets={program => setScreen({ mode: 'view', id: program.id, adding: false })} />
+      : screen.mode === 'view' && viewing
+      ? (viewing.category === PROGRAM_CATEGORIES.BEHAVIOR
+        ? <BehaviorView key={viewing.id} program={viewing} scope={scope} canEdit={canEdit} asOf={asOf} activity={activity}
+          observations={isClient ? observations : []} onBack={toList}
+          onEdit={program => setScreen({ mode: 'form', programId: program.id, from: 'view' })}
+          onRequestPhase={onRequestBehaviorPhase} onOpenTarget={onOpenTarget}
+          onCopyToOrganization={selected => askCopyToOrganization(selected)} onCopyToClients={selected => askCopyToClients(selected)} />
+        : <ProgramView key={viewing.id + (screen.adding ? '-add' : '')} program={viewing} scope={scope} canEdit={canEdit} asOf={asOf}
+          startAdding={screen.adding} activity={activity} onBack={toList}
+          onEdit={program => setScreen({ mode: 'form', programId: program.id, from: 'view' })}
+          onAddTargets={onAddTarget} onUpdateTarget={onUpdateTarget} onDeleteTargets={onDeleteTargets}
+          onRequestPhase={onRequestPhase} onRequestStatus={onRequestStatus}
+          onOpenAnalysis={onOpenProgram} onOpenTarget={onOpenTarget}
+          onReorder={onReorderTargets} onResetOrder={onResetTargetOrder} onBulkEdit={onBulkEditTargets}
+          onCopyToOrganization={selected => askCopyToOrganization(selected)} onCopyToClients={selected => askCopyToClients(selected)} />)
       : <>
-        {viewingProgram ? <ProgramView key={viewingProgram.id + (viewing.adding ? '-add' : '')} program={viewingProgram} canEdit={canEdit}
-          asOf={asOf} startAdding={viewing.adding} onBack={() => setViewing({ id: null, adding: false })}
-          onAddTargets={onAddTarget} onUpdateTarget={onUpdateTarget} onDeleteTargets={onDeleteTargets} onRequestPhase={onRequestPhase} onRequestBehaviorPhase={onRequestBehaviorPhase}
-          activity={activity} onOpenAnalysis={onOpenProgram} onOpenTarget={onOpenTarget}
-          onAddMaterial={onAddMaterial} onRemoveMaterial={onRemoveMaterial} /> : <>
-        <div className="programs-tabs" role="tablist" aria-label="Program types">
-          {TABS.map(entry => {
-            const Icon = entry.icon;
-            const selected = entry.id === tab;
-            // The ABC vocabulary is client-specific, so it stays unavailable until a
-            // client is chosen. The other tabs need a client too.
-            return <button key={entry.id} type="button" role="tab" id={`programs-tab-${entry.id}`}
-              aria-controls={`programs-panel-${entry.id}`} aria-selected={selected}
-              tabIndex={selected ? 0 : -1} className={`programs-tab programs-tab--${entry.id}`}
-              onClick={() => setTab(entry.id)}>
-              <span aria-hidden="true"><Icon size={17} /></span>
-              <span>{entry.label}</span>
-              <span className="programs-tab-count">{counts[entry.id]}</span>
-            </button>;
-          })}
-        </div>
-
-        <div role="tabpanel" id={`programs-panel-${activeTab.id}`} aria-labelledby={`programs-tab-${activeTab.id}`}>
-          {activeTab.id === 'notes'
-            ? <LessonNotes notes={lessonNotes} lessons={lessons} programs={programs} observations={observations}
-              abcEntries={abcEntries} abcConfiguration={abcConfiguration} canEdit={canEdit} asOf={asOf}
-              onCreate={onCreateNote} onUpdate={onUpdateNote} onStatus={onNoteStatus} onSign={onSignNote}
-              onRecord={onRecordNote} onRecordAbc={onRecordAbcNote} />
-            : activeTab.id === 'abc'
-            ? <AbcConfiguration key={client?.id} configuration={abcConfiguration} entries={abcEntries} canEdit={canEdit}
-              behaviorNames={programs.filter(program => program.category === PROGRAM_CATEGORIES.BEHAVIOR && !program.archivedAt).map(program => program.name)}
-              onUpdateConfig={onUpdateAbcConfig} onAddValue={onAddAbcValue} onRenameValue={onRenameAbcValue}
-              onRemoveValues={onRemoveAbcValues} onImportBehaviors={onImportAbcBehaviors} />
-            : <ProgramListing category={activeTab.category} programs={programs} lessonNames={lessonNames}
-              canEdit={canEdit} viewOnlyReason={viewOnlyReason} lessons={lessons}
-              onAddToLesson={selected => setLessonDialog({ programs: selected, lessons })} onNewLesson={() => setLessonDialog({ programs: [], lessons: [] })}
-              onCreate={openCreate} onOpen={program => setViewing({ id: program.id, adding: false })}
-              onEdit={openEdit} onDuplicate={askDuplicate} onArchive={askArchive} onUnarchive={onUnarchive} onRequestStatus={onRequestStatus} onRequestBehaviorPhase={onRequestBehaviorPhase} />}
-        </div>
-        </>}
-
-        <ProgramFormModal key={editing?.id || 'new'} isOpen={formOpen} onClose={() => { setFormOpen(false); setEditing(null); }}
-          client={client} category={formCategory} program={editing} existing={programs}
-          onSave={values => {
-            const saved = editing ? onUpdateProgram?.(editing, values) : onCreateProgram?.(values);
-            setFormOpen(false);
-            setEditing(null);
-            // A program with no targets is documentation, not a program. The
-            // platform offers the next step straight away.
-            if (!editing) setPendingTargets(saved || null);
-          }} />
-
-        {lessonDialog && <LessonDialog key={lessonDialog.programs.map(program => program.id).join('|') || 'new'} isOpen
-          lessons={lessonDialog.lessons} programs={lessonDialog.programs}
-          title={lessonDialog.programs.length ? 'Add to lesson' : 'New lesson'}
-          onClose={() => setLessonDialog(null)}
-          onSave={values => { onSaveLesson?.(values); setLessonDialog(null); }} />}
-
-        <ConfirmDialog isOpen={Boolean(confirming)} onClose={() => setConfirming(null)}
-          title={confirming?.title || ''} description={confirming?.description}
-          confirmLabel={confirming?.confirmLabel || 'Confirm'} destructive={confirming?.destructive}
-          onConfirm={() => { confirming?.onConfirm(); setConfirming(null); }} />
-
-        {pendingTargets && <div className="programs-prompt" role="dialog" aria-labelledby="programs-prompt-title">
-          <div className="programs-prompt-body">
-            <h2 id="programs-prompt-title">Do you want to add targets for this created program?</h2>
-            <p>Without targets, the program cannot be executed and no data can be recorded against it.</p>
-            <div className="dialog-actions">
-              <button type="button" className="button button--secondary" onClick={() => setPendingTargets(null)}>Maybe later</button>
-              <button type="button" className="button button--primary" onClick={() => {
-                setViewing({ id: pendingTargets.id, adding: true });
-                setPendingTargets(null);
-              }}>Yes, let’s add targets</button>
-            </div>
+        <div className="pm-scope">
+          <div className="pm-scope-switch" role="group" aria-label="Scope">
+            {SCOPES.map(id => <button key={id} type="button" aria-pressed={scope === id} className="pm-scope-button" onClick={() => changeScope(id)}>
+              {SCOPE_LABELS[id]}<span className="pm-scope-count">{scopeCounts[id]}</span></button>)}
           </div>
-        </div>}
+          <p className="pm-scope-blurb">{SCOPE_BLURB[scope](client)}</p>
+        </div>
+
+        {isClient && !client
+          ? <EmptyState title="Choose a client." icon={Target}
+            description="A client's programs belong to that client, so pick one before you open this scope. The organization and public libraries do not need a client." />
+          : <>
+            <div className="pm-tabs" role="tablist" aria-label="Program types">
+              {TABS.map(entry => {
+                const Icon = entry.icon;
+                const selected = entry.id === tab;
+                const disabled = entry.clientOnly && !isClient;
+                return <button key={entry.id} type="button" role="tab" id={`programs-tab-${entry.id}`} disabled={disabled}
+                  aria-controls={`programs-panel-${entry.id}`} aria-selected={selected} title={disabled ? 'This is always about one client, so it is in the Client scope only.' : undefined}
+                  tabIndex={selected ? 0 : -1} className={`pm-tab programs-tab--${entry.id}`}
+                  onClick={() => setTab(entry.id)}>
+                  <span aria-hidden="true"><Icon size={17} /></span>
+                  <span>{entry.label}</span>
+                  <span className="pm-tab-count">{entry.clientOnly && !isClient ? '–' : counts[entry.id]}</span>
+                </button>;
+              })}
+            </div>
+
+            <div role="tabpanel" id={`programs-panel-${activeTab.id}`} aria-labelledby={`programs-tab-${activeTab.id}`}>
+              {activeTab.id === 'notes'
+                ? <LessonNotes notes={lessonNotes} lessons={lessons} programs={programs} observations={observations}
+                  abcEntries={abcEntries} abcConfiguration={abcConfiguration} canEdit={canEdit} asOf={asOf}
+                  onCreate={onCreateNote} onUpdate={onUpdateNote} onStatus={onNoteStatus} onSign={onSignNote}
+                  onRecord={onRecordNote} onRecordAbc={onRecordAbcNote}
+                  onAddTargets={onAddNoteTargets} onRemoveAbc={onRemoveNoteAbc} />
+                : activeTab.id === 'abc'
+                ? <AbcConfiguration key={client?.id} configuration={abcConfiguration} entries={abcEntries} canEdit={canEdit}
+                  behaviorNames={programs.filter(program => program.category === PROGRAM_CATEGORIES.BEHAVIOR && !program.archivedAt).map(program => program.name)}
+                  onUpdateConfig={onUpdateAbcConfig} onAddValue={onAddAbcValue} onRenameValue={onRenameAbcValue}
+                  onRemoveValues={onRemoveAbcValues} onImportBehaviors={onImportAbcBehaviors} />
+                : <ProgramListing key={`${scope}-${activeTab.id}`} scope={scope} category={activeTab.category} programs={scoped} lessons={isClient ? lessons : []}
+                  canEdit={canEdit} viewOnlyReason={viewOnlyReason}
+                  searchLabel={activeTab.category === PROGRAM_CATEGORIES.BEHAVIOR ? 'Search behaviors' : 'Search programs'}
+                  onCreate={category => setScreen({ mode: 'form', category, programId: null })}
+                  onOpen={program => setScreen({ mode: 'view', id: program.id, adding: false })}
+                  onEdit={program => setScreen({ mode: 'form', programId: program.id, from: 'list' })}
+                  onDuplicate={askDuplicate} onArchive={askArchive} onUnarchive={askUnarchive}
+                  onRequestStatus={onRequestStatus} onRequestBehaviorPhase={onRequestBehaviorPhase}
+                  onAddToLesson={selected => setLessonDialog({ programs: selected, lessons })} onNewLesson={() => setLessonDialog({ programs: [], lessons: [] })}
+                  onCopyToOrganization={askCopyToOrganization} onCopyToClients={askCopyToClients} />}
+            </div>
+          </>}
       </>}
-  </section>;
-}
 
-// The listing: what each program is, how many targets it holds, where it runs,
-// and what a clinician can do with it.
-function ProgramListing({ category, programs, lessonNames, canEdit, viewOnlyReason, onCreate, onOpen, onEdit, onDuplicate, onArchive, onUnarchive, onRequestStatus, onRequestBehaviorPhase, lessons = [], onAddToLesson, onNewLesson }) {
-  const [showArchived, setShowArchived] = useState(false);
-  const scoped = useMemo(() => programs.filter(program => program.category === category), [programs, category]);
-  const { active, archived } = useMemo(() => partitionByArchive(scoped), [scoped]);
-  // The archived view only exists while something is archived. Restoring the
-  // last one returns the listing to the working list rather than leaving it
-  // showing nothing.
-  const viewingArchived = showArchived && archived.length > 0;
-  const pool = viewingArchived ? archived : active;
-  const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const shown = useMemo(() => filterPrograms(pool, { query, status: statusFilter, lessonNames }), [pool, query, statusFilter, lessonNames]);
-  const filtering = Boolean(query.trim() || statusFilter);
-  const isBehavior = category === PROGRAM_CATEGORIES.BEHAVIOR;
-  const [selected, setSelected] = useState(() => new Set());
-  const selectable = canEdit && !isBehavior && !viewingArchived;
-  const chosen = shown.filter(program => selected.has(program.id));
-  const toggle = id => setSelected(current => {
-    const next = new Set(current);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
+    {lessonDialog && <LessonDialog key={lessonDialog.programs.map(program => program.id).join('|') || 'new'} isOpen
+      lessons={lessonDialog.lessons} programs={lessonDialog.programs}
+      title={lessonDialog.programs.length ? 'Add to lesson' : 'New lesson'}
+      onClose={() => setLessonDialog(null)}
+      onSave={values => { onSaveLesson?.(values); setLessonDialog(null); }} />}
 
-  return <>
-    <div className="programs-listing-header">
-      <p className="programs-listing-count">
-        {active.length} active {active.length === 1 ? 'program' : 'programs'}
-        {archived.length > 0 && <span className="programs-listing-archived"> · {archived.length} archived</span>}
-      </p>
-      <div className="programs-listing-actions">
-        {archived.length > 0 && <button type="button" className="button button--tertiary" onClick={() => setShowArchived(value => !value)}
-          aria-pressed={viewingArchived}>{viewingArchived ? 'Show active' : 'Show archived'}</button>}
-        {canEdit && <button type="button" className="button button--primary" onClick={() => onCreate?.(category)}>
-          <Plus size={16} />New {category === PROGRAM_CATEGORIES.BEHAVIOR ? 'behavior' : 'program'}
-        </button>}
+    <ConfirmDialog isOpen={Boolean(confirming)} onClose={() => setConfirming(null)}
+      title={confirming?.title || ''} description={confirming?.description}
+      confirmLabel={confirming?.confirmLabel || 'Confirm'} destructive={confirming?.destructive}
+      onConfirm={() => { confirming?.onConfirm(); setConfirming(null); }} />
+
+    {wipe && <WipeoutDialog isOpen programs={wipe.programs} onClose={() => setWipe(null)}
+      onConfirm={() => { onCopyToOrganization?.(wipe.programs); wipe.done?.(); setWipe(null); }} />}
+
+    {clientDialog && <AddToClientDialog isOpen clients={clients} programs={clientDialog.programs}
+      source={scope === 'public' ? 'public' : 'organization'} onClose={() => setClientDialog(null)}
+      onAdd={clientIds => { onCopyToClients?.(clientDialog.programs, clientIds); clientDialog.done?.(); setClientDialog(null); }} />}
+
+    {pendingTargets && <Dialog isOpen onClose={() => setPendingTargets(null)} presentation="confirmation"
+      title="Do you want to add targets for this created program?"
+      description="Without targets, the program cannot be executed and no data can be recorded against it.">
+      <div className="form-actions">
+        <button type="button" className="button button--secondary" data-autofocus onClick={() => setPendingTargets(null)}>Maybe later</button>
+        <button type="button" className="button button--primary" onClick={() => {
+          setScreen({ mode: 'view', id: pendingTargets.id, adding: true });
+          setPendingTargets(null);
+        }}>Yes, let’s add</button>
       </div>
-    </div>
+    </Dialog>}
 
-    {!canEdit && <p className="programs-readonly-note" role="status">
-      View-only access. {viewOnlyReason || 'Programs can be read but not changed.'}
-    </p>}
-
-    <div className="programs-search" role="search" aria-label={isBehavior ? 'Search behaviors' : 'Search programs'}>
-      <label htmlFor={`programs-search-${category}`} className="sr-only">{isBehavior ? 'Search behaviors' : 'Search programs'}</label>
-      <input id={`programs-search-${category}`} type="text" value={query} autoComplete="off"
-        placeholder={isBehavior ? 'Search name, tag, tool, treatment area or phase' : 'Search name, tag, lesson or status'}
-        onChange={event => setQuery(event.target.value)} />
-      {query && <button type="button" className="icon-button" aria-label="Clear search" onClick={() => setQuery('')}><X size={16} /></button>}
-      <label htmlFor={`programs-filter-${category}`} className="sr-only">{isBehavior ? 'Filter by phase' : 'Filter by status'}</label>
-      <select id={`programs-filter-${category}`} value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>
-        <option value="">{isBehavior ? 'All phases' : 'All statuses'}</option>
-        {isBehavior
-          ? BEHAVIOR_PHASES.map(phase => <option key={phase} value={phase}>{phase === 'OnHold' ? 'On hold' : phase}</option>)
-          : PROGRAM_STATUSES.map(status => <option key={status} value={status}>{PROGRAM_STATUS_LABELS[status]}</option>)}
-      </select>
-      {filtering && <button type="button" className="button button--tertiary" onClick={() => { setQuery(''); setStatusFilter(''); }}>Reset</button>}
-      <p className="sr-only" role="status">{filtering ? `${shown.length} of ${pool.length} shown` : ''}</p>
-    </div>
-
-    {!isBehavior && !viewingArchived && <section className="lessons-panel" aria-label="Lessons">
-      <header className="abc-list-header">
-        <h3>Lessons</h3>
-        {canEdit && <button type="button" className="button button--tertiary" onClick={() => onNewLesson?.()}><Plus size={15} />New lesson</button>}
-      </header>
-      {lessons.length === 0
-        ? <p className="program-form-note">No lessons yet. A lesson groups programs that are run together.</p>
-        : <ul>{lessons.map(lesson => <li key={lesson.id}>
-          <strong>{lesson.name}</strong>
-          <span> · {lesson.programIds.map(id => programs.find(program => program.id === id)?.name).filter(Boolean).join(', ') || 'No programs yet'}</span>
-        </li>)}</ul>}
-    </section>}
-
-    {selectable && chosen.length > 0 && <div className="target-bulk" role="status">
-      <span>{chosen.length} selected</span>
-      <button type="button" className="button button--primary" onClick={() => { onAddToLesson?.(chosen); setSelected(new Set()); }}>Add to lesson</button>
-      <button type="button" className="button button--tertiary" onClick={() => setSelected(new Set())}>Clear selection</button>
-    </div>}
-
-    {shown.length === 0 && pool.length > 0
-      ? <EmptyState title="No results found." icon={Target}
-        description="Nothing matches that search and filter. Try fewer words, or reset the filters." action={{ label: 'Reset search', onClick: () => { setQuery(''); setStatusFilter(''); } }} />
-      : shown.length === 0
-      ? <EmptyState title={viewingArchived ? 'No archived programs.' : 'No programs yet.'} icon={Target}
-        description={viewingArchived
-          ? 'Archived programs keep their history and their recorded data. None are archived for this client.'
-          : 'Create a program to define what is taught, then add the targets that will be measured.'} />
-      : <table className="programs-table">
-        <caption className="sr-only">
-          {category === PROGRAM_CATEGORIES.BEHAVIOR ? 'Behavior reduction programs' : 'Skill acquisition programs'} for {shown.length} {shown.length === 1 ? 'program' : 'programs'}
-        </caption>
-        <thead>
-          <tr>
-            {selectable && <th scope="col"><span className="sr-only">Select</span></th>}
-            <th scope="col">{isBehavior ? 'Behavior' : 'Program'}</th>
-            {isBehavior ? <>
-              <th scope="col">Measurement tool</th>
-              <th scope="col">Treatment area</th>
-              <th scope="col">Phase</th>
-            </> : <>
-              <th scope="col">Targets</th>
-              <th scope="col">Lesson</th>
-              <th scope="col">Status</th>
-            </>}
-            <th scope="col"><span className="sr-only">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map(program => <tr key={program.id}>
-            {selectable && <td><label className="program-form-check">
-              <input type="checkbox" checked={selected.has(program.id)} onChange={() => toggle(program.id)} />
-              <span className="sr-only">Select {program.name}</span></label></td>}
-            <th scope="row">
-              <button type="button" className="programs-table-name" onClick={() => onOpen?.(program)}>{program.name}</button>
-              {program.tags?.length > 0 && <span className="programs-table-tags">{program.tags.join(' · ')}</span>}
-            </th>
-            {isBehavior ? <>
-              <td>{TARGET_TYPE_LABELS[program.targets?.[0]?.type] || '–'}</td>
-              <td>{[].concat(program.treatmentArea || []).join(', ') || '–'}</td>
-              <td>{canEdit && !viewingArchived
-                ? <select className="status-select" aria-label={`Phase of ${program.name}`} value={behaviorPhaseOf(program)}
-                  onChange={event => onRequestBehaviorPhase?.(program, event.target.value)}>
-                  {BEHAVIOR_PHASES.map(phase => <option key={phase} value={phase}>{phase === 'OnHold' ? 'On hold' : phase}</option>)}
-                </select>
-                : <span className="status-pill">{behaviorPhaseOf(program)}</span>}</td>
-            </> : <>
-              <td>{program.targets?.length || 0}</td>
-              <td>{lessonNames.get(program.id) || <span className="programs-table-none">Not in a lesson</span>}</td>
-              <td>{canEdit && !viewingArchived
-              ? <select className="status-select" aria-label={`Status of ${program.name}`} value={program.status}
-                onChange={event => onRequestStatus?.(program, event.target.value)}>
-                {PROGRAM_STATUSES.map(status => <option key={status} value={status}>{PROGRAM_STATUS_LABELS[status]}</option>)}
-              </select>
-              : <span className={`status-pill status-pill--${String(program.status || '').toLowerCase()}`}>
-                {PROGRAM_STATUS_LABELS[program.status] || program.status}</span>}</td>
-            </>}
-            <td className="programs-table-actions">
-              <button type="button" className="button button--tertiary" onClick={() => onOpen?.(program)}>Open</button>
-              {canEdit && <ProgramRowActions program={program} showArchived={viewingArchived}
-                onEdit={onEdit} onDuplicate={onDuplicate} onArchive={onArchive} onUnarchive={onUnarchive} />}
-            </td>
-          </tr>)}
-        </tbody>
-      </table>}
-  </>;
-}
-
-// The row's own actions live in an overflow, so the listing stays scannable.
-function ProgramRowActions({ program, showArchived, onEdit, onDuplicate, onArchive, onUnarchive }) {
-  return <Popover label={`Actions for ${program.name}`} icon={Ellipsis} compact className="overflow-popover">
-    {({ close }) => <>
-      <button type="button" className="popover-option" onClick={() => { close(true); onEdit?.(program); }}>
-        <PencilSimple size={18} aria-hidden="true" /><span>Edit</span>
-      </button>
-      <button type="button" className="popover-option" onClick={() => { close(true); onDuplicate?.(program); }}>
-        <Copy size={18} aria-hidden="true" /><span>Duplicate</span>
-      </button>
-      {showArchived
-        ? <button type="button" className="popover-option" onClick={() => { close(true); onUnarchive?.(program); }}>
-          <ArrowCounterClockwise size={18} aria-hidden="true" /><span>Unarchive</span>
-        </button>
-        : <button type="button" className="popover-option" onClick={() => { close(true); onArchive?.(program); }}>
-          <Archive size={18} aria-hidden="true" /><span>Archive</span>
-        </button>}
-    </>}
-  </Popover>;
+  </section>;
 }
 
 export { TABS as PROGRAM_TABS };

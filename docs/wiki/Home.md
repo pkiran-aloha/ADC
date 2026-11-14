@@ -1310,40 +1310,77 @@ Second-observer (IOA) and supervision observations remain with the session in th
 
 **Question:** What is planned, and how is it measured?
 
-Programs is the sixth workspace and the only one that **writes**: it is where the plan is defined, so the analytics can be read against it. It is scoped to the selected client, is unavailable until a client is chosen, and is read-only under **View-only analytics** access. Everything saved here stays in this browser and reaches the analytics at once, with no reload. **Reset demo data** restores the fixture.
+Programs is the sixth workspace and the only one that **writes**: it is where the plan is defined, so the analytics can be read against it. Everything saved here stays in this browser and reaches the analytics at once, with no reload. **Reset demo data** restores the fixture. Under **View-only analytics** access every screen can be read and nothing can be changed.
 
-It has four tabs, each with a count: **Skill acquisition**, **Behavior reduction**, **ABC data recording** and **Lesson notes**.
+### Scope: client, organization, public
+
+A switch at the top chooses where programs live, and the page always says which scope you are in.
+
+| Scope | What it is | What you can do |
+|---|---|---|
+| **Client** | One learner's own plan. The default. | Create, edit, duplicate, archive, group into lessons, record data, and add selected items to the organization library. |
+| **Organization** | The practice's shared library. It holds no learner data, so it has no phases, charts or analytics. | Create, edit, duplicate and archive library programs, and add selected items to one or more clients. |
+| **Public** | Starter programs for every practice, managed by a super user on the platform. Here it is a fixed, fictional set and read only. | Open and read. Add selected items to a client or to the organization library. |
+
+**ABC data recording** and **Lesson notes** are always about one learner, so they exist in the client scope only and are unavailable in the other two.
+
+**Moving programs.** The buttons appear only in the scope where they apply, and only once something is selected (behaviors can be selected as well as programs).
+
+- **Add to organization** (from a client or from the public library) puts a copy in the organization library. A copy is a new program with its own identity. It starts again: status Pending, targets Pending, no phase history, and no recorded mastery decision. What defines the work (targets, measurement, mastery rule, tags, treatment area, operational definition) is kept.
+- **Add to client** (from the organization or public library) puts a copy in each client you choose, in that client's own list, starting in Pending. Nothing is cleared on this route.
+- **Clearing client text.** Leaving a client for the organization library clears the text written for that learner: **Teaching instructions**, **Program objective**, **Baseline** and **Target instructions**. A warning lists them before anything is copied, the original is never changed, and the copy's history records exactly what was cleared (or that nothing was present to clear). The public library holds no client text, so adding from it clears nothing.
+- A library program therefore has **optional teaching instructions** on its form, because those are the text that gets cleared.
 
 ### Programs: skill acquisition
 
-The listing shows each program's name, target count, lesson, tags and status, alphabetically. Search matches name, tag, lesson and status as you type, partially and ignoring case, and every word must match, so two words narrow the list. A status filter combines with it; **Reset** clears both and a search with no match says **No results found**.
+The listing shows each program's name, target count, lesson, tags and status, alphabetically. Search matches name, tag, lesson and status as you type, partially and ignoring case, and every word must match, so two words narrow the list. **Filter** opens one panel with **Status** (each with its count), **Tags** and **Lessons**; choices within a group show a program when any of them matches, the groups combine, and nothing changes until **Show results**. Applied filters sit above the list and each can be removed on its own, and **Reset** clears everything. A search with no match says **No results found**. The **Archived list** is a separate view of archived programs, and an item cannot be both active and archived.
 
-- **Create** a program with a name (up to 100 characters), a status, treatment areas, tags, a baseline, an objective (up to 1,000 characters each), teaching instructions (required, up to 1,000) and the practice's custom fields. The form will not save an incomplete program, and marks the sections still missing. An exact duplicate name for the same client warns and lets you continue; the same name for another client does not warn. Afterwards you are asked whether to add targets.
-- **Edit, duplicate, archive.** A duplicate starts again: new identities, no phase history, status Pending. Archiving removes a program from today's surfaces (the overview, the mastery counts, the weekly map, the triage and the recorder) while its history and recorded data stay, and the target analysis marks it **(archived)**.
-- **Status** is chosen from eight values. Setting **Pending**, **Completed**, **On hold** or **Discontinued** moves all the program's targets to that phase; the four teaching statuses leave each target alone.
-- **Phase change line.** Every status or phase change asks whether to plot a phase change line: **Yes** plots a labelled line on the change date on each target, **No** changes the phase without one, and **Cancel** changes nothing.
-- **Lessons.** Select several programs and **Add to lesson** to put them into a new or existing lesson in one action. A lesson only holds its own client's programs.
-- **Learning materials.** A program can carry up to 5 text files (.txt, .md or .csv), 200 KB each and 1 MB in total, saved in this browser. Documents and videos are refused with the reason. Nothing is uploaded.
+**Creating a program** is a full page, not a drawer.
 
-### Programs: targets
+- **Five sections** sit in a side list: Treatment information, Instructions, Tags, Learning materials and Custom data fields. You can move between them freely. A section you have left with a required field still empty is marked, and the page says what is still needed.
+- **Treatment information:** name (required, up to 100 characters), status (required, one of eight), treatment areas, a baseline and an objective (up to 1,000 characters each). **Instructions:** teaching instructions (required, up to 1,000). **Tags** and treatment areas are added with Enter, each removable, and a half-typed value is kept when you leave the field.
+- **Save is disabled until every required field is complete.** Cancelling with changes asks: "Are you sure you want to cancel these unsaved changes?"
+- An exact duplicate name for the same client warns and lets you continue; the same name for another client does not warn.
+- After saving you are asked whether to add targets. **Yes, let's add** opens the program with the target form ready. **Maybe later** returns to the list. Either way you are told the program was created.
+- **Editing** opens the same page with everything filled in, and **Go to targets** opens the program page. Changing the status or phase in the form goes through the same dated change and phase-line question as everywhere else, and Cancel on that question keeps the form open and saves nothing.
 
-Opening a program shows its targets as cards, ordered by phase and then name, with a summary of total, mastered and completion, tabs for only the measurement types that exist, and **Open chart**. A target form asks for what its type needs: a prompt hierarchy for trial by trial, a start type, length and capture type for interval data, a timer for fluency/rate. Several names entered together each become a target. The measurement type is fixed once the target exists. Mastery is a stated rule or a clinician's dated decision; where a decision is recorded it is authoritative, and otherwise a mastered phase counts. Deleting a target, singly or in bulk, asks first and keeps any observation already recorded against it.
+**Duplicate, archive.** A duplicate starts again, as above, and stays in its own scope. Archiving removes a program from today's surfaces (the overview, the mastery counts, the weekly map, the triage and the recorder) while its history and recorded data stay, and the target analysis marks it **(archived)**. Unarchiving asks first and returns it to the working list.
+
+**Status** is chosen from eight values, from the listing or the program page. Setting **Pending**, **Completed**, **On hold** or **Discontinued** moves all the program's targets to that phase; the four teaching statuses leave each target alone.
+
+**Phase change line.** Every status or phase change asks whether to plot a phase change line: **Yes** plots a labelled line on the change date on each target, **No** changes the phase without one, and **Cancel** changes nothing. A library program has no chart, so changing it asks nothing.
+
+**Lessons.** Select several programs and **Add to lesson** to put them into a new or existing lesson in one action. A lesson only holds its own client's programs.
+
+**Learning materials** are attached on the form. A program can carry up to 5 text files (.txt, .md or .csv), 200 KB each and 1 MB in total, saved in this browser. Documents and videos are refused with the reason. Nothing is uploaded.
+
+### Programs: the program page and its targets
+
+Opening a program shows a header (name, status, treatment areas, tags), a summary of total targets, targets mastered and completion, and three tabs: **Targets**, **Program details** and **History**.
+
+- **Target cards** show the name, the measurement tool, what mastery means for that target in words, the discriminative stimuli, how it is recorded (prompt hierarchy, interval settings or timer), its phase and the date it entered that phase. Tabs appear only for the measurement types that exist.
+- **A target form** asks for what its type needs: a prompt hierarchy for trial by trial, a start type, length and capture type for interval data, a timer for fluency/rate. Several names entered together each become a target. The measurement type is fixed once the target exists. Mastery is a stated rule or a clinician's dated decision; where a decision is recorded it is authoritative, and otherwise a mastered phase counts.
+- **Several at once.** Select targets, or **Select all**, then **Edit selected** to change phase, discriminative stimuli or target instructions together (only the fields you fill in change, and the phase is one question for all of them), or **Delete selected**. Deleting asks first and keeps any observation already recorded against a target.
+- **Order.** Targets follow their phase, then alphabetical order, until you set your own by dragging a card or using the arrows (the arrows give a keyboard and a screen reader the same control). A hand-set order survives phase changes, a target added later joins the end, and **Reset order** restores the default.
+- **Program details** shows what was defined, and **History** lists every change to the program and its targets, newest first, with an **Export CSV**. It records what changed and when, not who changed it, because the demo has no signed-in user.
 
 ### Programs: behavior reduction
 
-A behavior is a program with one target. It needs an **operational definition** (up to 5,000 characters) and a measurement tool (frequency, duration or interval) that is **locked once saved**. Its own phase (**Open**, Maintenance, Generalization, Completed, Pending, On hold, Discontinued) is separate from its target's measurement phase. **Open** means defined but not yet being reduced: the analytics never treat it as mastered. Behaviors that predate this field take their phase from their target.
+A behavior is a program with one target, defined in **two steps**: first its place in the treatment plan (treatment area and objective are required, baseline and custom fields optional), then the behavior itself. It needs a name, an **operational definition** (up to 5,000 characters) and a measurement tool (frequency, duration or interval) that is **locked once saved**; an interval behavior also needs its start type, length and capture type. Its own phase (**Open**, Maintenance, Generalization, Completed, Pending, On hold, Discontinued) is separate from its target's measurement phase. **Open** means defined but not yet being reduced: the analytics never treat it as mastered. Behaviors that predate this field take their phase from their target.
 
-### Programs: ABC vocabulary
+The **behavior page** puts the definition, the phase control and the recent measurement together. The recent measurement compares the latest four weeks with the four before, in neutral words, using only sessions where the behavior was tracked: a week with nothing tracked is left blank, never drawn as zero, and a recorded zero is a zero. **Open full chart** goes to the target analysis.
 
-The ABC tab edits the client's treatment area, teaching instructions and four lists (antecedent, behavior, consequence, location). Removing a value names it and says how many recorded observations use it; the observations keep the text they were recorded with. Behaviors defined under Behavior reduction can be imported into the behavior list.
+### Programs: ABC data recording
+
+The ABC tab is always about one client. It edits the treatment areas (as tags, folded behind **See all** when there are many), the teaching instructions, and four lists (antecedent, behavior, consequence, location). Removing a value names it and says how many recorded observations use it; the observations keep the text they were recorded with. Behaviors defined under Behavior reduction can be imported into the behavior list.
 
 ### Programs: lesson notes
 
-A lesson note is one dated run of a lesson. It starts as a **Draft** that plans the targets of the lesson's active programs. **Record data** opens the same recorder as everywhere else, loaded with only those targets, and an ABC observation can be recorded into the note too. A note can be signed by staff, a caregiver or an approver, each with a name and the demo date. It moves Draft, Unapproved, Approved. Draft and Unapproved notes can be edited and recorded into; an **Approved** note is a finished record, and its details, signatures and data are locked.
+A lesson note is one dated run of a lesson. It starts as a **Draft** that plans the targets of the lesson's active programs, and **Add programs and behaviors** adds more, with the individual targets you choose. A target already in the note is shown ticked and is never planned twice. **Record data** opens the same recorder as everywhere else, loaded with only the planned targets. An ABC observation can be recorded into the note with the time it happened (it starts at the usual session time), listed in a table, and removed while the note can change; the removal is written to the history. A note can be signed by staff, a caregiver or an approver, each with a name and the demo date. It moves Draft, Unapproved, Approved. Draft and Unapproved notes can be edited and recorded into; an **Approved** note is a finished record, and its details, signatures and data are locked.
 
 ### Programs: what it does not do
 
-There is no organisation or public library and no copying between clients, no per-user audit history (there is no logged-in user, so the activity log records what changed, not who), no drag-and-drop reordering, no task-analysis target type and no location capture on signatures. The weekly map, success feed and health matrix read target phases, not the manual-decision field. See `docs/specs/program-management.md` for the full list.
+There is no per-user audit history (there is no signed-in user, so the history records what changed, not who). The public library is a fixed, fictional set rather than one managed by a super user. There is no task-analysis target type, no location capture on signatures (a readable address would need an external service, and nothing here transmits), and no sync of a hand-set target order or of fluency/rate changes to a mobile app, because there is no app. Learning materials are text only. The weekly map, success feed and health matrix read target phases, not the manual-decision field. See `docs/specs/program-management.md` for the full list.
 
 # Part 6: The science
 
@@ -2004,7 +2041,7 @@ The workspace aims to be usable without a mouse and with a screen reader, and it
 The CI pipeline runs, in order:
 
 1. `npm ci` — reproducible install from the lockfile.
-2. `npm test` — **249 Node tests** across fifteen suites: statistics and visual analysis, ABC analytics and predictive models, the fixture, recording and import, interaction/chart rules, reporting, the generated documentation, and Program Management (its rules and its browser-local store).
+2. `npm test` — **274 Node tests** across sixteen suites: statistics and visual analysis, ABC analytics and predictive models, the fixture, recording and import, interaction/chart rules, reporting, the generated documentation, and Program Management (its rules and its browser-local store).
 3. `npm run lint` — oxlint (0 errors; advisory warnings reported).
 4. `npm run smoke` — a production build and a headless smoke check.
 5. `npm run build` — the Vite production build.
@@ -2627,7 +2664,7 @@ These are the sources the implementation and this page draw on. Links are provid
 | **[docs/HANDOFF.md](../../docs/HANDOFF.md)** | Current state, planned work, and anything started but not landed |
 | **[data/clinicalSeed.json](../../data/clinicalSeed.json)** | The complete fictional fixture: clients, programs, targets, observations, ABC records, appointments, standards |
 | **[scripts/generate_clinical_seed.py](../../scripts/generate_clinical_seed.py)** | The deterministic generator that rebuilds the fixture |
-| **[tests/](../../tests)** | The 249 Node tests for statistics, visual analysis, ABC analytics, predictive models, recording rules, reporting, the generated documentation, and Program Management |
+| **[tests/](../../tests)** | The 274 Node tests for statistics, visual analysis, ABC analytics, predictive models, recording rules, reporting, the generated documentation, and Program Management |
 | **[frontend/tests/](../../frontend/tests)** | The Playwright end-to-end and accessibility tests |
 | **[.github/workflows/deploy.yml](../../.github/workflows/deploy.yml)** | The CI/CD pipeline that tests, builds, and deploys the demo |
 | **[Live demo](https://pkiran-aloha.github.io/ADC/)** | The deployed static application |

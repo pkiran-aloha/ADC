@@ -3,25 +3,14 @@ import Dialog from '../ui/Dialog';
 import { Field, FormFeedback } from '../ui/Field';
 import { useFormValidation } from '../../utils/useFormValidation';
 import {
-  FIELD_LIMITS, FLUENCY_START_TYPES, INTERVAL_CAPTURE_TYPES, INTERVAL_START_TYPES, MASTERY_COMPARISONS,
-  MASTERY_MEASURES, PHASE_LABELS, TARGET_PHASES, TARGET_TYPES, TARGET_TYPE_LABELS, validateTarget
+  CAPTURE_LABELS, COMPARISON_LABELS, FIELD_LIMITS, FLUENCY_START_TYPES, INTERVAL_CAPTURE_TYPES, INTERVAL_START_TYPES, MASTERY_COMPARISONS,
+  MASTERY_MEASURES, MEASURE_LABELS, PHASE_LABELS, START_LABELS, TARGET_PHASES, TARGET_TYPES, TARGET_TYPE_LABELS, validateTarget
 } from '../../utils/programManagement';
 import { PROMPT_HIERARCHY_TEMPLATES } from '../../data/mockData';
 
-const START_LABELS = {
-  Manual: 'Manual', LessonStart: 'Lesson start', LessonStartCountUp: 'Lesson start, count up',
-  ManualStartCountUp: 'Manual, count up', ManualStartCountDown: 'Manual, count down'
-};
-const CAPTURE_LABELS = { Whole: 'Whole interval', Partial: 'Partial interval', MomentaryTimeSampling: 'Momentary time sampling' };
-const MEASURE_LABELS = {
-  percentCorrect: 'Percent correct', percentIntervals: 'Percent of intervals', durationSeconds: 'Duration in seconds',
-  ratePerHour: 'Rate per hour', correctPerMinute: 'Correct per minute', count: 'Count', intervalCount: 'Intervals with occurrence'
-};
-const COMPARISON_LABELS = { atLeast: 'At least', atMost: 'At most', below: 'Below' };
-
 // The target form. The measurement type is chosen once: editing keeps it fixed so
 // data collected one way is never compared against data collected another.
-export default function TargetFormModal({ isOpen, onClose, onSave, program, target = null, initialType = 'TrialByTrial', asOf }) {
+export default function TargetFormModal({ isOpen, onClose, onSave, program, target = null, initialType = 'TrialByTrial', asOf, showPhase = true }) {
   const { formRef, validate } = useFormValidation();
   const isEdit = Boolean(target);
   const isBehavior = program?.category === 'BehaviorReduction';
@@ -29,7 +18,7 @@ export default function TargetFormModal({ isOpen, onClose, onSave, program, targ
   const [values, setValues] = useState(() => ({
     name: target?.name || '',
     type: target?.type || initialType,
-    phase: target?.phase || (isBehavior ? 'Open' : 'Baseline'),
+    phase: target?.phase || (isBehavior ? 'Open' : showPhase ? 'Baseline' : 'Pending'),
     discriminativeStimuli: target?.discriminativeStimuli || '',
     masterySettings: target?.masterySettings || 'Automatic',
     masteryRule: target?.masteryRule || { measure: 'percentCorrect', comparison: 'atLeast', threshold: 80, consecutiveSessions: 3 },
@@ -82,11 +71,12 @@ export default function TargetFormModal({ isOpen, onClose, onSave, program, targ
           : <textarea id="target-name" name="name" required rows={2} value={values.name} onChange={event => set('name', event.target.value)} />}
       </Field>
 
-      <Field id="target-phase" label="Phase" required error={shown('phase')}>
+      {showPhase && <Field id="target-phase" label="Phase" required error={shown('phase')}
+        hint={isEdit ? 'Changing the phase asks whether to plot a phase change line, and is dated in the history.' : 'The stage the target is at now.'}>
         <select id="target-phase" name="phase" required value={values.phase} onChange={event => set('phase', event.target.value)}>
           {TARGET_PHASES.filter(phase => isBehavior || phase !== 'Open').map(phase => <option key={phase} value={phase}>{PHASE_LABELS[phase]}</option>)}
         </select>
-      </Field>
+      </Field>}
 
       <Field id="target-stimuli" label="Discriminative stimuli" hint="The cue or condition under which the behavior should occur.">
         <input id="target-stimuli" name="discriminativeStimuli" type="text" value={values.discriminativeStimuli}

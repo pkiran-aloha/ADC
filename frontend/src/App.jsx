@@ -17,6 +17,7 @@ import { supervisorObservations } from './utils/observations';
 import { workflowFromHash } from './data/workflows';
 import { User, Calendar, ChartLineUp, Target, Notebook, CheckCircle2, ArrowRight, ArrowCounterClockwise, AlertTriangle, ShieldCheck } from './components/ui/Icons';
 import { apiService } from './services/apiService';
+import { PUBLIC_PROGRAMS } from './data/publicLibrary';
 import { SEED_AS_OF_DATE, PROMPT_HIERARCHY_TEMPLATES, CLINICAL_STANDARDS } from './data/mockData';
 import {
   DEFAULT_PROGRAM_SCOPE, DEFAULT_RANGE_ID, durationFilterForDate, resolveScopeWindow,
@@ -116,6 +117,8 @@ export default function App() {
   // Subscribe to the existing browser-local service; changes produce stable snapshots.
   const clients = data.clients;
   const programs = useMemo(() => data.programs.filter(program => program.clientId === selectedClientId), [data.programs, selectedClientId]);
+  // The organization library is kept apart from client programs, so it never reaches the analytics.
+  const orgPrograms = data.orgPrograms || [];
   const sessions = data.sessions;
   const abcEntries = useMemo(() => data.abcEntries.filter(entry => entry.clientId === selectedClientId), [data.abcEntries, selectedClientId]);
   const serviceSessions = useMemo(() => data.serviceSessions.filter(session => session.clientId === selectedClientId), [data.serviceSessions, selectedClientId]);
@@ -274,11 +277,12 @@ export default function App() {
   }
   // A program created in Program Management joins the client listing and the activity
   // trail. The listing refreshes from the same snapshot the analytics read.
-  function createProgram(values) {
-    const payload = { ...values, clientId: selectedClientId, asOf: SEED_AS_OF_DATE };
+  function createProgram(values, scope = 'client') {
+    const payload = { ...values, clientId: scope === 'organization' ? null : selectedClientId, scope, asOf: SEED_AS_OF_DATE };
     const created = values.measurementTool ? apiService.createBehavior(payload) : apiService.createProgram(payload);
     if (!created) { notify('The program could not be created.', 'error'); return null; }
-    saved(apiService.storageError ? 'Created for this session only. Your browser couldn’t save changes.' : `Program “${created.name}” created.`);
+    const noun = created.category === 'BehaviorReduction' ? 'Behavior' : 'Program';
+    saved(apiService.storageError ? 'Created for this session only. Your browser couldn’t save changes.' : `${noun} created successfully.`);
     return created;
   }
   // Editing keeps the program's identity and its client; only the fields the form
@@ -289,7 +293,7 @@ export default function App() {
       apiService.updateTarget(program.targets[0].id, { name: values.name, intervalSettings: values.intervalSettings });
     }
     if (!updated) { notify('The program could not be updated.', 'error'); return null; }
-    saved(apiService.storageError ? 'Updated for this session only. Your browser couldn’t save changes.' : `Program “${updated.name}” updated.`);
+    saved(apiService.storageError ? 'Updated for this session only. Your browser couldn’t save changes.' : `${program.category === 'BehaviorReduction' ? 'Behavior' : 'Program'} updated successfully.`);
     return updated;
   }
   // A duplicate starts again, so it lands in the working list as a new program.
@@ -314,11 +318,51 @@ export default function App() {
     saved(created.length === 1 ? `Target “${created[0].name}” added.` : `${created.length} targets added.`);
     return created;
   }
-  function updateTarget(target, values) {
-    const updated = apiService.updateTarget(target.id, values);
-    if (!updated) { notify('The target could not be updated.', 'error'); return null; }
-    saved(`Target “${updated.name}” updated.`);
-    return updated;
+  // `done` closes the edit form, so a cancelled phase-line question leaves it open with the work in it.
+  function updateTarget(target, values, done) {
+    const save = () => {
+      const updated = apiService.updateTarget(target.id, values);
+      if (!updated) notify('The target could not be updated.', 'error');
+      else saved(`Target “${updated.name}” updated.`);
+      done?.();
+    };
+    // A changed phase is its own dated change with the phase-line question.
+    const owner = [...data.programs, ...orgPrograms].find(program => program.id === target.programId);
+    if (values.phase && values.phase !== target.phase) requestPhaseChange(owner, target, values.phase, { commit: save });
+    else save();
+  }
+  // Add to Organization: the library gets a copy, and anything written for the learner is cleared.
+  function copyToOrganization(selected) {
+    const made = apiService.copyToOrganization(selected.map(program => program.id), { asOf: SEED_AS_OF_DATE });
+    if (!made.length) { notify('Nothing was added to the organization library.', 'error'); return []; }
+    const cleared = made.some(entry => entry.cleared.length);
+    saved(`${made.length === 1 ? `“${made[0].program.name}” was` : `${made.length} programs were`} added to the organization library${cleared ? '. Client-specific text was cleared from the copy' : ''}.`);
+    return made;
+  }
+  // Add to Client: each chosen client gets its own copy.
+  function copyToClients(selected, clientIds) {
+    const made = apiService.copyToClients(selected.map(program => program.id), clientIds, { asOf: SEED_AS_OF_DATE });
+    if (!made.length) { notify('Nothing was added to a client.', 'error'); return []; }
+    saved(`${made.length} ${made.length === 1 ? 'copy' : 'copies'} added to ${clientIds.length} ${clientIds.length === 1 ? 'client' : 'clients'}. Each starts in Pending.`);
+    return made;
+  }
+  function reorderTargets(program, ids) {
+    if (apiService.reorderTargets(program.id, ids)) saved('Target order saved.');
+  }
+  function resetTargetOrder(program) {
+    if (apiService.resetTargetOrder(program.id)) saved('Target order restored to the default.');
+  }
+  // Edit several targets together. The phase, when chosen, is one question for all of them.
+  function bulkEditTargets(program, targets, values) {
+    const ids = targets.map(target => target.id);
+    const { phase, ...fields } = values;
+    const apply = plotLine => {
+      if (Object.keys(fields).length) apiService.updateTargets(program.id, ids, fields);
+      if (phase) apiService.changeTargetPhases(program.id, ids, phase, { plotLine, asOf: SEED_AS_OF_DATE });
+      saved(`${ids.length} ${ids.length === 1 ? 'target' : 'targets'} updated${phase && plotLine ? ' and phase lines were plotted' : ''}.`);
+    };
+    if (phase && program.scope !== 'organization') setPhasePrompt({ subject: `${ids.length} targets of “${program.name}” to ${phase}`, apply });
+    else apply(false);
   }
   function deleteTargets(program, ids) {
     const removed = apiService.deleteTargets(program.id, ids);
@@ -387,6 +431,15 @@ export default function App() {
     saved(`Lesson note “${updated.title}” is now ${status}.`);
     return updated;
   }
+  function addTargetsToNote(note, targetIds) {
+    const added = apiService.addTargetsToLessonNote(note.id, targetIds);
+    if (!added.length) { notify('Nothing was added to this lesson note.', 'error'); return []; }
+    saved(`${added.length} ${added.length === 1 ? 'target' : 'targets'} added to “${note.title}”.`);
+    return added;
+  }
+  function removeAbcFromNote(note, entry) {
+    if (apiService.removeAbcFromLessonNote(note.id, entry.id)) saved('ABC observation removed. The removal is written to the history.');
+  }
   function signLessonNote(note, values) {
     const signature = apiService.signLessonNote(note.id, values);
     if (!signature) { notify('The signature could not be added.', 'error'); return null; }
@@ -394,7 +447,8 @@ export default function App() {
     return signature;
   }
   function recordAbcNote(note, values) {
-    const entry = apiService.recordAbcIntoLessonNote(note.id, { ...values, therapist: currentClient?.supervisingBcba || '' });
+    const { time, ...parts } = values;
+    const entry = apiService.recordAbcIntoLessonNote(note.id, { ...parts, timestamp: time ? `${note.date}T${time}:00` : null, therapist: currentClient?.supervisingBcba || '' });
     if (!entry) { notify('The ABC observation could not be saved.', 'error'); return null; }
     saved('ABC observation saved in this lesson note. It is in the ABC analytics now.');
     return entry;
@@ -507,49 +561,42 @@ export default function App() {
     const program = data.programs.find(item => item.id === programId);
     if (program) requestStatusChange(program, status, options.reason || '');
   }
-  function requestStatusChange(program, status) {
+  // `commit` carries the rest of an edit form, so a cancelled question saves nothing at all.
+  // A library program has no learner data and no charts, so it changes without the question.
+  function requestStatusChange(program, status, { commit } = {}) {
     if (!program || status === program.status) return;
-    setPhasePrompt({
-      subject: `program “${program.name}” to ${status}`, withReason: true,
-      apply: (plotLine, reason) => {
-        apiService.applyProgramStatus(program.id, status, { reason, asOf: SEED_AS_OF_DATE, plotLine });
-        saved(`Program status updated to ${status}${plotLine ? ' and a phase line was plotted' : ''}.`);
-      }
-    });
-  }
-  // Learning material is saved in this browser, and the message says exactly that.
-  function addMaterial(program, file) {
-    const result = apiService.addLearningMaterial(program.id, file);
-    if (result.ok) saved(apiService.storageError ? 'Attached for this session only. Your browser couldn’t save changes.' : `“${result.material.fileName}” saved in this browser and attached to “${program.name}”.`);
-    return result;
-  }
-  function removeMaterial(program, fileName) {
-    if (apiService.removeLearningMaterial(program.id, fileName)) saved(`“${fileName}” removed from “${program.name}”.`);
+    const apply = (plotLine, reason) => {
+      commit?.();
+      apiService.applyProgramStatus(program.id, status, { reason, asOf: SEED_AS_OF_DATE, plotLine });
+      saved(`Program status updated to ${status}${plotLine ? ' and a phase line was plotted' : ''}.`);
+    };
+    if (program.scope === 'organization') { apply(false, ''); return; }
+    setPhasePrompt({ subject: `program “${program.name}” to ${status}`, withReason: true, apply });
   }
   // From a chart back to the plan: the Programs workspace opens on that program.
   function openInPrograms(program) {
     setProgramFocus({ programId: program.id, nonce: Date.now() });
     activateWorkflow('programs', { scrollToTop: false });
   }
-  function requestBehaviorPhaseChange(program, phase) {
+  function requestBehaviorPhaseChange(program, phase, { commit } = {}) {
     if (!program || phase === behaviorPhaseOf(program)) return;
-    setPhasePrompt({
-      subject: `behavior “${program.name}” to ${phase}`, withReason: true,
-      apply: (plotLine, reason) => {
-        apiService.changeBehaviorPhase(program.id, phase, { plotLine, reason, asOf: SEED_AS_OF_DATE });
-        saved(`Behavior “${program.name}” moved to ${phase}${plotLine ? ' and a phase line was plotted' : ''}.`);
-      }
-    });
+    const apply = (plotLine, reason) => {
+      commit?.();
+      apiService.changeBehaviorPhase(program.id, phase, { plotLine, reason, asOf: SEED_AS_OF_DATE });
+      saved(`Behavior “${program.name}” moved to ${phase}${plotLine ? ' and a phase line was plotted' : ''}.`);
+    };
+    if (program.scope === 'organization') { apply(false, ''); return; }
+    setPhasePrompt({ subject: `behavior “${program.name}” to ${phase}`, withReason: true, apply });
   }
-  function requestPhaseChange(program, target, phase) {
+  function requestPhaseChange(program, target, phase, { commit } = {}) {
     if (!target || phase === target.phase) return;
-    setPhasePrompt({
-      subject: `target “${target.name}” to ${phase}`,
-      apply: plotLine => {
-        apiService.changeTargetPhase(target.id, phase, { plotLine, asOf: SEED_AS_OF_DATE });
-        saved(`Target “${target.name}” moved to ${phase}${plotLine ? ' and a phase line was plotted' : ''}.`);
-      }
-    });
+    const apply = plotLine => {
+      commit?.();
+      apiService.changeTargetPhase(target.id, phase, { plotLine, asOf: SEED_AS_OF_DATE });
+      saved(`Target “${target.name}” moved to ${phase}${plotLine ? ' and a phase line was plotted' : ''}.`);
+    };
+    if (program?.scope === 'organization') { apply(false); return; }
+    setPhasePrompt({ subject: `target “${target.name}” to ${phase}`, apply });
   }
   function openRecorder(target = null) {
     setRecordTargetId(target?.id || '');
@@ -703,9 +750,11 @@ export default function App() {
             </WorkflowPanel>}
             {workflowVisible('programs') && <WorkflowPanel id="programs" active={activeSection === 'programs'}>
               <Suspense fallback={<AnalyticsSkeleton />}>
-                <ProgramManagement key={`${selectedClientId}-${programFocus?.nonce || 0}`} client={currentClient} programs={programs}
+                <ProgramManagement key={`${selectedClientId}-${programFocus?.nonce || 0}`} client={currentClient} clients={clients} programs={programs}
+                  orgPrograms={orgPrograms} publicPrograms={PUBLIC_PROGRAMS}
                   initialProgramId={programFocus?.programId || null} onOpenTarget={(program, target) => openTargetFocus({ program, target })}
-                  onAddMaterial={addMaterial} onRemoveMaterial={removeMaterial}
+                  onCopyToOrganization={copyToOrganization} onCopyToClients={copyToClients}
+                  onReorderTargets={reorderTargets} onResetTargetOrder={resetTargetOrder} onBulkEditTargets={bulkEditTargets}
                   lessons={apiService.getLessons(selectedClientId)} abcEntries={abcEntries}
                   abcConfiguration={apiService.getAbcConfiguration(selectedClientId)}
                   canEdit={canEdit} viewOnlyReason={viewOnlyReason}
@@ -722,6 +771,7 @@ export default function App() {
                   lessonNotes={apiService.getLessonNotes(selectedClientId)} observations={clientSessions}
                   onCreateNote={createLessonNote} onUpdateNote={updateLessonNote} onNoteStatus={setNoteStatus}
                   onSignNote={signLessonNote} onRecordNote={setNoteRecording} onRecordAbcNote={recordAbcNote}
+                  onAddNoteTargets={addTargetsToNote} onRemoveNoteAbc={removeAbcFromNote}
                   activity={data.activity || []} asOf={SEED_AS_OF_DATE} />
               </Suspense>
             </WorkflowPanel>}

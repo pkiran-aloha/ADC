@@ -16,8 +16,9 @@ import {
 import { applyObservationEdit, deletionAudit } from '../utils/observations.js';
 import { isValidDate } from '../utils/formValidation.js';
 import {
-  BEHAVIOR_PHASES, BEHAVIOR_TOOLS, CASCADING_STATUSES, LESSON_NOTE_STATUSES, PHASE_LABELS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS, SIGNATURE_ROLES, TARGET_PHASES, isLessonNoteEditable, toValueList, validateMaterial
+  BEHAVIOR_PHASES, BEHAVIOR_TOOLS, CASCADING_STATUSES, LESSON_NOTE_STATUSES, PHASE_LABELS, PROGRAM_CATEGORIES, PROGRAM_STATUSES, PROGRAM_STATUS_LABELS, SIGNATURE_ROLES, TARGET_PHASES, isLessonNoteEditable, prepareCopy, toValueList, validateMaterial
 } from '../utils/programManagement.js';
+import { PUBLIC_PROGRAMS } from '../data/publicLibrary.js';
 
 const ABC_LIST_KEYS = ['antecedents', 'behaviors', 'consequences', 'locations'];
 const MASTERED_PHASES = ['Maintenance', 'Generalization', 'Completed'];
@@ -44,6 +45,7 @@ const STORAGE_KEYS = {
   LESSONS: 'welina_lessons',
   ABC_CONFIGS: 'welina_abc_configurations',
   LESSON_NOTES: 'welina_lesson_notes',
+  ORG_PROGRAMS: 'welina_org_programs',
   SEED_VERSION: 'welina_seed_version'
 };
 
@@ -93,6 +95,9 @@ class AnalyticsService {
     this.lessons = getStored(STORAGE_KEYS.LESSONS, []);
     // A lesson note is one dated run of a lesson: what was planned, what was recorded, who signed.
     this.lessonNotes = getStored(STORAGE_KEYS.LESSON_NOTES, []);
+    // The organization library: programs and behaviors shared across clients. It is kept apart
+    // from client programs, so a library entry never reaches a client's analytics.
+    this.orgPrograms = getStored(STORAGE_KEYS.ORG_PROGRAMS, []);
     // The ABC vocabulary is editable configuration, one record per client.
     this.abcConfigurations = getStored(STORAGE_KEYS.ABC_CONFIGS, null) || cloneSeed(INITIAL_ABC_CONFIGURATIONS);
     this.serviceSessions = SERVICE_SESSIONS;
@@ -118,6 +123,7 @@ class AnalyticsService {
       lessons: [...(this.lessons || [])],
       abcConfigurations: [...(this.abcConfigurations || [])],
       lessonNotes: [...(this.lessonNotes || [])],
+      orgPrograms: [...(this.orgPrograms || [])],
       storageError: Boolean(this.storageError)
     };
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
@@ -141,9 +147,12 @@ class AnalyticsService {
       [STORAGE_KEYS.LESSONS]: this.lessons || [],
       [STORAGE_KEYS.ABC_CONFIGS]: this.abcConfigurations,
       [STORAGE_KEYS.LESSON_NOTES]: this.lessonNotes || [],
+      [STORAGE_KEYS.ORG_PROGRAMS]: this.orgPrograms || [],
       [STORAGE_KEYS.SEED_VERSION]: SEED_VERSION
     };
     this.failedKeys = this.failedKeys || new Set();
+    // A program edit may be on a client program or a library program; saving both is cheap.
+    if (keys && keys.includes(STORAGE_KEYS.PROGRAMS) && !keys.includes(STORAGE_KEYS.ORG_PROGRAMS)) keys = [...keys, STORAGE_KEYS.ORG_PROGRAMS];
     for (const key of keys ? [...keys, ...this.failedKeys] : Object.keys(values)) {
       if (setStored(key, values[key])) this.failedKeys.delete(key);
       else this.failedKeys.add(key);
@@ -169,6 +178,7 @@ class AnalyticsService {
     this.activity = [];
     this.lessons = [];
     this.lessonNotes = [];
+    this.orgPrograms = [];
     this.abcConfigurations = cloneSeed(INITIAL_ABC_CONFIGURATIONS);
     this.saveAll();
   }
@@ -463,16 +473,7 @@ class AnalyticsService {
   }
 
   applyTargetPhase({ targetId, newPhase, addPhaseLine, phaseLineLabel, phaseDate }) {
-    let target = null;
-
-    for (const p of this.programs) {
-      const t = p.targets.find(x => x.id === targetId);
-      if (t) {
-        target = t;
-        break;
-      }
-    }
-
+    const target = this.findTarget(targetId);
     if (!target) return null;
 
     target.phase = newPhase;
@@ -596,8 +597,23 @@ class AnalyticsService {
   // Programs are defined here, not only analysed. Every change is one user action, one
   // state change, written to the browser and recorded in the activity log.
 
+  // A program lives in a client's list or in the organization library. Public programs are
+  // fixed and are only ever copied from.
   findProgram(programId) {
-    return this.programs.find(item => item.id === programId) || null;
+    return this.programs.find(item => item.id === programId)
+      || (this.orgPrograms || []).find(item => item.id === programId) || null;
+  }
+
+  // The two libraries, in the same shape as a client's listing.
+  listLibrary(scope, { category = null, includeArchived = false } = {}) {
+    const pool = scope === 'public' ? PUBLIC_PROGRAMS : (this.orgPrograms || []);
+    return pool
+      .filter(program => (category ? program.category === category : true))
+      .filter(program => (includeArchived ? true : !program.archivedAt));
+  }
+
+  #nextId(prefix) {
+    return `${prefix}-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`;
   }
 
   // A program as the listing shows it: archived programs are kept out of the working
@@ -611,15 +627,16 @@ class AnalyticsService {
 
   // Create a program. The new program starts active, in client scope, and with the
   // fields the platform's form collects.
-  createProgram({ clientId, name, category = PROGRAM_CATEGORIES.SKILL, status = 'Pending', ...fields } = {}) {
-    if (!clientId || !String(name || '').trim()) return null;
+  createProgram({ clientId, name, category = PROGRAM_CATEGORIES.SKILL, status = 'Pending', scope = 'client', ...fields } = {}) {
+    const library = scope === 'organization';
+    if ((!library && !clientId) || !String(name || '').trim()) return null;
     const program = {
-      id: `prog-${Date.now()}-${(this.sequence = (this.sequence || 0) + 1)}`,
-      clientId,
+      id: this.#nextId(library ? 'org' : 'prog'),
+      clientId: library ? null : clientId,
       name: String(name).trim(),
       category,
       status,
-      scope: 'client',
+      scope: library ? 'organization' : 'client',
       domain: fields.domain || '',
       treatmentArea: toValueList(fields.treatmentArea),
       tags: toValueList(fields.tags),
@@ -637,8 +654,8 @@ class AnalyticsService {
       program.behaviorPhase = fields.behaviorPhase || 'Open';
       program.operationalDefinition = fields.operationalDefinition || '';
     }
-    this.programs.push(program);
-    this.recordActivity('program.created', 'program', program.id, `Created program “${program.name}”.`);
+    (library ? this.orgPrograms : this.programs).push(program);
+    this.recordActivity('program.created', 'program', program.id, `Created ${library ? 'library ' : ''}program “${program.name}”.`);
     this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
     return program;
   }
@@ -680,13 +697,14 @@ class AnalyticsService {
     return program;
   }
 
-  // Edit a program. The scope and the client's identity never change.
+  // Edit a program. The scope and the client's identity never change, and neither do the
+  // status and the behavior phase: those move through their own actions, which cascade to the
+  // targets, write the history and offer the phase line.
   updateProgram(programId, patch = {}) {
     const program = this.findProgram(programId);
     if (!program) return null;
-    const allowed = ['name', 'status', 'domain', 'treatmentArea', 'tags', 'baseline', 'programObjective',
-      'teachingInstructions', 'description', 'learningMaterials', 'customFields', 'behaviorPhase',
-      'operationalDefinition', 'scope'];
+    const allowed = ['name', 'domain', 'treatmentArea', 'tags', 'baseline', 'programObjective',
+      'teachingInstructions', 'description', 'learningMaterials', 'customFields', 'operationalDefinition'];
     allowed.forEach(key => {
       if (key in patch) program[key] = patch[key];
     });
@@ -723,35 +741,123 @@ class AnalyticsService {
   }
 
   // A duplicate starts again: new identities, no observations, no phase history.
+  // The copy stays in the source's own list: a client program duplicates within the client, a
+  // library program within the library. The definition (targets, measurement, mastery rule)
+  // is kept; the progress is not.
   duplicateProgram(programId, { clientId = null, asOf = null } = {}) {
     const source = this.findProgram(programId);
     if (!source) return null;
-    const stamp = Date.now();
-    const copy = {
-      ...JSON.parse(JSON.stringify(source)),
-      id: `prog-${stamp}-${(this.sequence = (this.sequence || 0) + 1)}`,
-      clientId: clientId || source.clientId,
-      name: `${source.name} (copy)`,
-      status: 'Pending',
-      behaviorPhase: source.category === PROGRAM_CATEGORIES.BEHAVIOR ? 'Open' : undefined,
-      behaviorPhaseHistory: undefined,
-      archivedAt: null,
-      archiveReason: undefined,
-      targets: (source.targets || []).map((target, index) => ({
-        ...JSON.parse(JSON.stringify(target)),
-        id: `tgt-${stamp}-${index}-${(this.sequence = (this.sequence || 0) + 1)}`,
-        phase: 'Pending',
-        phaseEnteredDate: asOf || SEED_AS_OF_DATE,
-        phaseHistory: [],
-        masteryRule: undefined,
-        manualMastery: undefined
-      }))
-    };
-    copy.targets = copy.targets.map(target => ({ ...target, programId: copy.id }));
-    this.programs.push(copy);
+    const library = source.scope === 'organization';
+    const { copy } = prepareCopy(source, {
+      scope: library ? 'organization' : 'client', clientId: library ? null : (clientId || source.clientId),
+      asOf: asOf || SEED_AS_OF_DATE, makeId: prefix => this.#nextId(prefix), name: `${source.name} (copy)`
+    });
+    (library ? this.orgPrograms : this.programs).push(copy);
     this.recordActivity('program.duplicated', 'program', copy.id, `Duplicated program “${source.name}”.`);
     this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
     return copy;
+  }
+
+  // Add to Organization: copies programs or behaviors from a client, or from the public
+  // library, into the organization library. Moving out of a client clears the text written
+  // for that learner, warns beforehand in the interface, and leaves an audit entry saying
+  // exactly what was cleared. The source is never changed.
+  copyToOrganization(programIds = [], { asOf = null } = {}) {
+    const date = asOf || SEED_AS_OF_DATE;
+    const made = [];
+    for (const id of [...new Set(programIds)]) {
+      const source = this.findProgram(id) || PUBLIC_PROGRAMS.find(program => program.id === id);
+      if (!source || source.scope === 'organization') continue;
+      const fromClient = source.scope !== 'public';
+      const { copy, cleared } = prepareCopy(source, {
+        scope: 'organization', wipe: fromClient, asOf: date, makeId: prefix => this.#nextId(prefix)
+      });
+      this.orgPrograms.push(copy);
+      this.recordActivity('program.copied', 'program', copy.id, `Added “${copy.name}” to the organization library.`);
+      if (fromClient) {
+        this.recordActivity('program.wipeout', 'program', copy.id, cleared.length
+          ? `Cleared ${cleared.join(', ')} from “${copy.name}” so client-specific text is not shared.`
+          : `Checked “${copy.name}” for client-specific text. None was present to clear.`);
+      }
+      made.push({ program: copy, cleared });
+    }
+    if (made.length) this.saveAll([STORAGE_KEYS.ORG_PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return made;
+  }
+
+  // Add to Client: a copy lands in each chosen client's own list. Nothing is cleared when
+  // moving from the organization or public library into a client.
+  copyToClients(programIds = [], clientIds = [], { asOf = null } = {}) {
+    const date = asOf || SEED_AS_OF_DATE;
+    const known = new Set(this.clients.map(client => client.id));
+    const made = [];
+    for (const clientId of [...new Set(clientIds)].filter(id => known.has(id))) {
+      for (const id of [...new Set(programIds)]) {
+        const source = this.findProgram(id) || PUBLIC_PROGRAMS.find(program => program.id === id);
+        if (!source || source.scope === 'client') continue;
+        const { copy } = prepareCopy(source, { scope: 'client', clientId, asOf: date, makeId: prefix => this.#nextId(prefix) });
+        this.programs.push(copy);
+        this.recordActivity('program.copied', 'program', copy.id, `Added “${copy.name}” to ${this.getClient(clientId)?.name || 'a client'} from the ${source.scope === 'public' ? 'public' : 'organization'} library.`);
+        made.push(copy);
+      }
+    }
+    if (made.length) this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return made;
+  }
+
+  // Order the targets by hand. Only targets the program holds are kept; any target left out
+  // of the list joins the end, so an order can never lose a target.
+  reorderTargets(programId, orderedIds = []) {
+    const program = this.findProgram(programId);
+    if (!program) return null;
+    const have = new Set((program.targets || []).map(target => target.id));
+    const listed = [...new Set(orderedIds)].filter(id => have.has(id));
+    program.targetOrder = [...listed, ...(program.targets || []).map(target => target.id).filter(id => !listed.includes(id))];
+    this.recordActivity('program.reordered', 'program', program.id, `Reordered the targets of “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  resetTargetOrder(programId) {
+    const program = this.findProgram(programId);
+    if (!program || !program.targetOrder) return null;
+    delete program.targetOrder;
+    this.recordActivity('program.reordered', 'program', program.id, `Restored the default target order of “${program.name}”.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return program;
+  }
+
+  // Edit several targets together. Only the fields the clinician filled in change, and the
+  // whole edit is one entry in the history.
+  updateTargets(programId, targetIds = [], patch = {}) {
+    const program = this.findProgram(programId);
+    if (!program) return [];
+    const wanted = new Set(targetIds);
+    const targets = (program.targets || []).filter(target => wanted.has(target.id));
+    const keys = ['discriminativeStimuli', 'targetInstructions'].filter(key => key in patch);
+    if (!targets.length || !keys.length) return [];
+    targets.forEach(target => keys.forEach(key => { target[key] = patch[key]; }));
+    this.recordActivity('target.updated', 'program', program.id, `Updated ${targets.length} target${targets.length === 1 ? '' : 's'} of “${program.name}” together.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
+    return targets;
+  }
+
+  // One phase for several targets: one action, one history entry, and one phase line per
+  // target when the clinician chose to plot it.
+  changeTargetPhases(programId, targetIds = [], newPhase, { plotLine = false, asOf = null } = {}) {
+    const program = this.findProgram(programId);
+    if (!program || !TARGET_PHASES.includes(newPhase)) return [];
+    const wanted = new Set(targetIds);
+    const targets = (program.targets || []).filter(target => wanted.has(target.id) && target.phase !== newPhase);
+    if (!targets.length) return [];
+    const date = asOf || SEED_AS_OF_DATE;
+    targets.forEach(target => this.applyTargetPhase({
+      targetId: target.id, newPhase, addPhaseLine: plotLine && program.scope !== 'organization', phaseDate: date,
+      phaseLineLabel: `${PHASE_LABELS[newPhase] || newPhase} starts`
+    }));
+    this.recordActivity('target.phase', 'program', program.id, `Moved ${targets.length} target${targets.length === 1 ? '' : 's'} of “${program.name}” to ${PHASE_LABELS[newPhase] || newPhase}.`);
+    this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.PHASE_LINES, STORAGE_KEYS.ACTIVITY]);
+    return targets;
   }
 
   // The platform's cascade: a program that is pending, completed, on hold or
@@ -856,6 +962,7 @@ class AnalyticsService {
     const removed = (program.targets || []).filter(target => wanted.has(target.id));
     if (!removed.length) return [];
     program.targets = program.targets.filter(target => !wanted.has(target.id));
+    if (program.targetOrder) program.targetOrder = program.targetOrder.filter(id => !wanted.has(id));
     removed.forEach(target => this.recordActivity('target.deleted', 'target', target.id, `Deleted target “${target.name}” from “${program.name}”.`));
     this.saveAll([STORAGE_KEYS.PROGRAMS, STORAGE_KEYS.ACTIVITY]);
     return removed;
@@ -888,7 +995,7 @@ class AnalyticsService {
   }
 
   findTarget(targetId) {
-    for (const program of this.programs) {
+    for (const program of [...this.programs, ...(this.orgPrograms || [])]) {
       const target = (program.targets || []).find(item => item.id === targetId);
       if (target) return target;
     }
@@ -956,6 +1063,36 @@ class AnalyticsService {
     this.recordActivity('note.status', 'note', note.id, `Lesson note “${note.title}” is now ${status}.`);
     this.saveAll([STORAGE_KEYS.LESSON_NOTES, STORAGE_KEYS.ACTIVITY]);
     return note;
+  }
+
+  // Add skill programs or behaviors, and the targets to run, to a note that can still change.
+  // Only targets of the client's active programs are accepted; each target brings its program
+  // along, and nothing is planned twice.
+  addTargetsToLessonNote(noteId, targetIds = []) {
+    const note = this.#editableNote(noteId);
+    if (!note) return [];
+    const wanted = new Set(targetIds);
+    const owners = this.programs.filter(program => program.clientId === note.clientId && !program.archivedAt
+      && (program.targets || []).some(target => wanted.has(target.id) && !note.targetIds.includes(target.id)));
+    const added = owners.flatMap(program => program.targets.filter(target => wanted.has(target.id) && !note.targetIds.includes(target.id)));
+    if (!added.length) return [];
+    note.targetIds = [...note.targetIds, ...added.map(target => target.id)];
+    note.programIds = [...new Set([...note.programIds, ...owners.map(program => program.id)])];
+    this.recordActivity('note.planned', 'note', note.id, `Added ${added.length} target${added.length === 1 ? '' : 's'} to lesson note “${note.title}”.`);
+    this.saveAll([STORAGE_KEYS.LESSON_NOTES, STORAGE_KEYS.ACTIVITY]);
+    return added;
+  }
+
+  // An ABC observation recorded into a note can be removed while the note can still change.
+  // The removal is written to the history, so it is never silent.
+  removeAbcFromLessonNote(noteId, entryId) {
+    const note = this.#editableNote(noteId);
+    const entry = this.abcEntries.find(item => item.id === entryId && item.lessonNoteId === noteId);
+    if (!note || !entry) return null;
+    this.abcEntries = this.abcEntries.filter(item => item.id !== entryId);
+    this.recordActivity('note.abc.removed', 'note', note.id, `Removed an ABC observation from lesson note “${note.title}”.`);
+    this.saveAll([STORAGE_KEYS.ABC_ENTRIES, STORAGE_KEYS.ACTIVITY]);
+    return entry;
   }
 
   signLessonNote(noteId, { signedBy, role } = {}) {

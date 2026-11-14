@@ -2312,7 +2312,7 @@
       "category": "BehaviorReduction",
       "status": "Teaching",
       "domain": "Behavior Reduction",
-      "programObjective": "Count vocalizations above conversational volume that interrupt instruction.",
+      "programObjective": "Reduce vocal disruption / screaming until the mastery criterion is met: fewer than 2 per session for 4 sessions.",
       "teachingInstructions": "Offer a functional break request before demands; count each episode separated by 10 seconds of quiet.",
       "description": "Count vocalizations above conversational volume that interrupt instruction.",
       "targets": [
@@ -2354,7 +2354,8 @@
         "Frequency",
         "Escape"
       ],
-      "baseline": "3.4 episodes per hour during the April descriptive assessment"
+      "baseline": "3.4 episodes per hour during the April descriptive assessment",
+      "operationalDefinition": "Count vocalizations above conversational volume that interrupt instruction."
     },
     {
       "id": "prog-br-elopement",
@@ -2363,7 +2364,7 @@
       "category": "BehaviorReduction",
       "status": "Maintaining",
       "domain": "Behavior Reduction",
-      "programObjective": "Time movement beyond five feet from the assigned area without permission.",
+      "programObjective": "Reduce elopement / leaving area until the mastery criterion is met: under 30 seconds per session.",
       "teachingInstructions": "Maintain line of sight; start timer on departure, stop on return, and teach asking for a break.",
       "description": "Time movement beyond five feet from the assigned area without permission.",
       "targets": [
@@ -2409,7 +2410,8 @@
         "Duration",
         "Escape"
       ],
-      "baseline": "About 240 seconds per session in April"
+      "baseline": "About 240 seconds per session in April",
+      "operationalDefinition": "Time movement beyond five feet from the assigned area without permission."
     },
     {
       "id": "prog-br-property",
@@ -2418,7 +2420,7 @@
       "category": "BehaviorReduction",
       "status": "Teaching",
       "domain": "Behavior Reduction",
-      "programObjective": "Record intervals in which materials are thrown or swept off the table.",
+      "programObjective": "Reduce property disruption until the mastery criterion is met: at most 1 of 12 intervals for 4 sessions.",
       "teachingInstructions": "Use partial-interval recording and offer a short choice before the demand.",
       "description": "Record intervals in which materials are thrown or swept off the table.",
       "targets": [
@@ -2466,7 +2468,8 @@
         "IntervalData",
         "Escape"
       ],
-      "baseline": "7 of 12 intervals"
+      "baseline": "7 of 12 intervals",
+      "operationalDefinition": "Record intervals in which materials are thrown or swept off the table."
     },
     {
       "id": "prog-br-refusal",
@@ -2475,7 +2478,7 @@
       "category": "BehaviorReduction",
       "status": "Teaching",
       "domain": "Behavior Reduction",
-      "programObjective": "Count verbal refusal or pushing work away, separated by 10 seconds of participation.",
+      "programObjective": "Reduce task refusal until the mastery criterion is met: at most 1 per session.",
       "teachingInstructions": "Offer a choice of task order, prompt a break request, and return to instruction after the break.",
       "description": "Count verbal refusal or pushing work away, separated by 10 seconds of participation.",
       "targets": [
@@ -2517,7 +2520,8 @@
         "Frequency",
         "Escape"
       ],
-      "baseline": "8 episodes per session"
+      "baseline": "8 episodes per session",
+      "operationalDefinition": "Count verbal refusal or pushing work away, separated by 10 seconds of participation."
     },
     {
       "id": "prog-br-drop",
@@ -2526,7 +2530,7 @@
       "category": "BehaviorReduction",
       "status": "Teaching",
       "domain": "Behavior Reduction",
-      "programObjective": "Time lying on the floor instead of walking with the group.",
+      "programObjective": "Reduce drop to floor until the mastery criterion is met: under 20 seconds per session.",
       "teachingInstructions": "Present a first/then card; stop timing after client stands and resumes walking.",
       "description": "Time lying on the floor instead of walking with the group.",
       "targets": [
@@ -2567,7 +2571,8 @@
         "Behavior reduction",
         "Duration",
         "Escape"
-      ]
+      ],
+      "operationalDefinition": "Time lying on the floor instead of walking with the group."
     },
     {
       "id": "prog-br-disruptive",
@@ -2576,7 +2581,7 @@
       "category": "BehaviorReduction",
       "status": "Teaching",
       "domain": "Behavior Reduction",
-      "programObjective": "Count whole intervals containing disruptive vocalizations.",
+      "programObjective": "Reduce disruptive vocalizations until the mastery criterion is met: at most 1 of 15 intervals.",
       "teachingInstructions": "Reinforce quiet participation at each 20-second interval boundary.",
       "description": "Count whole intervals containing disruptive vocalizations.",
       "targets": [
@@ -2623,7 +2628,8 @@
         "Behavior reduction",
         "IntervalData",
         "Attention"
-      ]
+      ],
+      "operationalDefinition": "Count whole intervals containing disruptive vocalizations."
     },
     {
       "id": "prog-br-bolting",
@@ -2632,7 +2638,7 @@
       "category": "BehaviorReduction",
       "status": "Generalizing",
       "domain": "Behavior Reduction",
-      "programObjective": "Count each departure beyond the visual boundary without permission.",
+      "programObjective": "Reduce bolting from group until the mastery criterion is met: 0 for 5 sessions.",
       "teachingInstructions": "Use a visual boundary, rehearse staying near the adult, and count new departures after return.",
       "description": "Count each departure beyond the visual boundary without permission.",
       "targets": [
@@ -2677,7 +2683,8 @@
         "Behavior reduction",
         "Frequency",
         "Tangible"
-      ]
+      ],
+      "operationalDefinition": "Count each departure beyond the visual boundary without permission."
     },
     {
       "id": "prog-br-hand-biting",
@@ -2686,7 +2693,7 @@
       "category": "BehaviorReduction",
       "status": "Teaching",
       "domain": "Behavior Reduction",
-      "programObjective": "Time contact of teeth with hand; stop timing when contact ceases.",
+      "programObjective": "Reduce hand biting until the mastery criterion is met: under 15 seconds per session.",
       "teachingInstructions": "Offer a sensory alternative and document total seconds per session.",
       "description": "Time contact of teeth with hand; stop timing when contact ceases.",
       "targets": [
@@ -2727,7 +2734,8 @@
         "Behavior reduction",
         "Duration",
         "Automatic"
-      ]
+      ],
+      "operationalDefinition": "Time contact of teeth with hand; stop timing when contact ceases."
     },
     {
       "id": "prog-br-repetitive",
@@ -2736,7 +2744,7 @@
       "category": "BehaviorReduction",
       "status": "Maintaining",
       "domain": "Behavior Reduction",
-      "programObjective": "Mark whether repeated vocalizations occur at each observation instant.",
+      "programObjective": "Reduce repetitive vocalizations until the mastery criterion is met: at most 2 of 10 checks.",
       "teachingInstructions": "Use momentary time sampling; reinforce participation after quiet checks.",
       "description": "Mark whether repeated vocalizations occur at each observation instant.",
       "targets": [
@@ -2787,7 +2795,8 @@
         "Behavior reduction",
         "IntervalData",
         "Automatic"
-      ]
+      ],
+      "operationalDefinition": "Mark whether repeated vocalizations occur at each observation instant."
     },
     {
       "id": "prog-br-isla-aggression",
@@ -2796,7 +2805,7 @@
       "category": "BehaviorReduction",
       "status": "Teaching",
       "domain": "Behavior Reduction",
-      "programObjective": "Count each open- or closed-hand strike toward another person.",
+      "programObjective": "Reduce aggression (hitting) until the mastery criterion is met: zero or one per session for 5 sessions.",
       "teachingInstructions": "Teach a mand for the item (FCT), provide noncontingent access between demands, and block attempts.",
       "description": "Count each open- or closed-hand strike toward another person.",
       "targets": [
@@ -2837,7 +2846,8 @@
         "Behavior reduction",
         "Frequency",
         "Tangible"
-      ]
+      ],
+      "operationalDefinition": "Count each open- or closed-hand strike toward another person."
     },
     {
       "id": "prog-br-isla-tantrum",
@@ -2846,7 +2856,7 @@
       "category": "BehaviorReduction",
       "status": "Maintaining",
       "domain": "Behavior Reduction",
-      "programObjective": "Time crying with flopping or kicking lasting more than 5 seconds.",
+      "programObjective": "Reduce tantrum until the mastery criterion is met: under 60 seconds per session.",
       "teachingInstructions": "Give two-minute transition warnings, prompt a break request and keep the demand in place.",
       "description": "Time crying with flopping or kicking lasting more than 5 seconds.",
       "targets": [
@@ -2891,7 +2901,8 @@
         "Behavior reduction",
         "Duration",
         "Escape"
-      ]
+      ],
+      "operationalDefinition": "Time crying with flopping or kicking lasting more than 5 seconds."
     },
     {
       "id": "prog-br-isla-mouthing",
@@ -2900,7 +2911,7 @@
       "category": "BehaviorReduction",
       "status": "Teaching",
       "domain": "Behavior Reduction",
-      "programObjective": "Score any interval in which a non-food object passes the plane of the lips.",
+      "programObjective": "Reduce mouthing objects until the mastery criterion is met: under 20% of intervals for 3 sessions.",
       "teachingInstructions": "Offer matched stimulation (chewy tube), block, and redirect to play.",
       "description": "Score any interval in which a non-food object passes the plane of the lips.",
       "targets": [
@@ -2947,7 +2958,8 @@
         "Behavior reduction",
         "IntervalData",
         "Automatic"
-      ]
+      ],
+      "operationalDefinition": "Score any interval in which a non-food object passes the plane of the lips."
     },
     {
       "id": "prog-br-mateo-verbal",
@@ -2956,7 +2968,7 @@
       "category": "BehaviorReduction",
       "status": "Teaching",
       "domain": "Behavior Reduction",
-      "programObjective": "Count threats, insults or swearing directed at a person, separated by 30 seconds.",
+      "programObjective": "Reduce verbal aggression until the mastery criterion is met: zero per session for 4 sessions.",
       "teachingInstructions": "Reinforce appropriate attention bids (DRA), coach peers to ignore, and use self-monitoring.",
       "description": "Count threats, insults or swearing directed at a person, separated by 30 seconds.",
       "targets": [
@@ -2998,7 +3010,8 @@
         "Frequency",
         "Attention"
       ],
-      "baseline": "About three incidents per school session in April"
+      "baseline": "About three incidents per school session in April",
+      "operationalDefinition": "Count threats, insults or swearing directed at a person, separated by 30 seconds."
     },
     {
       "id": "prog-br-mateo-refusal",
@@ -3007,7 +3020,7 @@
       "category": "BehaviorReduction",
       "status": "Maintaining",
       "domain": "Behavior Reduction",
-      "programObjective": "Time head-down, arms-crossed or verbal refusal until work resumes.",
+      "programObjective": "Reduce work refusal until the mastery criterion is met: under 2 minutes per session.",
       "teachingInstructions": "Chunk tasks, honor a break card, and deliver tokens for starting work.",
       "description": "Time head-down, arms-crossed or verbal refusal until work resumes.",
       "targets": [
@@ -3052,7 +3065,8 @@
         "Behavior reduction",
         "Duration",
         "Escape"
-      ]
+      ],
+      "operationalDefinition": "Time head-down, arms-crossed or verbal refusal until work resumes."
     },
     {
       "id": "prog-br-mateo-perseveration",
@@ -3061,7 +3075,7 @@
       "category": "BehaviorReduction",
       "status": "Teaching",
       "domain": "Behavior Reduction",
-      "programObjective": "Score any interval with more than one sentence about trains or subway maps after a topic change.",
+      "programObjective": "Reduce perseverative talk until the mastery criterion is met: under 15% of intervals for 3 sessions.",
       "teachingInstructions": "Schedule topic time (NCR), redirect to a shared topic, and praise flexible talk.",
       "description": "Score any interval with more than one sentence about trains or subway maps after a topic change.",
       "targets": [
@@ -3107,7 +3121,8 @@
         "Behavior reduction",
         "IntervalData",
         "Attention"
-      ]
+      ],
+      "operationalDefinition": "Score any interval with more than one sentence about trains or subway maps after a topic change."
     }
   ],
   "serviceSessions": [
@@ -8662,5 +8677,5 @@
     {"id":"abc-mateo-0116","clientId":"cli-mateo","timestamp":"2026-10-06T13:12:00","therapist":"Alex Chen, RBT","antecedents":["Preferred topic interrupted","Teacher attention to others"],"behaviors":["Perseverative Talk"],"consequences":["Redirected to shared topic"],"location":"Hallway","notes":"Preferred topic interrupted → perseverative talk. Redirected to shared topic. Brief escalation, then settled after 1 min.","intensity":2,"durationMinutes":1,"serviceSessionId":"ss-mateo-0089"},
     {"id":"abc-mateo-0117","clientId":"cli-mateo","timestamp":"2026-10-13T12:49:00","therapist":"Alex Chen, RBT","antecedents":["Writing task assigned","Preferred topic interrupted"],"behaviors":["Work Refusal"],"consequences":["Break card honored"],"location":"Classroom","notes":"Writing task assigned → work refusal. Break card honored. Calm within 1 min; resumed the activity.","intensity":2,"durationMinutes":1,"serviceSessionId":"ss-mateo-0092"}
   ],
-  "revision": "3c8b5ee51fb6024c"
+  "revision": "98bf48ced0a9ad31"
 }

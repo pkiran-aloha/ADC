@@ -905,6 +905,11 @@ def add_behavior(id, client, name, kind, status, history, stimuli, objective, te
     item["intervention"] = intervention
     add_program(id, client, name, "BehaviorReduction", status, area, objective, teaching, [item],
                 tags=["Behavior reduction", kind, function], baseline=baseline)
+    # The counting instruction is the behavior's operational definition: exactly what is recorded.
+    # The objective says what change is expected, which the mastery criterion already states.
+    program = PROGRAMS[-1]
+    program["operationalDefinition"] = objective
+    program["programObjective"] = f"Reduce {name.lower()} until the mastery criterion is met: {mastery[0].lower()}{mastery[1:]}."
 
 
 add_behavior("prog-br-vocal", "cli-liam", "Vocal Disruption / Screaming", "Frequency", "Teaching",
