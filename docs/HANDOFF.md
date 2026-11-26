@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | **Working repo** | <https://github.com/pkiran-aloha/ADC> (`origin`) |
-| **Organization repo** | <https://alohaaba.ghe.com/aloha/aba-dc-web-app-analytics> (`ghe`), synced after bigger waves |
+| **Organization repo** | <https://alohaaba.ghe.com/aloha/aba-dc-web-app-analytics> (`ghe`), recreated on 26 November 2026; synced after bigger waves |
 | **Live demo** | <https://pkiran-aloha.github.io/ADC/> |
 | **Rules** | [`AGENTS.md`](../AGENTS.md) |
-| **Last updated** | 6 November 2026 |
+| **Last updated** | 26 November 2026 |
 
 ## Where the project is
 
@@ -16,8 +16,10 @@ The Welina Analytics Module is a **fictional** ABA analytics workspace: six work
 
 As of the last update:
 
-- `origin/main` carries the full Program Management module, the UI audit remediation and the dark theme, and then the Program Management UX pass described below. The frontend suite is **274 node:test cases across 16 suites**, a server-render smoke matrix, and **190 Playwright + axe scenarios** (95 each on desktop and mobile; two shards in CI).
-- The GHE mirror is synced by a single tree-only commit (`git commit-tree <origin/main tree> -p ghe/main`), so its history never carries the commits that exist only on `origin`. Follow `Claude outputs/SYNC_ADC_TO_GHE.md`, and only when the maintainer says so.
+- `origin/main` (`e72cd7d`, 14 November 2026) carries the full Program Management module, the UI audit remediation and the dark theme, and then the Program Management UX pass described below. The frontend suite is **274 node:test cases across 16 suites**, a server-render smoke matrix, and **190 Playwright + axe scenarios** (95 each on desktop and mobile; two shards in CI).
+- **The GHE repo was recreated on 26 November 2026.** It is a new repository with one root commit, `f233af2` "Initial import from ADC main (e72cd7d)", whose tree is identical to `origin/main` at `e72cd7d`. None of the earlier GHE history exists there, and neither do its branches (`sync/program-management`, `chore/codeowners-welina-gatekeepers`, `-signed`), its issues (the Program Management issue #1 and tickets #2 to #15) or any pull request. `main` is the only branch. Workflow run #1 ("Deploy Welina Analytics to GitHub Pages") passed on `f233af2`; the individual jobs were not inspected, so whether the Pages deploy step ran is not confirmed.
+- **GHE rules:** an organization ruleset (`ALOHA_All_Branch_Integrity`) applies to every branch: no deletion, no force-push, and **signed commits required**. Commits made from an agent shell cannot be signed (the GPG key `D7BB41F3408C3560` lives on the maintainer's Windows PC), so a GHE sync commit has to be made there.
+- **How to sync now:** one signed tree-only commit on top of the current GHE tip, `git commit-tree -S <origin/main tree> -p ghe/main -m "Sync from ADC main (<sha>)"`, then fast-forward `ghe/main` to it and push. `Claude outputs/SYNC_ADC_TO_GHE.md` still describes the pre-reset history (Route B's `-s ours` merge assumes it) and has a notice to that effect; revise it after the first sync on the new repo. Sync only when the maintainer says so.
 
 ## Shipped
 
@@ -65,6 +67,7 @@ The honest list. Each line is a real gap, not a placeholder.
 2. **Contract tests for the API** if the API is meant to stay a real implementation rather than a reference model.
 3. **Look at the audit backlog** in `UX_AUDIT.md` and `ANALYTICS_LANDING_FINDINGS.md` 8.4 for anything still open.
 4. **Decide the Program Management items that were left out** (below): task analysis, geotagged signatures and a mobile sync need a product decision, not just code.
+5. **Work through the open housekeeping list** above: GHE CODEOWNERS, the two `arena/*` branches, and the untracked source document.
 
 `UX_AUDIT.md` was re-read on 4 November 2026 and has no open remediation rows left; everything in it is marked fixed.
 
@@ -75,14 +78,14 @@ The authoring counterpart to the analytics. A **Programs** workspace defines pro
 | Artifact | Where |
 |---|---|
 | The spec | `docs/specs/program-management.md` |
-| Published issue | [GHE issue #1](https://alohaaba.ghe.com/aloha/aba-dc-web-app-analytics/issues/1), tickets #2 to #15 |
+| Published issue | Was GHE issue #1 with tickets #2 to #15 on the previous GHE repo. The repo was recreated on 26 November 2026 and has no issues; republish from the spec if the tickets are still wanted |
 | The language | `GLOSSARY.md` |
 | The decisions | `docs/adr/0001` to `0006` |
-| The source document | `Program Management.docx` at the repository root (untracked; add it or keep it out of git deliberately) |
+| The source document | `Program Management.docx` at the repository root (untracked; add it or keep it out of git deliberately; still undecided on 26 November 2026) |
 
 **First pass (landed 6 November 2026):** the module end to end, in 14 tickets, but with a thin interface: a drawer form, a flat listing, and the organization and public scopes left out.
 
-**Second pass, the UX pass (6 November 2026):** the module was rebuilt against the source document. What changed:
+**Second pass, the UX pass (landed 14 November 2026 as `e72cd7d`):** the module was rebuilt against the source document. What changed:
 
 - **Scopes.** Client, Organization and Public (ADR 0006). Add to organization copies and clears the learner's text (teaching instructions, objective, baseline, target instructions) after a warning, and writes the clearing to the copy's history. Add to client copies into each chosen client. The organization library lives in its own collection (`welina_org_programs`) so the analytics never read it. The public library is a fixed, fictional set in `frontend/src/data/publicLibrary.js`.
 - **Screens.** A full-page program form with a section list that marks what is missing and a Save that waits for every required field (the behavior form is two steps). A listing with a scope switch, search, a unified filter panel with counts, an archived list, and bulk actions per scope. A program page with Targets, Program details and History tabs, target cards that say what mastery means, drag and arrow reordering with a reset, bulk edit, and CSV export of the history. A behavior page with the definition, a phase control and a recent measurement that keeps a blank apart from a zero. The ABC tab and the lesson notes share the design.
@@ -103,9 +106,20 @@ The authoring counterpart to the analytics. A **Programs** workspace defines pro
 
 ## Work started (not yet landed)
 
-Nothing is pending once the Program Management UX pass is merged. Until then it lives on `feat/program-management-ux`: the work is complete, its gate is described in the pass notes above, and it has not been synced to GHE.
+Nothing is in flight. The Program Management UX pass merged into `main` on 14 November 2026 (`e72cd7d`), and `feat/program-management-ux` is fully merged. This pass (`docs/handoff-ghe-recreated`) only corrects this file and adds `.impeccable/` to `.gitignore`.
 
 When a pass is half-finished, record it here before ending the session: branch, what is done, what is next. Do not leave a pass unrecorded.
+
+## Open housekeeping (as of 26 November 2026)
+
+None of these is a bug. Each needs a decision or a small action from the maintainer.
+
+- **GHE CODEOWNERS.** The CODEOWNERS file for the Welina-gatekeepers team existed on the old GHE history and was never merged. `.github/CODEOWNERS` is not on the new `ghe/main`. Recreate it as a signed commit, through whatever review route the ruleset allows.
+- **Stale `ghe` refs on the maintainer's PC.** The local `ghe` remote still lists branches from the old repository. Run `git fetch ghe --prune` from a network that reaches GHE.
+- **Two unmerged `arena/*` branches on `origin`:** `arena/44798d64-adc` (restores the missing-data flag on counted zeros and fixes the cumulative axis label test) and `arena/cbeba3e2-adc` (44px controls for the access switch and segmented labels). Both are about six weeks old and were never recorded here. Merge or close them. Twenty-six other `arena/*` branches are already merged and can be deleted on the maintainer's word.
+- **Merged local branches** that can be deleted: `docs/agent-handoff`, `feat/dark-mode`, `feat/program-management-spec`, `feat/program-management-ux`, `feat/ui-audit-remediation`, `fix/ux-treatment-area-locator`.
+- **`Program Management.docx`** is still untracked (see Program Management above).
+- **GitHub Actions and Pages for `e72cd7d` on `origin`** have not been checked by an agent. Confirm that the Pages deploy finished.
 
 ## How a pass ends
 

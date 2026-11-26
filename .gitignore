@@ -25,3 +25,6 @@ frontend/.audit/
 .claude/
 Claude outputs/_archify-*
 Claude outputs/*.candidate.json
+
+# Impeccable design tool cache
+.impeccable/
