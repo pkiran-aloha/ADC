@@ -1,5 +1,8 @@
 # Sync ADC Code to GHE — Repeatable Guide
 
+> **Notice, 26 November 2026: this runbook describes the old GHE history.** The GHE repository was recreated on 26 November 2026 with a single root commit (`f233af2`), so Route A and Route B below, and the "last sync" line, no longer apply as written. The organization ruleset also requires signed commits. Until this guide is revised, sync with a signed tree-only commit on top of the current `ghe/main`: `git commit-tree -S <origin/main tree> -p ghe/main -m "Sync from ADC main (<sha>)"`, then fast-forward `ghe/main` to it and `git push ghe main`. See `docs/HANDOFF.md`.
+
+
 Use this whenever you want to push the latest code from the **ADC** repo (GitHub) to the **GHE** master repo.
 
 | | |
